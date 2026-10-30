@@ -1,5 +1,10 @@
 package com.music.bitchord.ui.components
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -17,12 +22,17 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,6 +43,8 @@ import com.music.bitchord.ui.utils.containSheetGestures
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val POPUP_CARD_SHAPE = RoundedCornerShape(ALERT_CORNER)
 private val POPUP_SCRIM_COLOR = Color.Black.copy(alpha = 0.4f)
@@ -62,25 +74,90 @@ internal fun AudioPopupCard(
     doneLabel: String,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    animatedScope: AnimatedVisibilityScope? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+
+    var shown by remember { mutableStateOf(false) }
+    var isDismissing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+
+    val coroutineScope = rememberCoroutineScope()
+    val handleDismiss: () -> Unit = {
+        if (animatedScope != null) {
+            onDismiss()
+        } else if (!isDismissing) {
+            isDismissing = true
+            shown = false
+            coroutineScope.launch {
+                delay(200)
+                onDismiss()
+            }
+        }
+    }
+
+    if (animatedScope == null) {
+        BackHandler(enabled = shown && !isDismissing, onBack = handleDismiss)
+    }
+
+    val selfScale by animateFloatAsState(
+        targetValue = if (shown) 1f else 0.88f,
+        animationSpec = spring(
+            dampingRatio = IosMotion.SPRING_DAMPING,
+            stiffness = IosMotion.SPRING_STIFFNESS,
+        ),
+        label = "audioPopupCardScale",
+    )
+    val selfAlpha by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(if (shown) 220 else 180),
+        label = "audioPopupCardAlpha",
+    )
+    val selfScrimAlpha by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(if (shown) 220 else 180),
+        label = "audioPopupScrimAlpha",
+    )
+
+    val animModifier = if (animatedScope != null) {
+        with(animatedScope) {
+            Modifier.animateEnterExit(
+                enter = IosMotion.modalCardEnter(reduceAnimation),
+                exit = IosMotion.modalCardExit(reduceAnimation),
+            )
+        }
+    } else {
+        Modifier.graphicsLayer {
+            scaleX = selfScale
+            scaleY = selfScale
+            alpha = selfAlpha
+        }
+    }
+
+    val scrimColor = if (animatedScope != null) {
+        POPUP_SCRIM_COLOR
+    } else {
+        POPUP_SCRIM_COLOR.copy(alpha = POPUP_SCRIM_COLOR.alpha * selfScrimAlpha)
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .containSheetGestures()
-            .background(POPUP_SCRIM_COLOR)
+            .background(scrimColor)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
+                onClick = handleDismiss,
             ),
         contentAlignment = Alignment.Center,
     ) {
         Column(
             modifier = Modifier
                 .width(POPUP_WIDTH)
+                .then(animModifier)
                 .clip(POPUP_CARD_SHAPE)
                 .then(
                     if (reduceDynamicBlur) {
@@ -139,7 +216,7 @@ internal fun AudioPopupCard(
             // Full width: the default rule is indented to clear the pipeline's
             // icon lane, which left this one sitting right of centre.
             PipelineRule(Modifier)
-            PipelineDoneAction(label = doneLabel, onClick = onDismiss)
+            PipelineDoneAction(label = doneLabel, onClick = handleDismiss)
         }
     }
 }

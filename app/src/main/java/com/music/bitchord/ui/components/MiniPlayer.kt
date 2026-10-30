@@ -209,6 +209,7 @@ internal fun Modifier.miniPlayerGestures(
     pull: MiniPlayerPull?,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
+    onDismiss: (() -> Unit)? = null,
     /** Listening in a party whose host holds the controls. Swipes say so instead of skipping. */
     locked: Boolean = false,
     onBlocked: () -> Unit = {},
@@ -219,16 +220,19 @@ internal fun Modifier.miniPlayerGestures(
     val currentPull by rememberUpdatedState(pull)
     val currentOnNext by rememberUpdatedState(onNext)
     val currentOnPrevious by rememberUpdatedState(onPrevious)
+    val currentOnDismiss by rememberUpdatedState(onDismiss)
     val currentLocked by rememberUpdatedState(locked)
     val currentOnBlocked by rememberUpdatedState(onBlocked)
     val scope = rememberCoroutineScope()
     // Read at draw only, in the layer below: a pull moves the bar without
     // recomposing it.
     val lift = remember { mutableFloatStateOf(0f) }
+    val dismissOffset = remember { mutableFloatStateOf(0f) }
     val settle = remember { arrayOfNulls<Job>(1) }
     return pointerInput(Unit) {
         val trackThreshold = TRACK_SWIPE_THRESHOLD.toPx()
         val liftEase = PULL_LIFT_EASE.toPx()
+        val dismissThreshold = 68.dp.toPx()
         val maxVelocity = viewConfiguration.maximumFlingVelocity
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -236,6 +240,7 @@ internal fun Modifier.miniPlayerGestures(
             // Up to the slop: which way this is heading, or nothing at all.
             var start: PointerInputChange? = null
             var vertical = false
+            var downward = false
             while (start == null) {
                 val change = awaitPointerEvent().changes.firstOrNull { it.id == pointer }
                     ?: return@awaitEachGesture
@@ -243,12 +248,15 @@ internal fun Modifier.miniPlayerGestures(
                 if (!change.pressed || change.isConsumed) return@awaitEachGesture
                 val moved = change.position - down.position
                 if (moved.getDistance() < viewConfiguration.touchSlop) continue
-                vertical = moved.y < 0f && abs(moved.x) < -moved.y * PULL_BIAS
-                // Downwards has nothing to do on the bar, and nor has a pull
-                // with no player to pull: left as they always were, a drag that
-                // ends inside the bar still counts as its tap.
+
+                val isUpward = moved.y < 0f && abs(moved.x) < -moved.y * PULL_BIAS
+                val isDown = moved.y > 0f && abs(moved.x) < moved.y * PULL_BIAS
+
+                vertical = isUpward || (isDown && currentOnDismiss != null)
+                downward = isDown && currentOnDismiss != null
+
                 if (!vertical && abs(moved.x) < abs(moved.y)) return@awaitEachGesture
-                if (vertical && currentPull == null) return@awaitEachGesture
+                if (isUpward && currentPull == null) return@awaitEachGesture
                 change.consume()
                 start = change
             }
@@ -267,6 +275,40 @@ internal fun Modifier.miniPlayerGestures(
                     currentLocked -> if (crossed) currentOnBlocked()
                     dragged <= -trackThreshold -> currentOnNext()
                     dragged >= trackThreshold -> currentOnPrevious()
+                }
+                return@awaitEachGesture
+            }
+
+            if (downward) {
+                // Downward swipe to dismiss music playback
+                settle[0]?.cancel()
+                val tracker = VelocityTracker()
+                tracker.addPointerInputChange(down)
+                tracker.addPointerInputChange(slopped)
+                var draggedDown = (slopped.position.y - down.position.y).coerceAtLeast(0f)
+                dismissOffset.floatValue = draggedDown
+                val finished = drag(pointer) { change ->
+                    val delta = change.positionChange().y
+                    change.consume()
+                    tracker.addPointerInputChange(change)
+                    draggedDown = (draggedDown + delta).coerceAtLeast(0f)
+                    dismissOffset.floatValue = draggedDown
+                }
+                val flingY = if (finished) tracker.calculateVelocity().y else 0f
+                if (finished && (draggedDown >= dismissThreshold || flingY >= 900f)) {
+                    currentOnDismiss?.invoke()
+                } else {
+                    val from = dismissOffset.floatValue
+                    settle[0] = scope.launch {
+                        animate(
+                            initialValue = from,
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = 0.75f,
+                                stiffness = Spring.StiffnessMediumLow,
+                            ),
+                        ) { value, _ -> dismissOffset.floatValue = value }
+                    }
                 }
                 return@awaitEachGesture
             }
@@ -307,7 +349,15 @@ internal fun Modifier.miniPlayerGestures(
                 ) { value, _ -> lift.floatValue = value }
             }
         }
-    }.graphicsLayer { translationY = -lift.floatValue }
+    }.graphicsLayer {
+        val downY = dismissOffset.floatValue
+        if (downY > 0f) {
+            translationY = downY
+            alpha = (1f - (downY / (72.dp.toPx() * 2f))).coerceIn(0.25f, 1f)
+        } else {
+            translationY = -lift.floatValue
+        }
+    }
 }
 
 /**
@@ -350,6 +400,8 @@ fun MiniPlayer(
     onNext: () -> Unit,
     onPrevious: () -> Unit,
     onExpand: () -> Unit,
+    /** Action to dismiss playback and stop the audio session. */
+    onDismissPlayback: (() -> Unit)? = null,
     /** @see com.music.bitchord.data.listentogether.ListenTogether.State.controlsLocked */
     controlsLocked: Boolean = false,
     onBlockedControl: () -> Unit = {},
@@ -379,6 +431,12 @@ fun MiniPlayer(
                 onPrevious = {
                     haptics.play(Haptic.SkipPrevious)
                     onPrevious()
+                },
+                onDismiss = onDismissPlayback?.let { dismiss ->
+                    {
+                        haptics.play(Haptic.Pause)
+                        dismiss()
+                    }
                 },
                 locked = controlsLocked,
                 onBlocked = onBlockedControl,

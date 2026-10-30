@@ -36,7 +36,10 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -121,12 +124,30 @@ fun PlayerDrawer(
     )
     // Fades with the drawer rather than staying at full strength under a sheet
     // halfway off the screen, which is what makes the drag feel connected.
-    val scrimAlpha = if (height > 0) (1f - offset / height).coerceIn(0f, 1f) else 1f
-
-    // Flipped on the first composition so the drawer travels up from the edge
-    // instead of appearing over the player fully formed.
     var shown by remember { mutableStateOf(false) }
+    var isDismissing by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
+
+    val coroutineScope = rememberCoroutineScope()
+    val handleDismiss: () -> Unit = {
+        if (!isDismissing) {
+            isDismissing = true
+            shown = false
+            coroutineScope.launch {
+                delay(220)
+                onDismiss()
+            }
+        }
+    }
+
+    PlayerBackHandler(enabled = shown && !isDismissing, onBack = handleDismiss)
+
+    val baseScrimAlpha by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(220),
+        label = "playerDrawerScrimAlpha",
+    )
+    val scrimAlpha = if (height > 0) (baseScrimAlpha * (1f - offset / height)).coerceIn(0f, 1f) else baseScrimAlpha
 
     // The drawer's rows scroll, and that scroll takes the finger before the
     // drag detector below ever sees it. So a pull down past the top of the
@@ -140,7 +161,7 @@ fun PlayerDrawer(
     // answers to its own drag alone, because a scroll leftover means something
     // else there and must not be read as a pull.
     val dismissOnRelease: () -> Unit = {
-        if (height > 0 && drag > height * DISMISS_DRAG_FRACTION) onDismiss() else drag = 0f
+        if (height > 0 && drag > height * DISMISS_DRAG_FRACTION) handleDismiss() else drag = 0f
     }
     val drawerScroll = remember {
         object : NestedScrollConnection {
@@ -186,14 +207,24 @@ fun PlayerDrawer(
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
+                onClick = handleDismiss,
             ),
         contentAlignment = Alignment.BottomCenter,
     ) {
         AnimatedVisibility(
             visible = shown,
-            enter = slideInVertically(tween(260, easing = FastOutSlowInEasing)) { it },
-            exit = slideOutVertically(tween(180)) { it },
+            enter = slideInVertically(
+                animationSpec = spring(
+                    dampingRatio = 0.82f,
+                    stiffness = 380f,
+                ),
+            ) { it },
+            exit = slideOutVertically(
+                animationSpec = spring(
+                    dampingRatio = 0.88f,
+                    stiffness = 400f,
+                ),
+            ) { it },
         ) {
         Column(
             modifier = Modifier

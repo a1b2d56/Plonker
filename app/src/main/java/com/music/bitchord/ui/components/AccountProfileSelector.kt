@@ -43,11 +43,12 @@ import com.music.bitchord.auth.GoogleAccountSession
 import com.music.bitchord.auth.YouTubeProfile
 import com.music.bitchord.data.settings.AppSettings
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.animation.AnimatedVisibilityScope
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 
-/** Shared compact selector for every visible YouTube account avatar. */
+/** Shared compact selector for every visible YouTube account avatar with iOS spring animations. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun AccountProfileSelector(
@@ -61,10 +62,22 @@ fun AccountProfileSelector(
     onOpenSettings: () -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
     var managing by remember { mutableStateOf(false) }
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val shape = MaterialTheme.shapes.extraLarge
+
+    val cardAnimationModifier = if (animatedScope != null) {
+        with(animatedScope) {
+            Modifier.animateEnterExit(
+                enter = IosMotion.modalCardEnter(reduceAnimation),
+                exit = IosMotion.modalCardExit(reduceAnimation),
+            )
+        }
+    } else Modifier
+
     Column(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.scrim.copy(alpha = .48f))
             .clickable(onClick = onDismiss),
@@ -77,6 +90,7 @@ fun AccountProfileSelector(
             modifier = Modifier
                 .padding(top = 56.dp, start = 20.dp, end = 20.dp)
                 .fillMaxWidth()
+                .then(cardAnimationModifier)
                 .clip(shape)
                 .then(
                     if (reduceDynamicBlur) {

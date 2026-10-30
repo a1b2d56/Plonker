@@ -57,6 +57,7 @@ fun CastDialog(
     hazeState: HazeState,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    animatedScope: androidx.compose.animation.AnimatedVisibilityScope? = null,
 ) {
     val cast by CastController.state.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
@@ -79,6 +80,7 @@ fun CastDialog(
         doneLabel = stringResource(R.string.done),
         onDismiss = onDismiss,
         modifier = modifier,
+        animatedScope = animatedScope,
     ) {
         Column(Modifier.fillMaxWidth()) {
             PipelineRule(Modifier)
