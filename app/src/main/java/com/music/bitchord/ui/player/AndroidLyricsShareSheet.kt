@@ -137,7 +137,7 @@ internal fun AndroidLyricsShareSheet(
 
             ShareAction(
                 label = stringResource(if (story) R.string.lyrics_share_story_revert else R.string.lyrics_share_story),
-                icon = if (story) Icons.Rounded.Undo else Icons.Rounded.PhoneIphone,
+                icon = if (story) @Suppress("DEPRECATION") Icons.Rounded.Undo else Icons.Rounded.PhoneIphone,
                 accent = false,
                 enabled = image != null,
                 modifier = Modifier.fillMaxWidth(),

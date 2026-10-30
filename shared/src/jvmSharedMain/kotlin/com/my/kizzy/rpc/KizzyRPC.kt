@@ -1,15 +1,3 @@
-/*
- *
- *  ******************************************************************
- *  *  * Copyright (C) 2022
- *  *  * KizzyRPC.kt is part of Kizzy
- *  *  *  and can not be copied and/or distributed without the express
- *  *  * permission of yzziK(Vaibhav)
- *  *  *****************************************************************
- *
- *
- */
-
 package com.my.kizzy.rpc
 
 import com.my.kizzy.gateway.DiscordWebSocket
@@ -26,6 +14,20 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+private val DiscordJson = Json { ignoreUnknownKeys = true }
+
+/*
+ *
+ *  ******************************************************************
+ *  *  * Copyright (C) 2022
+ *  *  * KizzyRPC.kt is part of Kizzy
+ *  *  *  and can not be copied and/or distributed without the express
+ *  *  * permission of yzziK(Vaibhav)
+ *  *  *****************************************************************
+ *
+ *
+ */
 
 /**
  * Modified by Zion Huang
@@ -175,7 +177,7 @@ open class KizzyRPC(
             }.bodyAsText()
             // kotlinx rather than org.json: this module is shared with the
             // desktop, which has no Android JSON on its classpath.
-            val json = Json { ignoreUnknownKeys = true }
+            val json = DiscordJson
                 .parseToJsonElement(response).jsonObject
             fun field(name: String): String? =
                 json[name]?.jsonPrimitive?.contentOrNull?.takeIf { it != "null" }

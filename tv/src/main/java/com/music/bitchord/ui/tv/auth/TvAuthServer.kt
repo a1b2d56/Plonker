@@ -133,9 +133,10 @@ object TvAuthServer {
                 var contentLength = 0
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
-                    if (line.isNullOrBlank()) break
-                    if (line!!.startsWith("Content-Length:", ignoreCase = true)) {
-                        contentLength = line!!.substringAfter(":").trim().toIntOrNull() ?: 0
+                    val l = line ?: break
+                    if (l.isBlank()) break
+                    if (l.startsWith("Content-Length:", ignoreCase = true)) {
+                        contentLength = l.substringAfter(":").trim().toIntOrNull() ?: 0
                     }
                 }
 

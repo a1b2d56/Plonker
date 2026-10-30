@@ -165,7 +165,7 @@ fun TvSongActionMenuDialog(
             item {
                 TvListRow(
                     title = "Play Last",
-                    trailingIcon = Icons.Rounded.PlaylistPlay,
+                    trailingIcon = @Suppress("DEPRECATION") Icons.Rounded.PlaylistPlay,
                     onClick = {
                         mediaController?.addMediaItem(song.toMediaItem())
                         onDismiss()

@@ -85,7 +85,7 @@ internal class UsbDirectTransport private constructor(
     @Volatile private var failure: String? = null
     private var lastFrames = 0L
 
-    private val control = UsbControl { input, request, value, index, data ->
+    private val control: UsbControl = UsbControl { input, request, value, index, data ->
         val reply = UsbDirectNative.control(handle, input, request, value, index, data)
         if (input) reply.copyInto(data)
     }

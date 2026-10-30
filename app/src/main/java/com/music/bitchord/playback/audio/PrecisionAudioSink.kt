@@ -164,6 +164,8 @@ class PrecisionAudioSink(
 
     private val loopScratch = FloatArray(AudioBlock.DEFAULT_CAPACITY_FRAMES * 2)
 
+    @Suppress("DEPRECATION")
+
     override fun configure(audioSinkConfig: AudioSink.AudioSinkConfig) {
         val format = audioSinkConfig.format
         activeFormat = format

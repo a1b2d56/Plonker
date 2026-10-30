@@ -71,7 +71,7 @@ import kotlin.math.roundToInt
  * the full player over the mini player, the landscape player over either — as
  * only one of them is ever on screen at a time.
  */
-@OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 object MusicVideoEngine {
 
     private const val TAG = "MusicVideo"
@@ -549,7 +549,7 @@ object MusicVideoEngine {
  * landed here, so a caller keeps its still artwork underneath and the picture
  * fades in over it. Holds the picture only while the app is on screen.
  */
-@OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 internal fun AndroidMusicVideo(
     videoId: String,

@@ -86,7 +86,7 @@ object SpotifyImporter {
                 .build()
 
             val html = Http.client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
+                val body = response.body.string()
                 if (!response.isSuccessful || body.isBlank()) {
                     error("Failed to load Spotify playlist (HTTP ${response.code})")
                 }
