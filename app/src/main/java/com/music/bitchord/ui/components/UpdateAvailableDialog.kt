@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -90,10 +91,21 @@ fun UpdateAvailableDialog(
     onInstall: () -> Unit,
     onOpenReleasePage: () -> Unit,
     modifier: Modifier = Modifier,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val state by AppUpdateChecker.download.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(ALERT_CORNER)
+
+    val animModifier = if (animatedScope != null) {
+        with(animatedScope) {
+            Modifier.animateEnterExit(
+                enter = IosMotion.modalCardEnter(reduceAnimation),
+                exit = IosMotion.modalCardExit(reduceAnimation),
+            )
+        }
+    } else Modifier
 
     Box(
         modifier = modifier
@@ -113,6 +125,7 @@ fun UpdateAvailableDialog(
         Column(
             modifier = Modifier
                 .width(ALERT_WIDTH)
+                .then(animModifier)
                 .clip(shape)
                 .then(
                     if (reduceDynamicBlur) {

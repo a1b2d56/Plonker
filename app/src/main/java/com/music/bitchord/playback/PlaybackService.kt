@@ -222,6 +222,9 @@ const val ACTION_COMMIT_RADIO_QUEUE = "com.music.bitchord.action.COMMIT_RADIO_QU
 /** Session command behind the player menu's "Upgrade quality". */
 const val ACTION_UPGRADE_QUALITY = "com.music.bitchord.action.UPGRADE_QUALITY"
 
+/** Session command used to dismiss and stop playback from the UI, gestures, or widgets. */
+const val ACTION_DISMISS_PLAYBACK = "com.music.bitchord.action.DISMISS_PLAYBACK"
+
 /**
  * App-side gate for explicit quality retries.
  *
@@ -781,6 +784,7 @@ class PlaybackService : MediaLibraryService() {
     private val upgradeQualityCommand = SessionCommand(ACTION_UPGRADE_QUALITY, Bundle.EMPTY)
     private val swapVersionCommand = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
     private val queueDragCommand = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
+    private val dismissPlaybackCommand = SessionCommand(ACTION_DISMISS_PLAYBACK, Bundle.EMPTY)
 
     private var favoriteActionJob: Job? = null
     private var stationActionJob: Job? = null
@@ -4408,6 +4412,26 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /**
+     * Stop the player, clear all media items, remove the ongoing notification, and reset session state.
+     */
+    private fun dismissPlaybackInternal() {
+        SleepTimer.cancel()
+        cancelPrefetch()
+        clearDiscordPresence()
+        stopLyricsTicker()
+        ListeningRecorder.onStopped()
+        eachPlayer { p ->
+            p.stop()
+            p.clearMediaItems()
+            p.shuffleModeEnabled = false
+        }
+        LastPlayed.clear()
+        BoundedContextPersistence.clear()
+        publishWidgetState(playing = false)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    /**
      * Decides whether a track nothing resolved is worth a second look, now that
      * the decoder has settled enough to say what it is playing.
      *
@@ -7894,6 +7918,7 @@ class PlaybackService : MediaLibraryService() {
                 .add(upgradeQualityCommand)
                 .add(swapVersionCommand)
                 .add(queueDragCommand)
+                .add(dismissPlaybackCommand)
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
@@ -7929,6 +7954,7 @@ class PlaybackService : MediaLibraryService() {
                 ACTION_BEGIN_RADIO_QUEUE -> beginRadioQueue()
                 ACTION_COMMIT_RADIO_QUEUE -> player?.let(::saveQueueSnapshotImmediately)
                 ACTION_UPGRADE_QUALITY -> upgradeQualityNow()
+                ACTION_DISMISS_PLAYBACK -> dismissPlaybackInternal()
                 ACTION_SWAP_VERSION -> {
                     val bundle = args.getBundle(EXTRA_SWAP_MEDIA_ITEM)
                     if (bundle != null) {

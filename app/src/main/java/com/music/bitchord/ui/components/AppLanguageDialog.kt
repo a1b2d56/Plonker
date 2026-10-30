@@ -1,6 +1,7 @@
 package com.music.bitchord.ui.components
 
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -95,14 +96,25 @@ fun AppLanguageDialog(
     hazeState: HazeState,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(ALERT_CORNER)
     // Full script tag (zh-Hant / zh-Hans preserved); legacy bare "zh" reads as Simplified.
     val currentLanguage = com.music.bitchord.data.LocaleTags.normalizeAppTag(
         AppCompatDelegate.getApplicationLocales().get(0)?.toLanguageTag()
             ?: Locale.getDefault().toLanguageTag(),
     )
+
+    val animModifier = if (animatedScope != null) {
+        with(animatedScope) {
+            Modifier.animateEnterExit(
+                enter = IosMotion.modalCardEnter(reduceAnimation),
+                exit = IosMotion.modalCardExit(reduceAnimation),
+            )
+        }
+    } else Modifier
 
     Box(
         modifier = modifier
@@ -118,6 +130,7 @@ fun AppLanguageDialog(
         Column(
             modifier = Modifier
                 .width(ALERT_WIDTH)
+                .then(animModifier)
                 .clip(shape)
                 .then(
                     if (reduceDynamicBlur) {

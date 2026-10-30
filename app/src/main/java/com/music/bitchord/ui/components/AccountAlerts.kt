@@ -46,6 +46,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.settings.AppSettings
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
@@ -64,8 +72,9 @@ fun ListenBrainzTokenAlert(
     onTokenInputChange: (String) -> Unit,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
+    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -112,8 +121,9 @@ fun LastfmLoginAlert(
     loading: Boolean,
     onSignIn: () -> Unit,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
+    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -341,8 +351,9 @@ fun ServerEditorAlert(
     /** Offered only when there is something stored to remove. */
     onRemove: (() -> Unit)? = null,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    AlertScaffold(hazeState = hazeState, onDismiss = { if (!testing) onDismiss() }) {
+    AlertScaffold(hazeState = hazeState, onDismiss = { if (!testing) onDismiss() }, animatedScope = animatedScope) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -455,6 +466,7 @@ fun ServerEditorHost(
     onTest: suspend (List<String>) -> Result<Unit>,
     onSave: (List<String>) -> Unit,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -480,6 +492,7 @@ fun ServerEditorHost(
         statusIsGood = statusIsGood,
         testing = testing,
         canSubmit = canSubmit(values),
+        animatedScope = animatedScope,
         onTest = {
             testing = true
             status = null
@@ -810,25 +823,92 @@ private fun ChoiceRow(
 internal fun AlertScaffold(
     hazeState: HazeState,
     onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    animatedScope: AnimatedVisibilityScope? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(ALERT_CORNER)
 
+    var shown by remember { mutableStateOf(false) }
+    var isDismissing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+
+    val coroutineScope = rememberCoroutineScope()
+    val handleDismiss: () -> Unit = {
+        if (animatedScope != null) {
+            onDismiss()
+        } else if (!isDismissing) {
+            isDismissing = true
+            shown = false
+            coroutineScope.launch {
+                delay(200)
+                onDismiss()
+            }
+        }
+    }
+
+    if (animatedScope == null) {
+        BackHandler(enabled = shown && !isDismissing, onBack = handleDismiss)
+    }
+
+    val selfScale by animateFloatAsState(
+        targetValue = if (shown) 1f else 0.88f,
+        animationSpec = spring(
+            dampingRatio = IosMotion.SPRING_DAMPING,
+            stiffness = IosMotion.SPRING_STIFFNESS,
+        ),
+        label = "alertScaffoldScale",
+    )
+    val selfAlpha by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(if (shown) 220 else 180),
+        label = "alertScaffoldAlpha",
+    )
+    val selfScrimAlpha by animateFloatAsState(
+        targetValue = if (shown) 1f else 0f,
+        animationSpec = tween(if (shown) 220 else 180),
+        label = "alertScaffoldScrimAlpha",
+    )
+
+    val animModifier = if (animatedScope != null) {
+        with(animatedScope) {
+            Modifier.animateEnterExit(
+                enter = IosMotion.modalCardEnter(reduceAnimation),
+                exit = IosMotion.modalCardExit(reduceAnimation),
+            )
+        }
+    } else {
+        Modifier.graphicsLayer {
+            scaleX = selfScale
+            scaleY = selfScale
+            alpha = selfAlpha
+        }
+    }
+
+    val scrimColor = if (animatedScope != null) {
+        SCRIM_COLOR
+    } else {
+        SCRIM_COLOR.copy(alpha = SCRIM_COLOR.alpha * selfScrimAlpha)
+    }
+
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .background(SCRIM_COLOR)
+            .background(scrimColor)
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() },
-                onClick = onDismiss,
+                onClick = handleDismiss,
             ),
         contentAlignment = Alignment.Center,
     ) {
+
         Column(
             modifier = Modifier
                 .width(ALERT_WIDTH)
+                .then(animModifier)
                 .clip(shape)
                 .then(
                     if (reduceDynamicBlur) {

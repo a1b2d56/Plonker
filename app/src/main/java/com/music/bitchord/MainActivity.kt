@@ -19,9 +19,15 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
@@ -155,6 +161,9 @@ import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.LibrarySort
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.ui.components.AccountProfileSelector
+import com.music.bitchord.ui.components.IosModalContainer
+import com.music.bitchord.ui.components.IosMotion
+import com.music.bitchord.playback.ACTION_DISMISS_PLAYBACK
 import com.music.bitchord.ui.navigation.AppDestination
 import com.music.bitchord.ui.navigation.AppRoute
 import com.music.bitchord.ui.components.SpotifyImportAlert
@@ -919,6 +928,17 @@ private fun BitChordApp(
     }
     val controller = rememberMediaController()
     val player = rememberPlayerState(controller)
+    val dismissPlayback: () -> Unit = {
+        if (showNowPlaying) dismissPlayer()
+        controller?.let { c ->
+            c.stop()
+            c.clearMediaItems()
+            c.sendCustomCommand(
+                androidx.media3.session.SessionCommand(ACTION_DISMISS_PLAYBACK, android.os.Bundle.EMPTY),
+                android.os.Bundle.EMPTY,
+            )
+        }
+    }
     // A resume in a party is performed on the instant the server schedules, not
     // when it was pressed, and nothing about the player moves in between — so
     // the transport spends that round trip drawn as though the tap never landed.
@@ -2617,10 +2637,28 @@ private fun BitChordApp(
                             (this as? AppDestination.Route)?.entry?.route is AppRoute.LibraryShowAll
                         val libraryShowAllSwap = (initial.isShowAll() && target == libraryTab) ||
                             (target.isShowAll() && initial == libraryTab)
+                        val isPush = initial is AppDestination.Tab ||
+                            (initial is AppDestination.Release && target is AppDestination.Route)
                         if (tabSwap || libraryShowAllSwap) {
                             EnterTransition.None togetherWith ExitTransition.None
-                        } else {
+                        } else if (reducePlayerMotion) {
                             fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                        } else if (isPush) {
+                            (slideInHorizontally(
+                                initialOffsetX = { (it * 0.92f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
+                            ) + fadeIn(tween(180))) togetherWith (slideOutHorizontally(
+                                targetOffsetX = { (-it * 0.28f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
+                            ) + fadeOut(tween(200)))
+                        } else {
+                            (slideInHorizontally(
+                                initialOffsetX = { (-it * 0.28f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
+                            ) + fadeIn(tween(180))) togetherWith (slideOutHorizontally(
+                                targetOffsetX = { (it * 0.92f).toInt() },
+                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
+                            ) + fadeOut(tween(180)))
                         }
                     },
                     modifier = Modifier
@@ -3825,29 +3863,44 @@ private fun BitChordApp(
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     QueueActionNoticeHost(queueNotice)
-                    player.song?.let { song ->
-                        MiniPlayer(
-                            song = song,
-                            isPlaying = player.isPlaying,
-                            isLoading = playPauseBusy,
-                            hazeState = hazeState,
-                            onPlayPause = {
-                                togglePlayPause()
-                            },
-                            onNext = { controller?.seekToNextMediaItem() },
-                            onPrevious = { controller?.seekToPrevious() },
-                            onExpand = if (reducePlayerMotion) {
-                                { showNowPlaying = true }
-                            } else {
-                                playerSheetMotion::open
-                            },
-                            controlsLocked = controlsLocked,
-                            onBlockedControl = showHostOnlyNotice,
-                            dock = activeDock,
-                            pull = playerSheetMotion.takeIf { !reducePlayerMotion },
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(8.dp))
+                    AnimatedVisibility(
+                        visible = player.song != null,
+                        enter = slideInVertically(
+                            initialOffsetY = { it },
+                            animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f),
+                        ) + fadeIn(tween(200)),
+                        exit = slideOutVertically(
+                            targetOffsetY = { it },
+                            animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
+                        ) + fadeOut(tween(200)),
+                    ) {
+                        player.song?.let { song ->
+                            Column {
+                                MiniPlayer(
+                                    song = song,
+                                    isPlaying = player.isPlaying,
+                                    isLoading = playPauseBusy,
+                                    hazeState = hazeState,
+                                    onPlayPause = {
+                                        togglePlayPause()
+                                    },
+                                    onNext = { controller?.seekToNextMediaItem() },
+                                    onPrevious = { controller?.seekToPrevious() },
+                                    onExpand = if (reducePlayerMotion) {
+                                        { showNowPlaying = true }
+                                    } else {
+                                        playerSheetMotion::open
+                                    },
+                                    onDismissPlayback = dismissPlayback,
+                                    controlsLocked = controlsLocked,
+                                    onBlockedControl = showHostOnlyNotice,
+                                    dock = activeDock,
+                                    pull = playerSheetMotion.takeIf { !reducePlayerMotion },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Spacer(Modifier.height(8.dp))
+                            }
+                        }
                     }
                     FloatingBottomBar(
                         tabs = tabs,
@@ -4374,6 +4427,14 @@ private fun BitChordApp(
                 } else {
                     null
                 },
+                onDismissPlayback = if (fromPlayer || player.song?.videoId == song.videoId) {
+                    {
+                        songActions = null
+                        dismissPlayback()
+                    }
+                } else {
+                    null
+                },
             )
         }
         songActions?.takeIf { songMenuOrigin == null }?.let { song ->
@@ -4847,7 +4908,10 @@ private fun BitChordApp(
         }
 
         // ---- Update available (once per launch; held until the welcome is done) ----
-        if (showUpdateDialog && onboardingComplete) {
+        IosModalContainer(
+            visible = showUpdateDialog && onboardingComplete && updateNotice != null,
+            onDismiss = { showUpdateDialog = false },
+        ) {
             updateNotice?.let { update ->
                 UpdateAvailableDialog(
                     version = update.version,
@@ -4877,20 +4941,26 @@ private fun BitChordApp(
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
                         showUpdateDialog = false
                     },
+                    animatedScope = this,
                 )
             }
         }
 
-        if (showLyricsSources) {
-            BackHandler { showLyricsSources = false }
+        IosModalContainer(
+            visible = showLyricsSources,
+            onDismiss = { showLyricsSources = false },
+        ) {
             LyricsSourcesDialog(
                 hazeState = hazeState,
                 onDismiss = { showLyricsSources = false },
+                animatedScope = this,
             )
         }
 
-        if (songSortMenuOpen) {
-            BackHandler { songSortMenuOpen = false }
+        IosModalContainer(
+            visible = songSortMenuOpen,
+            onDismiss = { songSortMenuOpen = false },
+        ) {
             FrostedSortMenu(
                 hazeState = hazeState,
                 selected = songSort,
@@ -4913,17 +4983,20 @@ private fun BitChordApp(
                     }
                 },
                 onDismiss = { songSortMenuOpen = false },
+                animatedScope = this,
             )
         }
 
         val menuFolder = detail?.browseId?.takeIf { it.isDeviceFolder() }
-        if (folderMenuOpen && menuFolder != null) {
-            BackHandler { folderMenuOpen = false }
+        IosModalContainer(
+            visible = folderMenuOpen && menuFolder != null,
+            onDismiss = { folderMenuOpen = false },
+        ) {
             val downloadsFolder = menuFolder == "local:downloads"
-            val viewType = folderViewTypeOf(menuFolder)
+            val viewType = folderViewTypeOf(menuFolder ?: "")
             FrostedFolderMenu(
                 hazeState = hazeState,
-                sort = folderSortOf(menuFolder),
+                sort = folderSortOf(menuFolder ?: ""),
                 viewType = viewType,
                 onSort = { option ->
                     if (downloadsFolder) AppSettings.setDownloadedMusicSort(option)
@@ -4937,16 +5010,20 @@ private fun BitChordApp(
                     folderMenuOpen = false
                 },
                 onDismiss = { folderMenuOpen = false },
+                animatedScope = this,
             )
         }
 
-        if (showAccountSelector) {
-            BackHandler { showAccountSelector = false }
+        IosModalContainer(
+            visible = showAccountSelector,
+            onDismiss = { showAccountSelector = false },
+        ) {
             AccountProfileSelector(
                 accounts = googleAccounts,
                 activeAccountId = activeAccountId,
                 activeProfileId = activeProfileId,
                 hazeState = hazeState,
+                animatedScope = this,
                 onSelect = { selected, profile -> viewModel.selectProfile(selected.accountId, profile.profileId) },
                 onAddAccount = {
                     showAccountSelector = false
@@ -4964,23 +5041,32 @@ private fun BitChordApp(
             )
         }
 
-        if (showAppLanguage) {
-            BackHandler { showAppLanguage = false }
+        IosModalContainer(
+            visible = showAppLanguage,
+            onDismiss = { showAppLanguage = false },
+        ) {
             AppLanguageDialog(
                 hazeState = hazeState,
                 onDismiss = { showAppLanguage = false },
+                animatedScope = this,
             )
         }
 
-        if (showTranslationLanguage) {
-            BackHandler { showTranslationLanguage = false }
+        IosModalContainer(
+            visible = showTranslationLanguage,
+            onDismiss = { showTranslationLanguage = false },
+        ) {
             TranslationLanguageDialog(
                 hazeState = hazeState,
                 onDismiss = { showTranslationLanguage = false },
+                animatedScope = this,
             )
         }
 
-        if (showListenBrainzLogin) {
+        IosModalContainer(
+            visible = showListenBrainzLogin,
+            onDismiss = { showListenBrainzLogin = false },
+        ) {
             var tokenInput by remember { mutableStateOf(listenBrainzToken) }
             ListenBrainzTokenAlert(
                 hazeState = hazeState,
@@ -4991,10 +5077,14 @@ private fun BitChordApp(
                     showListenBrainzLogin = false
                 },
                 onDismiss = { showListenBrainzLogin = false },
+                animatedScope = this,
             )
         }
 
-        if (showLastfmLogin) {
+        IosModalContainer(
+            visible = showLastfmLogin,
+            onDismiss = { showLastfmLogin = false },
+        ) {
             var usernameInput by remember { mutableStateOf("") }
             var passwordInput by remember { mutableStateOf("") }
             var lastfmError by remember { mutableStateOf<String?>(null) }
@@ -5007,6 +5097,7 @@ private fun BitChordApp(
                 onPasswordInputChange = { passwordInput = it },
                 error = lastfmError,
                 loading = lastfmLoading,
+                animatedScope = this,
                 onSignIn = {
                     lastfmLoading = true
                     lastfmError = null
@@ -5037,8 +5128,10 @@ private fun BitChordApp(
             )
         }
 
-        if (showWebDavEditor) {
-            BackHandler { showWebDavEditor = false }
+        IosModalContainer(
+            visible = showWebDavEditor,
+            onDismiss = { showWebDavEditor = false },
+        ) {
             ServerEditorHost(
                 hazeState = hazeState,
                 title = stringResource(R.string.webdav),
@@ -5076,6 +5169,7 @@ private fun BitChordApp(
                     showWebDavEditor = false
                 },
                 onDismiss = { showWebDavEditor = false },
+                animatedScope = this,
             )
         }
 
@@ -5324,8 +5418,9 @@ private fun FrostedSortMenu(
     onSelect: (SongSort) -> Unit,
     onFlipDateDirection: () -> Unit,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    FrostedMenuPanel(hazeState = hazeState, onDismiss = onDismiss) {
+    FrostedMenuPanel(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
         // Date added is one row, Spotify-style: the arrow on it shows
         // the direction — up for newest first, down for oldest — and
         // tapping flips it, the rotation animating the flip. Up is
@@ -5384,8 +5479,9 @@ private fun FrostedFolderMenu(
     onSort: (LocalMusicSort) -> Unit,
     onToggleViewType: () -> Unit,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    FrostedMenuPanel(hazeState = hazeState, onDismiss = onDismiss) {
+    FrostedMenuPanel(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
         val grid = viewType == LibraryViewType.GRID
         FrostedMenuRow(
             label = stringResource(if (grid) R.string.switch_to_list_view else R.string.switch_to_grid_view),
@@ -5409,15 +5505,26 @@ private fun FrostedFolderMenu(
 }
 
 /** The scrim and frosted panel both top-bar menus are drawn on. */
-@OptIn(ExperimentalHazeMaterialsApi::class)
+@OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalAnimationApi::class)
 @Composable
 private fun FrostedMenuPanel(
     hazeState: HazeState,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val shape = MaterialTheme.shapes.extraLarge
+    val animModifier = if (animatedScope != null) {
+        with(animatedScope) {
+            Modifier.animateEnterExit(
+                enter = IosMotion.modalCardEnter(reduceAnimation),
+                exit = IosMotion.modalCardExit(reduceAnimation),
+            )
+        }
+    } else Modifier
+
     Box(
         Modifier
             .fillMaxSize()
@@ -5432,6 +5539,7 @@ private fun FrostedMenuPanel(
             modifier = Modifier
                 .padding(top = 56.dp, end = 20.dp)
                 .width(IntrinsicSize.Max)
+                .then(animModifier)
                 .clip(shape)
                 .then(
                     if (reduceDynamicBlur) {

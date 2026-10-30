@@ -183,6 +183,8 @@ fun SongActionsSheet(
      * except the player, where "this track" means something.
      */
     onCopyLog: (() -> Unit)? = null,
+    /** Dismisses playback and closes the player. */
+    onDismissPlayback: (() -> Unit)? = null,
     /** Opens the timing control offered only by the main player's menu. */
     onLyricsOffset: (() -> Unit)? = null,
     /**
@@ -385,6 +387,14 @@ fun SongActionsSheet(
         // the one row here nobody reaches for by accident.
         onCopyLog?.let {
             ActionRow(Icons.Rounded.BugReport, stringResource(R.string.copy_log), accent = palette.accent, onClick = it)
+        }
+        onDismissPlayback?.let {
+            ActionRow(
+                Icons.Rounded.Close,
+                stringResource(R.string.dismiss_playback),
+                accent = MaterialTheme.colorScheme.error,
+                onClick = it,
+            )
         }
     }
 
