@@ -59,7 +59,7 @@ kotlin {
     sourceSets {
         // Both targets are JVMs, so the UI is written once against the JDK here
         // rather than in commonMain.
-        val jvmSharedMain by creating {
+        val jvmSharedMain = create("jvmSharedMain") {
             dependsOn(commonMain.get())
         }
         androidMain.get().dependsOn(jvmSharedMain)

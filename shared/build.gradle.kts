@@ -24,7 +24,7 @@ kotlin {
     applyDefaultHierarchyTemplate()
 
     sourceSets {
-        val jvmSharedMain by creating {
+        val jvmSharedMain = create("jvmSharedMain") {
             dependsOn(commonMain.get())
             dependencies {
                 // Compile-only: the two applications supply the runtime artifact themselves.
