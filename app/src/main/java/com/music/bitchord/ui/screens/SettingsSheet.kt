@@ -549,7 +549,7 @@ fun SettingsScreen(
                     title = exportDownloadsTitle,
                     checked = exportDownloads,
                     onCheckedChange = AppSettings::setExportDownloads,
-                    subtitle = "Music/BitChord".takeIf { exportDownloads },
+                    subtitle = "Music/Plonker".takeIf { exportDownloads },
                 )
             }
         }
@@ -1195,6 +1195,7 @@ fun SettingsScreen(
                             stringResource(R.string.song_cache_large_subtitle, cacheLimitLabel)
                         else -> stringResource(R.string.song_cache_limit_subtitle)
                     },
+                    subtitleMinLines = 3,
                     value = cacheLimitLabel,
                     sliderValue = cacheLimitMb.toFloat(),
                     onSliderValue = {
@@ -2487,6 +2488,7 @@ internal fun SettingsRow(
                     color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 if (badge != null) {
                     Spacer(Modifier.width(8.dp))
@@ -2550,6 +2552,7 @@ internal fun SettingsSubRow(
                     color = MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
                 if (badge != null) {
                     Spacer(Modifier.width(8.dp))
@@ -2578,12 +2581,14 @@ internal fun SettingsSubRow(
 
 /** Marks the connection whose ceiling is actually in force right now. */
 @Composable
-internal fun Badge(text: String) {
+internal fun Badge(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text.uppercase(Locale.ROOT),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
+        maxLines = 1,
+        softWrap = false,
+        modifier = modifier
             .clip(RoundedCornerShape(5.dp))
             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
             .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -2612,6 +2617,7 @@ internal fun SliderRow(
     valueRange: ClosedFloatingPointRange<Float>,
     steps: Int,
     subtitle: String? = null,
+    subtitleMinLines: Int = 1,
 ) {
     val colors = SliderDefaults.colors(
         thumbColor = MaterialTheme.colorScheme.primary,
@@ -2619,12 +2625,14 @@ internal fun SliderRow(
         inactiveTrackColor = MaterialTheme.colorScheme.outline,
     )
     Column(Modifier.padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.Top) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.size(ICON_SIZE),
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(ICON_SIZE),
             )
             Spacer(Modifier.width(ICON_GAP))
             Column(Modifier.weight(1f)) {
@@ -2638,6 +2646,7 @@ internal fun SliderRow(
                         text = subtitle,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        minLines = subtitleMinLines,
                     )
                 }
             }
@@ -2646,8 +2655,10 @@ internal fun SliderRow(
                 text = value,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
+        Spacer(Modifier.height(4.dp))
         Slider(
             value = sliderValue,
             onValueChange = onSliderValue,

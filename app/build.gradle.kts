@@ -237,7 +237,7 @@ kotlin {
  * the transitive dependencies it would otherwise have carried are declared by
  * hand in the dependencies block below, since dropping the module drops them too.
  */
-val newPipeExtractorRaw: Configuration by configurations.creating {
+val newPipeExtractorRaw = configurations.create("newPipeExtractorRaw") {
     isTransitive = false
     isCanBeConsumed = false
 }
