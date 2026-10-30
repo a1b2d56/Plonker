@@ -89,10 +89,7 @@ object Http {
         val request = chain.request()
         val response = chain.proceed(request)
         val body = response.body
-        if (body == null) {
-            response
-        } else {
-            val host = request.url.host
+        val host = request.url.host
             val range = request.header("Range")
             val counting = CountingSource(body.source()) { bytes ->
                 val total = usageTotals.computeIfAbsent(host) { AtomicLong() }.addAndGet(bytes)
@@ -102,8 +99,7 @@ object Http {
                         "range=$range status=${response.code} bytes=$bytes total[$host]=$total",
                 )
             }.buffer()
-            response.newBuilder().body(CountedBody(body, counting)).build()
-        }
+        response.newBuilder().body(CountedBody(body, counting)).build()
     }
     // ---- End temporary instrumentation ----------------------------------
 

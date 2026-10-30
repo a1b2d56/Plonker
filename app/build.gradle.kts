@@ -250,7 +250,7 @@ val newPipeExtractorStripped = tasks.register<org.gradle.api.tasks.bundling.Jar>
 ) {
     archiveFileName.set("NewPipeExtractor-v0.26.3-noutils.jar")
     destinationDirectory.set(layout.buildDirectory.dir("stripped-libs"))
-    from(provider { newPipeExtractorRaw.map { zipTree(it) } }) {
+    from(newPipeExtractorRaw.elements.map { files -> files.map { zipTree(it.asFile) } }) {
         // The class itself, plus any nested or synthetic siblings the upstream
         // compiler emitted alongside it, so nothing from the jar's Utils survives.
         exclude("org/schabi/newpipe/extractor/utils/Utils.class")

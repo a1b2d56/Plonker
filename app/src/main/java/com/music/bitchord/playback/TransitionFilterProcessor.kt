@@ -250,6 +250,8 @@ class TransitionFilterProcessor : BaseAudioProcessor() {
         return inputAudioFormat
     }
 
+    @Suppress("OVERRIDE_DEPRECATION")
+
     override fun onFlush() {
         lowState.fill(0f)
         highState.fill(0f)
