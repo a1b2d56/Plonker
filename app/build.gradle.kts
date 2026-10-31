@@ -195,9 +195,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
         resources {
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            // Picnic post-quantum tables in Bouncy Castle are never used by SMB or ADB certificates.
+            excludes += "org/bouncycastle/pqc/**"
             // The three BouncyCastle jars (bcprov, bcutil, bcpkix) ship one licence between them.
             pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md")
         }
