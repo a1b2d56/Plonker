@@ -42,8 +42,9 @@ object AppUpdateChecker {
 
     private const val CACHE_SUBDIR = "updates"
 
-    private const val LATEST_RELEASE_URL =
-        "https://api.github.com/repos/kushagrasinghx/BitChord/releases/latest"
+    // Update checking is commented out until Plonker releases repo is configured.
+    // private const val LATEST_RELEASE_URL =
+    //     "https://api.github.com/repos/kushagrasinghx/BitChord/releases/latest"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -66,10 +67,12 @@ object AppUpdateChecker {
     private var downloadCancelled = false
 
     suspend fun check() = withContext(Dispatchers.IO) {
+        // Disabled for Plonker until Plonker releases repo is configured.
+        /*
         runCatching {
             val request = Request.Builder().url(LATEST_RELEASE_URL).build()
             val body = Http.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) null else response.body?.string()
+                if (!response.isSuccessful) null else response.body.string()
             } ?: return@runCatching
             val release = json.parseToJsonElement(body) as? JsonObject ?: return@runCatching
             val tag = release["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@runCatching
@@ -81,6 +84,7 @@ object AppUpdateChecker {
                 _available.value = UpdateInfo(latest, url, apkUrl, notes)
             }
         }
+        */
     }
 
     /**
