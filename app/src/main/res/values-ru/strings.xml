@@ -1468,4 +1468,8 @@
     <string name="bit_perfect_status_inexact">%1$s · неточно: этот источник не является PCM без потерь</string>
     <string name="bit_perfect_status_waiting">Ожидание трека без потерь на поддерживаемом выходе</string>
     <string name="bit_perfect_status_unavailable">Недоступно для этого трека (%1$s)</string>
+    <string name="playback_speed">Скорость воспроизведения</string>
+    <string name="playback_speed_normal">Обычная (1.0×)</string>
+    <string name="playback_speed_reset">Сбросить на 1.0×</string>
+    <string name="dismiss_playback">Закрыть воспроизведение</string>
 </resources>

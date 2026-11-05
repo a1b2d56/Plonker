@@ -1436,4 +1436,8 @@
     <string name="bit_perfect_status_inexact">%1$s · nicht exakt: Diese Quelle ist kein verlustfreies PCM</string>
     <string name="bit_perfect_status_waiting">Warte auf einen verlustfreien Titel an einem unterstützten Ausgang</string>
     <string name="bit_perfect_status_unavailable">Für diesen Titel nicht verfügbar (%1$s)</string>
+    <string name="playback_speed">Wiedergabegeschwindigkeit</string>
+    <string name="playback_speed_normal">Normal (1.0×)</string>
+    <string name="playback_speed_reset">Auf 1.0× zurücksetzen</string>
+    <string name="dismiss_playback">Wiedergabe beenden</string>
 </resources>

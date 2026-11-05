@@ -1441,4 +1441,8 @@
     <string name="bit_perfect_status_inexact">%1$s · לא מדויק: המקור הזה אינו PCM ללא אובדן</string>
     <string name="bit_perfect_status_waiting">ממתין לרצועת Lossless ביציאה נתמכת</string>
     <string name="bit_perfect_status_unavailable">לא זמין עבור רצועה זו (%1$s)</string>
+    <string name="playback_speed">מהירות הפעלה</string>
+    <string name="playback_speed_normal">רגיל (1.0×)</string>
+    <string name="playback_speed_reset">איפוס ל-1.0×</string>
+    <string name="dismiss_playback">סגור השמעה</string>
 </resources>

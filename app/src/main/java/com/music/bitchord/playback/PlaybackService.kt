@@ -6542,10 +6542,31 @@ class PlaybackService : MediaLibraryService() {
         scope.launch {
             SleepTimer.deadline.collectLatest { deadline ->
                 if (deadline == null) return@collectLatest
-                val remaining = deadline - SystemClock.elapsedRealtime()
-                if (remaining > 0) delay(remaining)
-                player?.pause()
-                SleepTimer.cancel()
+                try {
+                    val remaining = deadline - SystemClock.elapsedRealtime()
+                    val fadeDurationMs = minOf(10_000L, remaining.coerceAtLeast(0L) / 2)
+                    val preFadeWaitMs = remaining - fadeDurationMs
+                    if (preFadeWaitMs > 0) {
+                        delay(preFadeWaitMs)
+                    }
+
+                    // Smooth volume fade-out curve over fadeDurationMs
+                    if (fadeDurationMs > 0) {
+                        val fadeSteps = 20
+                        val stepDelayMs = fadeDurationMs / fadeSteps
+                        for (i in (fadeSteps - 1) downTo 0) {
+                            val targetVol = (i.toFloat() / fadeSteps).coerceIn(0f, 1f)
+                            player?.volume = targetVol
+                            delay(stepDelayMs)
+                        }
+                    }
+
+                    player?.pause()
+                    SleepTimer.cancel()
+                } finally {
+                    // Always ensure volume is restored to full on completion or cancellation
+                    player?.volume = 1.0f
+                }
             }
         }
     }
@@ -9324,8 +9345,8 @@ class PlaybackService : MediaLibraryService() {
         /** Length of a FLAC STREAMINFO block, which the format fixes at 34 bytes. */
         const val STREAM_INFO_BYTES = 34
 
-        const val CHANNEL_ID = "bitchord_playback"
-        const val SESSION_ID = "BitChordPlayback"
+        const val CHANNEL_ID = "plonker_playback"
+        const val SESSION_ID = "PlonkerPlayback"
 
         /** How often played-seconds are sampled off the player. */
         const val PROGRESS_SAMPLE_MS = 5_000L

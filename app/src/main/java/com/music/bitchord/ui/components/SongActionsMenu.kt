@@ -5,6 +5,9 @@ import com.music.bitchord.ui.icons.SfIcons
 import com.music.bitchord.ui.components.trackArtSize
 import androidx.compose.ui.layout.ContentScale
 import com.music.bitchord.R
+import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.ui.haptics.Haptic
+import com.music.bitchord.ui.haptics.rememberHaptics
 
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -184,6 +187,7 @@ fun SongActionsMenu(
 ) {
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
     var pickingSleepTimer by remember { mutableStateOf(false) }
+    var pickingSpeed by remember { mutableStateOf(false) }
     // A menu has no pages to swap, so Song Info opens as a dialog.
     if (showingSongInfo) SongInfoDialog(song) { showingSongInfo = false }
     // Neutral rather than the sleeve's colours: the panel floats over the page
@@ -383,6 +387,12 @@ fun SongActionsMenu(
                     value = sleepTimerStatus(),
                     accent = palette.accent,
                 ) { pickingSleepTimer = true }
+                ActionRow(
+                    icon = SfIcons.Tune,
+                    label = stringResource(R.string.playback_speed),
+                    value = playbackSpeedDisplay(),
+                    accent = palette.accent,
+                ) { pickingSpeed = true }
             }
             // Local files and completed downloads use the same player lyric
             // clock (including embedded synced lyrics), so they need this
@@ -416,6 +426,8 @@ fun SongActionsMenu(
             // the picker in place.
             if (pickingSleepTimer) {
                 SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
+            } else if (pickingSpeed) {
+                PlaybackSpeedPicker(palette = palette, onBack = { pickingSpeed = false })
             } else {
                 rows()
             }
@@ -985,4 +997,100 @@ internal fun SheetHeading(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 4.dp),
     )
+}
+
+
+@Composable
+private fun playbackSpeedDisplay(): String {
+    val speed by AppSettings.playbackSpeed.collectAsStateWithLifecycle()
+    return if (speed == 1.0f) stringResource(R.string.playback_speed_normal) else "${String.format(Locale.US, "%.2f", speed)}×"
+}
+
+@Composable
+private fun PlaybackSpeedPicker(palette: ArtworkPalette, onBack: () -> Unit) {
+    val currentSpeed by AppSettings.playbackSpeed.collectAsStateWithLifecycle()
+    val haptics = rememberHaptics()
+    val colors = iosMenuColors()
+    val speedPresets = remember { listOf(0.5f, 0.75f, 0.9f, 1.0f, 1.1f, 1.25f, 1.5f, 2.0f) }
+
+    Column(Modifier.fillMaxWidth()) {
+        SleepTimerHeader(
+            title = stringResource(R.string.playback_speed),
+            subtitle = if (currentSpeed == 1.0f) {
+                stringResource(R.string.playback_speed_normal)
+            } else {
+                "${String.format(Locale.US, "%.2f", currentSpeed)}×"
+            },
+            onBack = onBack,
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "0.5×",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.secondaryLabel,
+                )
+                Text(
+                    text = "${String.format(Locale.US, "%.2f", currentSpeed)}×",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.label,
+                )
+                Text(
+                    text = "2.0×",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.secondaryLabel,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            IosSlider(
+                value = currentSpeed,
+                onValueChange = { raw ->
+                    val rounded = (kotlin.math.round(raw * 20f) / 20f).coerceIn(0.5f, 2.0f)
+                    if (rounded != currentSpeed) {
+                        AppSettings.setPlaybackSpeed(rounded)
+                        haptics.play(Haptic.Select)
+                    }
+                },
+                valueRange = 0.5f..2.0f,
+                steps = 29,
+                activeColor = palette.accent,
+                inactiveColor = colors.secondaryLabel.copy(alpha = 0.25f),
+            )
+        }
+
+        HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+
+        speedPresets.forEach { preset ->
+            SleepOption(
+                label = if (preset == 1.0f) stringResource(R.string.playback_speed_normal) else "${preset}×",
+                selected = currentSpeed == preset,
+                accent = palette.accent,
+            ) {
+                haptics.play(Haptic.Select)
+                AppSettings.setPlaybackSpeed(preset)
+            }
+        }
+
+        if (currentSpeed != 1.0f) {
+            HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+            ActionRow(
+                icon = SfIcons.Revert,
+                label = stringResource(R.string.playback_speed_reset),
+                accent = palette.accent,
+            ) {
+                haptics.play(Haptic.Select)
+                AppSettings.setPlaybackSpeed(1.0f)
+            }
+        }
+    }
 }

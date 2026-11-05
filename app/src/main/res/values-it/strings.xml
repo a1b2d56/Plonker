@@ -1375,4 +1375,8 @@
     <string name="bit_perfect_status_inexact">%1$s · non esatto: questa sorgente non è PCM lossless</string>
     <string name="bit_perfect_status_waiting">In attesa di un brano lossless su un\'uscita supportata</string>
     <string name="bit_perfect_status_unavailable">Non disponibile per questo brano (%1$s)</string>
+    <string name="playback_speed">Velocità di riproduzione</string>
+    <string name="playback_speed_normal">Normale (1.0×)</string>
+    <string name="playback_speed_reset">Ripristina a 1.0×</string>
+    <string name="dismiss_playback">Chiudi riproduzione</string>
 </resources>

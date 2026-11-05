@@ -1393,4 +1393,8 @@
     <string name="bit_perfect_status_inexact">%1$s · tam değil: bu kaynak kayıpsız PCM değil</string>
     <string name="bit_perfect_status_waiting">Desteklenen bir çıkışta kayıpsız parça bekleniyor</string>
     <string name="bit_perfect_status_unavailable">Bu parça için kullanılamıyor (%1$s)</string>
+    <string name="playback_speed">Oynatma hızı</string>
+    <string name="playback_speed_normal">Normal (1.0×)</string>
+    <string name="playback_speed_reset">1.0× değerine sıfırla</string>
+    <string name="dismiss_playback">Oynatmayı kapat</string>
 </resources>

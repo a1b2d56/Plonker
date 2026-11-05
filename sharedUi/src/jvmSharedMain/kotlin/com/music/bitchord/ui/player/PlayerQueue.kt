@@ -10,6 +10,14 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.music.bitchord.ui.haptics.Haptic
+import com.music.bitchord.ui.haptics.rememberHaptics
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -736,17 +744,80 @@ private fun InlineQueueRow(
     onDrag: (Float) -> Unit = {},
     onDragEnd: () -> Unit = {},
 ) {
-    Row(
+    val swipeOffset = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
+    val density = LocalDensity.current
+    val dismissThresholdPx = with(density) { 72.dp.toPx() }
+
+    val swipeGesture = if (!isCurrent && !locked && !lifted) {
+        Modifier.pointerInput(Unit) {
+            detectHorizontalDragGestures(
+                onDragEnd = {
+                    if (swipeOffset.value <= -dismissThresholdPx) {
+                        scope.launch {
+                            haptics.play(Haptic.Tap)
+                            swipeOffset.animateTo(-1200f, tween(durationMillis = 180, easing = FastOutSlowInEasing))
+                            onRemove()
+                        }
+                    } else {
+                        scope.launch {
+                            swipeOffset.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
+                        }
+                    }
+                },
+                onDragCancel = {
+                    scope.launch {
+                        swipeOffset.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+                onHorizontalDrag = { change, dragAmount ->
+                    if (dragAmount < 0f || swipeOffset.value < 0f) {
+                        change.consume()
+                        val newOffset = (swipeOffset.value + dragAmount).coerceAtMost(0f)
+                        scope.launch { swipeOffset.snapTo(newOffset) }
+                    }
+                }
+            )
+        }
+    } else Modifier
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (lifted) Color.White.copy(alpha = 0.06f) else Color.Transparent)
-            // Disabled rather than ignored: a tap that ripples and then does
-            // nothing reads as the app having missed it.
-            .clickable(enabled = !locked, onClick = onClick)
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(RoundedCornerShape(8.dp)),
     ) {
+        if (!isCurrent && !locked && swipeOffset.value < 0f) {
+            val deleteAlpha = (-swipeOffset.value / dismissThresholdPx).coerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color(0xFFE53935).copy(alpha = deleteAlpha * 0.9f))
+                    .padding(end = 16.dp),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = stringResource(Res.string.remove_from_queue),
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
+                .then(swipeGesture)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (lifted) Color.White.copy(alpha = 0.06f) else Color.Transparent)
+                // Disabled rather than ignored: a tap that ripples and then does
+                // nothing reads as the app having missed it.
+                .clickable(enabled = !locked, onClick = onClick)
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
         if (draggable) {
             Icon(
                 Icons.Rounded.DragHandle,
@@ -821,5 +892,6 @@ private fun InlineQueueRow(
                 )
             }
         }
+    }
     }
 }

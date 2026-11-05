@@ -227,10 +227,13 @@ internal fun Modifier.miniPlayerGestures(
     val currentLocked by rememberUpdatedState(locked)
     val currentOnBlocked by rememberUpdatedState(onBlocked)
     val scope = rememberCoroutineScope()
+    val haptics = rememberHaptics()
+    val currentHaptics by rememberUpdatedState(haptics)
     // Read at draw only, in the layer below: a pull moves the bar without
     // recomposing it.
     val lift = remember { mutableFloatStateOf(0f) }
     val dismissOffset = remember { mutableFloatStateOf(0f) }
+    val horizontalSwipe = remember { mutableFloatStateOf(0f) }
     val settle = remember { arrayOfNulls<Job>(1) }
     return pointerInput(Unit) {
         val trackThreshold = TRACK_SWIPE_THRESHOLD.toPx()
@@ -266,18 +269,38 @@ internal fun Modifier.miniPlayerGestures(
             val slopped = start
 
             if (!vertical) {
+                settle[0]?.cancel()
                 var dragged = slopped.position.x - down.position.x
+                horizontalSwipe.floatValue = dragged * 0.35f
                 // Read before consuming: a consumed change reports no movement.
                 val finished = drag(pointer) { change ->
-                    dragged += change.positionChange().x
+                    val dx = change.positionChange().x
+                    dragged += dx
+                    horizontalSwipe.floatValue = dragged * 0.35f
                     change.consume()
                 }
-                if (!finished) return@awaitEachGesture
                 val crossed = dragged <= -trackThreshold || dragged >= trackThreshold
                 when {
                     currentLocked -> if (crossed) currentOnBlocked()
-                    dragged <= -trackThreshold -> currentOnNext()
-                    dragged >= trackThreshold -> currentOnPrevious()
+                    dragged <= -trackThreshold -> {
+                        currentHaptics.play(Haptic.SkipNext)
+                        currentOnNext()
+                    }
+                    dragged >= trackThreshold -> {
+                        currentHaptics.play(Haptic.SkipPrevious)
+                        currentOnPrevious()
+                    }
+                }
+                val fromX = horizontalSwipe.floatValue
+                settle[0] = scope.launch {
+                    animate(
+                        initialValue = fromX,
+                        targetValue = 0f,
+                        animationSpec = spring(
+                            dampingRatio = 0.72f,
+                            stiffness = Spring.StiffnessMediumLow,
+                        ),
+                    ) { value, _ -> horizontalSwipe.floatValue = value }
                 }
                 return@awaitEachGesture
             }
@@ -353,6 +376,7 @@ internal fun Modifier.miniPlayerGestures(
             }
         }
     }.graphicsLayer {
+        translationX = horizontalSwipe.floatValue
         val downY = dismissOffset.floatValue
         if (downY > 0f) {
             translationY = downY
