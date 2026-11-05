@@ -1414,4 +1414,8 @@
     <string name="bit_perfect_status_inexact">%1$s · 正確ではありません： このソースはロスレス PCM ではありません</string>
     <string name="bit_perfect_status_waiting">対応する出力でロスレスのトラックを待っています</string>
     <string name="bit_perfect_status_unavailable">このトラックでは利用できません（%1$s）</string>
+    <string name="playback_speed">再生速度</string>
+    <string name="playback_speed_normal">標準 (1.0×)</string>
+    <string name="playback_speed_reset">1.0× にリセット</string>
+    <string name="dismiss_playback">再生を終了</string>
 </resources>

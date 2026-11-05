@@ -1476,4 +1476,8 @@
     <string name="bit_perfect_status_inexact">%1$s · niedokładne: to źródło nie jest bezstratnym PCM</string>
     <string name="bit_perfect_status_waiting">Oczekiwanie na bezstratny utwór na obsługiwanym wyjściu</string>
     <string name="bit_perfect_status_unavailable">Niedostępne dla tego utworu (%1$s)</string>
+    <string name="playback_speed">Prędkość odtwarzania</string>
+    <string name="playback_speed_normal">Normalna (1.0×)</string>
+    <string name="playback_speed_reset">Resetuj do 1.0×</string>
+    <string name="dismiss_playback">Zamknij odtwarzanie</string>
 </resources>

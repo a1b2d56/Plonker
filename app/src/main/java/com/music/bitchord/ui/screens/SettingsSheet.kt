@@ -1,6 +1,7 @@
 package com.music.bitchord.ui.screens
 
 import com.music.bitchord.ui.icons.SfIcons
+import com.music.bitchord.ui.components.IosSlider
 import com.music.bitchord.wear.WatchInstaller
 import android.content.Context
 import androidx.annotation.StringRes
@@ -2551,11 +2552,6 @@ internal fun SliderRow(
     subtitle: String? = null,
     subtitleMinLines: Int = 1,
 ) {
-    val colors = SliderDefaults.colors(
-        thumbColor = MaterialTheme.colorScheme.primary,
-        activeTrackColor = MaterialTheme.colorScheme.primary,
-        inactiveTrackColor = MaterialTheme.colorScheme.outline,
-    )
     Column(Modifier.padding(start = ROW_INSET, end = ROW_INSET, top = 12.dp, bottom = 4.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             Icon(
@@ -2591,22 +2587,13 @@ internal fun SliderRow(
             )
         }
         Spacer(Modifier.height(4.dp))
-        Slider(
+        IosSlider(
             value = sliderValue,
             onValueChange = onSliderValue,
             valueRange = valueRange,
             steps = steps,
-            colors = colors,
-            // Bare track: the step ticks and the end-stop dot are noise when the
-            // value is already spelled out on the line above.
-            track = { state ->
-                SliderDefaults.Track(
-                    sliderState = state,
-                    colors = colors,
-                    drawStopIndicator = null,
-                    drawTick = { _, _ -> },
-                )
-            },
+            activeColor = MaterialTheme.colorScheme.primary,
+            inactiveColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f),
             modifier = Modifier.padding(start = ICON_SIZE + ICON_GAP),
         )
     }

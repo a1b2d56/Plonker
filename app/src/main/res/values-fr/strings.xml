@@ -1437,4 +1437,8 @@
     <string name="bit_perfect_status_inexact">%1$s · inexact : cette source n\'est pas du PCM sans perte</string>
     <string name="bit_perfect_status_waiting">En attente d\'un morceau sans perte sur une sortie compatible</string>
     <string name="bit_perfect_status_unavailable">Indisponible pour ce morceau (%1$s)</string>
+    <string name="playback_speed">Vitesse de lecture</string>
+    <string name="playback_speed_normal">Normal (1.0×)</string>
+    <string name="playback_speed_reset">Réinitialiser à 1.0×</string>
+    <string name="dismiss_playback">Arrêter la lecture</string>
 </resources>

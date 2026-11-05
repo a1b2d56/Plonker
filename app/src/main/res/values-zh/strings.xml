@@ -1413,4 +1413,8 @@
     <string name="bit_perfect_status_inexact">%1$s · 不精确：此音源不是无损 PCM</string>
     <string name="bit_perfect_status_waiting">正在等待受支持输出上的无损曲目</string>
     <string name="bit_perfect_status_unavailable">此曲目不可用（%1$s）</string>
+    <string name="playback_speed">播放速度</string>
+    <string name="playback_speed_normal">正常 (1.0×)</string>
+    <string name="playback_speed_reset">重置为 1.0×</string>
+    <string name="dismiss_playback">关闭播放</string>
 </resources>

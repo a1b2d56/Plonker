@@ -1336,7 +1336,7 @@
     <string name="song_info_unavailable">暫無資訊</string>
     <string name="song_info_error">部分資訊無法載入。</string>
     <string name="song_info_retry">重試</string>
-    <string name="wear_os_section">適用於 Wear OS 的 BitChord</string>
+    <string name="wear_os_section">適用於 Wear OS 的 Plonker</string>
     <string name="wear_os_page_title">Wear OS</string>
     <string name="wear_os_your_watches">你的手錶</string>
     <string name="wear_os_value_none">沒有手錶</string>
@@ -1346,7 +1346,7 @@
     <string name="wear_os_no_watch">未連線任何手錶</string>
     <string name="wear_os_no_watch_subtitle">請先在 Wear OS 手錶的配套應用程式中將其與這支手機配對。</string>
     <string name="wear_os_checking">正在檢查…</string>
-    <string name="wear_os_not_installed">這支手錶上沒有 BitChord</string>
+    <string name="wear_os_not_installed">這支手錶上沒有 Plonker</string>
     <string name="wear_os_up_to_date">已是最新 · %1$s</string>
     <string name="wear_os_update_available">有可用更新</string>
     <string name="wear_os_unknown">已安裝 · 無法檢查版本</string>
@@ -1363,7 +1363,7 @@
     <string name="wear_os_searching">正在 Wi-Fi 上尋找你的手錶…</string>
     <string name="wear_os_found">已找到你的手錶</string>
     <string name="wear_os_pairing">正在配對…</string>
-    <string name="wear_os_installing">正在將 BitChord 安裝到你的手錶…</string>
+    <string name="wear_os_installing">正在將 Plonker 安裝到你的手錶…</string>
     <string name="wear_os_installed">已安裝。你可以再次關閉無線偵錯。</string>
     <string name="wear_os_failed">未成功（%1$s）。請檢查代碼後重試。</string>
     <string name="wear_os_unsupported">安裝到手錶需要這支手機執行 Android 11 或更新版本。</string>
@@ -1413,4 +1413,8 @@
     <string name="download_addon_not_allowed">%1$s 不允許下載，因此你的歌曲將從其他來源儲存。</string>
     <string name="download_addon_needs_lossless_output">%1$s 僅在連接有線、USB 或 LDAC 等級耳機時提供音樂。在連接此類耳機前，下載會略過它，因此你的歌曲將從其他來源儲存。</string>
     <string name="source_downloads_on">允許下載</string>
+    <string name="playback_speed">播放速度</string>
+    <string name="playback_speed_normal">正常 (1.0×)</string>
+    <string name="playback_speed_reset">重設為 1.0×</string>
+    <string name="dismiss_playback">關閉播放</string>
 </resources>
