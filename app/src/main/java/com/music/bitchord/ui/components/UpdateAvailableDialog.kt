@@ -98,8 +98,9 @@ fun UpdateAvailableDialog(
     val state by AppUpdateChecker.download.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(ALERT_CORNER)
 
-    val animModifier = if (animatedScope != null) {
-        with(animatedScope) {
+    val effectiveScope = animatedScope ?: LocalIosModalScope.current
+    val animModifier = if (effectiveScope != null) {
+        with(effectiveScope) {
             Modifier.animateEnterExit(
                 enter = IosMotion.modalCardEnter(reduceAnimation),
                 exit = IosMotion.modalCardExit(reduceAnimation),

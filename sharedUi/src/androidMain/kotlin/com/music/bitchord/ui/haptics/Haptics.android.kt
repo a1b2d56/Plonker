@@ -130,10 +130,8 @@ private class HapticDevice private constructor(
     private val compiled = HashMap<Haptic, VibrationEffect>()
 
     fun play(haptic: Haptic) {
-        // The system-wide touch-feedback switch is the user's answer to this
-        // whole feature, and going through Vibrator rather than the View means
-        // nothing else is checking it for us.
-        if (!systemHapticsEnabled()) return
+        // In-app haptic setting is the authoritative control for Plonker.
+        if (!HapticSettings.enabled) return
 
         val effect = synchronized(compiled) {
             compiled.getOrPut(haptic) { compile(rhythmOf(haptic)) }

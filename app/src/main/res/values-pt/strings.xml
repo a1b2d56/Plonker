@@ -1445,4 +1445,6 @@
     <string name="playback_speed_normal">Normal (1.0×)</string>
     <string name="playback_speed_reset">Redefinir para 1.0×</string>
     <string name="dismiss_playback">Descartar reprodução</string>
+    <string name="haptic_feedback">Feedback háptico</string>
+    <string name="haptic_feedback_subtitle">Vibrar em botões, controles deslizantes e gestos</string>
 </resources>

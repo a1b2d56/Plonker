@@ -1445,4 +1445,6 @@
     <string name="playback_speed_normal">רגיל (1.0×)</string>
     <string name="playback_speed_reset">איפוס ל-1.0×</string>
     <string name="dismiss_playback">סגור השמעה</string>
+    <string name="haptic_feedback">משוב רטט</string>
+    <string name="haptic_feedback_subtitle">רטט בלחיצה על כפתורים, מחוונים ומחוות</string>
 </resources>

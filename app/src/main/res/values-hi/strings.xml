@@ -1440,4 +1440,6 @@
     <string name="playback_speed_normal">सामान्य (1.0×)</string>
     <string name="playback_speed_reset">1.0× पर रीसेट करें</string>
     <string name="dismiss_playback">प्लेबैक बंद करें</string>
+    <string name="haptic_feedback">हैप्टिक फीडबैक</string>
+    <string name="haptic_feedback_subtitle">बटन, स्लाइडर और जेस्चर पर कंपन करें</string>
 </resources>

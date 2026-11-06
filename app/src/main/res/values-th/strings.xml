@@ -1423,4 +1423,6 @@
     <string name="playback_speed_normal">ปกติ (1.0×)</string>
     <string name="playback_speed_reset">รีเซ็ตเป็น 1.0×</string>
     <string name="dismiss_playback">ปิดการเล่น</string>
+    <string name="haptic_feedback">การตอบสนองแบบสัมผัส</string>
+    <string name="haptic_feedback_subtitle">สั่นเมื่อแตะปุ่ม แถบเลื่อน และท่าทาง</string>
 </resources>
