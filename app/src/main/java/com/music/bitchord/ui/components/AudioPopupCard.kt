@@ -82,9 +82,10 @@ internal fun AudioPopupCard(
     var isDismissing by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
 
+    val effectiveScope = animatedScope ?: LocalIosModalScope.current
     val coroutineScope = rememberCoroutineScope()
     val handleDismiss: () -> Unit = {
-        if (animatedScope != null) {
+        if (effectiveScope != null) {
             onDismiss()
         } else if (!isDismissing) {
             isDismissing = true
@@ -96,7 +97,7 @@ internal fun AudioPopupCard(
         }
     }
 
-    if (animatedScope == null) {
+    if (effectiveScope == null) {
         BackHandler(enabled = shown && !isDismissing, onBack = handleDismiss)
     }
 
@@ -119,8 +120,8 @@ internal fun AudioPopupCard(
         label = "audioPopupScrimAlpha",
     )
 
-    val animModifier = if (animatedScope != null) {
-        with(animatedScope) {
+    val animModifier = if (effectiveScope != null) {
+        with(effectiveScope) {
             Modifier.animateEnterExit(
                 enter = IosMotion.modalCardEnter(reduceAnimation),
                 exit = IosMotion.modalCardExit(reduceAnimation),
@@ -134,7 +135,7 @@ internal fun AudioPopupCard(
         }
     }
 
-    val scrimColor = if (animatedScope != null) {
+    val scrimColor = if (effectiveScope != null) {
         POPUP_SCRIM_COLOR
     } else {
         POPUP_SCRIM_COLOR.copy(alpha = POPUP_SCRIM_COLOR.alpha * selfScrimAlpha)

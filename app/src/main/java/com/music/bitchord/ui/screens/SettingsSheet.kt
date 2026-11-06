@@ -909,6 +909,22 @@ fun SettingsScreen(
                     onClick = { onOpenChoice(SettingsChoiceKind.FONT) },
                 )
             }
+            val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
+            val hapticFeedbackTitle = stringResource(R.string.haptic_feedback)
+            row(hapticFeedbackTitle, "vibration", "touch", "haptics") {
+                SettingsRow(
+                    icon = SfIcons.SmartButton,
+                    title = hapticFeedbackTitle,
+                    subtitle = stringResource(R.string.haptic_feedback_subtitle),
+                    trailing = {
+                        IosSwitch(
+                            checked = hapticFeedback,
+                            onCheckedChange = AppSettings::setHapticFeedbackEnabled,
+                        )
+                    },
+                    onClick = { AppSettings.setHapticFeedbackEnabled(!hapticFeedback) },
+                )
+            }
             val reduceAnimationTitle = stringResource(R.string.reduce_animation)
             row(reduceAnimationTitle, "motion") {
                 SettingsRow(

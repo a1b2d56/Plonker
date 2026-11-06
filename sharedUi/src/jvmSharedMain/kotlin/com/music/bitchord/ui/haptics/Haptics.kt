@@ -1,6 +1,15 @@
 package com.music.bitchord.ui.haptics
 
 import androidx.compose.runtime.Composable
+import kotlin.concurrent.Volatile
+
+/**
+ * Global setting for haptic feedback across the application.
+ */
+object HapticSettings {
+    @Volatile
+    var enabled: Boolean = true
+}
 
 /**
  * What a touch *meant*, not what it should feel like — the shape of the buzz is

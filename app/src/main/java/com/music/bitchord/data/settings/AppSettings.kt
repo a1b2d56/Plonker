@@ -428,6 +428,7 @@ object AppSettings {
 
     /** Freezes the main player's mesh gradient instead of letting it drift/crossfade. */
     val reduceAnimation = MutableStateFlow(false)
+    val hapticFeedbackEnabled = MutableStateFlow(true)
 
     /**
      * Whether the welcome pages (party name, then YouTube sign-in) have been
@@ -968,6 +969,8 @@ object AppSettings {
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
         showListenTogetherButton.value = prefs.getBoolean(KEY_LISTEN_TOGETHER_BUTTON, false)
         reduceAnimation.value = prefs.getBoolean(KEY_REDUCE_ANIMATION, false)
+        hapticFeedbackEnabled.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)
+        com.music.bitchord.ui.haptics.HapticSettings.enabled = hapticFeedbackEnabled.value
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
@@ -1341,6 +1344,12 @@ object AppSettings {
     fun setAppFont(value: AppFont) {
         appFont.value = value
         prefs.edit().putString(KEY_APP_FONT, value.name).apply()
+    }
+
+    fun setHapticFeedbackEnabled(value: Boolean) {
+        hapticFeedbackEnabled.value = value
+        com.music.bitchord.ui.haptics.HapticSettings.enabled = value
+        prefs.edit().putBoolean(KEY_HAPTIC_FEEDBACK, value).apply()
     }
 
     fun setReduceAnimation(value: Boolean) {
@@ -2167,6 +2176,7 @@ object AppSettings {
     private const val KEY_LISTEN_TOGETHER_BUTTON = "show_listen_together_button"
     private const val KEY_CACHE_LIMIT = "audio_cache_limit_bytes"
     private const val KEY_REDUCE_ANIMATION = "reduce_animation"
+    private const val KEY_HAPTIC_FEEDBACK = "haptic_feedback"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     private const val KEY_HIGH_PERFORMANCE_MODE = "high_performance_mode"
     private const val KEY_PERFORMANCE_REFRESH_RATE = "performance_refresh_rate"

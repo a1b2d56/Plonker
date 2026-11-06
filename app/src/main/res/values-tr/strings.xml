@@ -1397,4 +1397,6 @@
     <string name="playback_speed_normal">Normal (1.0×)</string>
     <string name="playback_speed_reset">1.0× değerine sıfırla</string>
     <string name="dismiss_playback">Oynatmayı kapat</string>
+    <string name="haptic_feedback">Dokunsal geri bildirim</string>
+    <string name="haptic_feedback_subtitle">Düğmelerde, kaydırıcılarda ve hareketlerde titre</string>
 </resources>

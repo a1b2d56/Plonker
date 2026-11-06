@@ -1417,4 +1417,6 @@
     <string name="playback_speed_normal">正常 (1.0×)</string>
     <string name="playback_speed_reset">重設為 1.0×</string>
     <string name="dismiss_playback">關閉播放</string>
+    <string name="haptic_feedback">觸覺回饋</string>
+    <string name="haptic_feedback_subtitle">在按鈕、滑桿和手勢操作時震動</string>
 </resources>

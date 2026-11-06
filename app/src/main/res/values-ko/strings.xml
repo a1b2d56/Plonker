@@ -1290,4 +1290,6 @@
     <string name="playback_speed_normal">보통 (1.0×)</string>
     <string name="playback_speed_reset">1.0×로 초기화</string>
     <string name="dismiss_playback">재생 닫기</string>
+    <string name="haptic_feedback">햅틱 피드백</string>
+    <string name="haptic_feedback_subtitle">버튼, 슬라이더 및 제스처 시 진동</string>
 </resources>

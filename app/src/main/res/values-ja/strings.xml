@@ -1418,4 +1418,6 @@
     <string name="playback_speed_normal">標準 (1.0×)</string>
     <string name="playback_speed_reset">1.0× にリセット</string>
     <string name="dismiss_playback">再生を終了</string>
+    <string name="haptic_feedback">触覚フィードバック</string>
+    <string name="haptic_feedback_subtitle">ボタン、スライダー、ジェスチャー時に振動</string>
 </resources>

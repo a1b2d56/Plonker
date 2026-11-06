@@ -1,6 +1,7 @@
 package com.music.bitchord.ui.components
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -13,18 +14,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderColors
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -39,10 +35,10 @@ import androidx.compose.ui.unit.dp
 /**
  * Authentic Apple iOS Human Interface Guidelines slider.
  *
- * Consists of:
- * 1. A sleek rounded capsule track (5dp height) with leading active fill and trailing inactive fill.
- * 2. A circular white thumb knob (26dp) with subtle elevation drop shadow, delicate hairline border,
- *    and smooth spring-based scaling on touch.
+ * Implements:
+ * 1. A rounded capsule track (6dp height) with leading active fill and trailing inactive fill.
+ * 2. An authentic horizontal capsule/pill thumb (36dp x 24dp) with elevation drop shadow,
+ *    delicate hairline border, and interactive elastic expansion on drag/press.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,15 +51,24 @@ fun IosSlider(
     steps: Int = 0,
     onValueChangeFinished: (() -> Unit)? = null,
     activeColor: Color = Color.White.copy(alpha = 0.95f),
-    inactiveColor: Color = Color.White.copy(alpha = 0.18f),
+    inactiveColor: Color = Color.White.copy(alpha = 0.20f),
     thumbColor: Color = Color.White,
-    trackHeight: Dp = 5.dp,
-    thumbSize: Dp = 26.dp,
+    trackHeight: Dp = 6.dp,
+    thumbWidth: Dp = 36.dp,
+    thumbHeight: Dp = 24.dp,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val isPressed by interactionSource.collectIsPressedAsState()
+    val animatedWidth by animateDpAsState(
+        targetValue = if (isPressed) thumbWidth + 4.dp else thumbWidth,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "iosSliderThumbWidth",
+    )
     val thumbScale by animateFloatAsState(
-        targetValue = if (isPressed) 1.08f else 1.0f,
+        targetValue = if (isPressed) 1.04f else 1.0f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
@@ -82,7 +87,8 @@ fun IosSlider(
         interactionSource = interactionSource,
         thumb = {
             IosSliderThumb(
-                size = thumbSize,
+                width = animatedWidth,
+                height = thumbHeight,
                 scale = thumbScale,
                 thumbColor = thumbColor,
             )
@@ -100,19 +106,31 @@ fun IosSlider(
 
 @Composable
 fun IosSliderThumb(
-    size: Dp = 26.dp,
+    width: Dp = 36.dp,
+    height: Dp = 24.dp,
     scale: Float = 1.0f,
     thumbColor: Color = Color.White,
     modifier: Modifier = Modifier,
 ) {
+    val capsuleShape = RoundedCornerShape(percent = 50)
     Spacer(
         modifier = modifier
-            .size(size)
+            .size(width = width, height = height)
             .scale(scale)
-            .shadow(elevation = 3.dp, shape = CircleShape, clip = false)
-            .clip(CircleShape)
+            .shadow(
+                elevation = 3.dp,
+                shape = capsuleShape,
+                clip = false,
+                ambientColor = Color.Black.copy(alpha = 0.35f),
+                spotColor = Color.Black.copy(alpha = 0.45f),
+            )
+            .clip(capsuleShape)
             .background(thumbColor)
-            .border(width = 0.5.dp, color = Color.Black.copy(alpha = 0.08f), shape = CircleShape),
+            .border(
+                width = 0.5.dp,
+                color = Color.Black.copy(alpha = 0.08f),
+                shape = capsuleShape,
+            ),
     )
 }
 
@@ -120,9 +138,9 @@ fun IosSliderThumb(
 @Composable
 fun IosSliderTrack(
     sliderState: SliderState,
-    trackHeight: Dp = 5.dp,
+    trackHeight: Dp = 6.dp,
     activeColor: Color = Color.White.copy(alpha = 0.95f),
-    inactiveColor: Color = Color.White.copy(alpha = 0.18f),
+    inactiveColor: Color = Color.White.copy(alpha = 0.20f),
     modifier: Modifier = Modifier,
 ) {
     Canvas(
@@ -135,7 +153,7 @@ fun IosSliderTrack(
             (sliderState.valueRange.endInclusive - sliderState.valueRange.start)).coerceIn(0f, 1f)
         val activeWidth = size.width * fraction
 
-        // Inactive track (full width)
+        // Inactive track (full width pill capsule)
         drawRoundRect(
             color = inactiveColor,
             topLeft = Offset.Zero,
@@ -143,7 +161,7 @@ fun IosSliderTrack(
             cornerRadius = cornerRadius,
         )
 
-        // Active track (up to current fraction)
+        // Active track (capsule fill)
         if (activeWidth > 0f) {
             drawRoundRect(
                 color = activeColor,

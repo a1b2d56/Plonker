@@ -167,6 +167,7 @@ import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.ui.components.AccountProfileSelector
 import com.music.bitchord.ui.components.IosModalContainer
 import com.music.bitchord.ui.components.IosMotion
+import com.music.bitchord.ui.components.LocalIosModalScope
 import com.music.bitchord.playback.ACTION_DISMISS_PLAYBACK
 import com.music.bitchord.ui.components.DacVolumeHud
 import com.music.bitchord.ui.components.DacVolumeKeys
@@ -6081,8 +6082,9 @@ private fun FrostedMenuPanel(
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val shape = MaterialTheme.shapes.extraLarge
-    val animModifier = if (animatedScope != null) {
-        with(animatedScope) {
+    val effectiveScope = animatedScope ?: LocalIosModalScope.current
+    val animModifier = if (effectiveScope != null) {
+        with(effectiveScope) {
             Modifier.animateEnterExit(
                 enter = IosMotion.modalCardEnter(reduceAnimation),
                 exit = IosMotion.modalCardExit(reduceAnimation),

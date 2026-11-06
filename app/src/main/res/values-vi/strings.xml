@@ -1357,4 +1357,6 @@
     <string name="playback_speed_normal">Bình thường (1.0×)</string>
     <string name="playback_speed_reset">Đặt lại về 1.0×</string>
     <string name="dismiss_playback">Đóng phát lại</string>
+    <string name="haptic_feedback">Phản hồi xúc giác</string>
+    <string name="haptic_feedback_subtitle">Rung khi bấm nút, thanh trượt và cử chỉ</string>
 </resources>

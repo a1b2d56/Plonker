@@ -1379,4 +1379,6 @@
     <string name="playback_speed_normal">Normale (1.0×)</string>
     <string name="playback_speed_reset">Ripristina a 1.0×</string>
     <string name="dismiss_playback">Chiudi riproduzione</string>
+    <string name="haptic_feedback">Feedback aptico</string>
+    <string name="haptic_feedback_subtitle">Vibra su pulsanti, cursori e gesti</string>
 </resources>

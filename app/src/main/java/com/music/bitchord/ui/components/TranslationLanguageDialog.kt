@@ -86,8 +86,9 @@ fun TranslationLanguageDialog(
     val appLocale = AppCompatDelegate.getApplicationLocales().get(0) ?: Locale.getDefault()
     var query by remember { mutableStateOf("") }
 
-    val animModifier = if (animatedScope != null) {
-        with(animatedScope) {
+    val effectiveScope = animatedScope ?: LocalIosModalScope.current
+    val animModifier = if (effectiveScope != null) {
+        with(effectiveScope) {
             Modifier.animateEnterExit(
                 enter = IosMotion.modalCardEnter(reduceAnimation),
                 exit = IosMotion.modalCardExit(reduceAnimation),

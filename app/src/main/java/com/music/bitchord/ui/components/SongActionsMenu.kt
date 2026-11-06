@@ -9,6 +9,13 @@ import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -424,12 +431,28 @@ fun SongActionsMenu(
         Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             // The player's menu has the sleep timer, and swaps its rows for
             // the picker in place.
-            if (pickingSleepTimer) {
-                SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
-            } else if (pickingSpeed) {
-                PlaybackSpeedPicker(palette = palette, onBack = { pickingSpeed = false })
-            } else {
-                rows()
+            AnimatedContent(
+                targetState = when {
+                    pickingSleepTimer -> 1
+                    pickingSpeed -> 2
+                    else -> 0
+                },
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        (slideInHorizontally { it } + fadeIn(tween(180))) togetherWith
+                            (slideOutHorizontally { -it / 2 } + fadeOut(tween(140)))
+                    } else {
+                        (slideInHorizontally { -it / 2 } + fadeIn(tween(180))) togetherWith
+                            (slideOutHorizontally { it } + fadeOut(tween(140)))
+                    }
+                },
+                label = "songActionsSubpage",
+            ) { page ->
+                when (page) {
+                    1 -> SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
+                    2 -> PlaybackSpeedPicker(palette = palette, onBack = { pickingSpeed = false })
+                    else -> rows()
+                }
             }
         }
     }

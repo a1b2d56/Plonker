@@ -19,12 +19,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.settings.AppSettings
+
+/**
+ * Provides the parent modal AnimatedVisibilityScope to child alerts and dialogs
+ * so they automatically animate their entrance and exit without needing manual wiring.
+ */
+val LocalIosModalScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
 
 /**
  * Authentic Apple iOS motion curves, physics, and transitions.
@@ -59,16 +67,16 @@ object IosMotion {
     }
 
     /**
-     * Apple UIAlertController-style scale-down on exit.
+     * Apple UIAlertController-style scale-down and fade on exit.
      */
     fun modalCardExit(reduceMotion: Boolean = false): ExitTransition {
         return if (reduceMotion) {
             fadeOut(tween(140))
         } else {
             scaleOut(
-                targetScale = 0.90f,
-                animationSpec = tween(durationMillis = 160, easing = FastOutLinearInEasing),
-            ) + fadeOut(tween(durationMillis = 160))
+                targetScale = 0.86f,
+                animationSpec = tween(durationMillis = 180, easing = FastOutLinearInEasing),
+            ) + fadeOut(tween(durationMillis = 180, easing = FastOutLinearInEasing))
         }
     }
 }
@@ -87,12 +95,14 @@ fun IosModalContainer(
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     AnimatedVisibility(
         visible = visible,
-        enter = if (reduceAnimation) fadeIn(tween(150)) else IosMotion.modalScrimEnter(),
-        exit = if (reduceAnimation) fadeOut(tween(150)) else IosMotion.modalScrimExit(),
+        enter = if (reduceAnimation) fadeIn(tween(160)) else IosMotion.modalScrimEnter(),
+        exit = if (reduceAnimation) fadeOut(tween(180, easing = FastOutLinearInEasing)) else IosMotion.modalScrimExit(),
         modifier = modifier,
     ) {
         BackHandler(onBack = onDismiss)
-        content()
+        CompositionLocalProvider(LocalIosModalScope provides this) {
+            content()
+        }
     }
 }
 

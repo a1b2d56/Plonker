@@ -1472,4 +1472,6 @@
     <string name="playback_speed_normal">Обычная (1.0×)</string>
     <string name="playback_speed_reset">Сбросить на 1.0×</string>
     <string name="dismiss_playback">Закрыть воспроизведение</string>
+    <string name="haptic_feedback">Тактильный отклик</string>
+    <string name="haptic_feedback_subtitle">Вибрация для кнопок, ползунков и жестов</string>
 </resources>

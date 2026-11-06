@@ -910,6 +910,7 @@ internal fun AlertScaffold(
     frosted: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val effectiveScope = animatedScope ?: LocalIosModalScope.current
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val shape = RoundedCornerShape(ALERT_CORNER)
@@ -920,7 +921,7 @@ internal fun AlertScaffold(
 
     val coroutineScope = rememberCoroutineScope()
     val handleDismiss: () -> Unit = {
-        if (animatedScope != null) {
+        if (effectiveScope != null) {
             onDismiss()
         } else if (!isDismissing) {
             isDismissing = true
@@ -932,7 +933,7 @@ internal fun AlertScaffold(
         }
     }
 
-    if (animatedScope == null) {
+    if (effectiveScope == null) {
         BackHandler(enabled = shown && !isDismissing, onBack = handleDismiss)
     }
 
@@ -955,8 +956,8 @@ internal fun AlertScaffold(
         label = "alertScaffoldScrimAlpha",
     )
 
-    val animModifier = if (animatedScope != null) {
-        with(animatedScope) {
+    val animModifier = if (effectiveScope != null) {
+        with(effectiveScope) {
             Modifier.animateEnterExit(
                 enter = IosMotion.modalCardEnter(reduceAnimation),
                 exit = IosMotion.modalCardExit(reduceAnimation),
@@ -970,7 +971,7 @@ internal fun AlertScaffold(
         }
     }
 
-    val scrimColor = if (animatedScope != null) {
+    val scrimColor = if (effectiveScope != null) {
         SCRIM_COLOR
     } else {
         SCRIM_COLOR.copy(alpha = SCRIM_COLOR.alpha * selfScrimAlpha)

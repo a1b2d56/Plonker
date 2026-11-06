@@ -9,6 +9,7 @@ import com.music.bitchord.ui.components.backdrop.effects.blur
 import com.music.bitchord.ui.components.backdrop.effects.colorControls
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -465,7 +466,7 @@ fun <T : Any> IosMenuPopover(
                 },
             )
         } else {
-            progress.animateTo(0f, tween(durationMillis = if (reduceMotion) 100 else 170, easing = FastOutSlowInEasing))
+            progress.animateTo(0f, tween(durationMillis = if (reduceMotion) 110 else 180, easing = FastOutLinearInEasing))
             last = null
         }
     }
@@ -560,10 +561,10 @@ fun <T : Any> IosMenuPopover(
 
         val growth: GraphicsLayerScope.() -> Unit = {
             val p = progress.value
-            alpha = (p * 2.5f).coerceIn(0f, 1f)
+            alpha = p.coerceIn(0f, 1f)
             if (!reduceMotion) {
                 transformOrigin = TransformOrigin(1f, if (hangsDown) 0f else 1f)
-                val scale = lerp(0.3f, 1f, p)
+                val scale = lerp(0.88f, 1f, p)
                 scaleX = scale
                 scaleY = scale
             }
