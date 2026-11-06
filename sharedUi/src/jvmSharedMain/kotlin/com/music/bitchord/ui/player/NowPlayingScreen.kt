@@ -1093,22 +1093,9 @@ fun NowPlayingScreen(
     // Back out of the queue to the player.
     PlayerBackHandler(enabled = queueOpen) { queueOpen = false }
 
-    // Registered ahead of the pipeline dialog's own handler below: the
-    // pipeline is now only ever opened from the row at the bottom of this
-    // drawer, so it is always the topmost of the two when both are up, and
-    // back has to close it first rather than taking the drawer out from
-    // under it.
-    PlayerBackHandler(enabled = showAudioOutput) { showAudioOutput = false }
-
-    PlayerBackHandler(enabled = showVideoQuality) { showVideoQuality = false }
-
-    PlayerBackHandler(enabled = showLyricsProviders) { showLyricsProviders = false }
-
-    PlayerBackHandler(enabled = showListenTogetherMembers) { showListenTogetherMembers = false }
-
-    PlayerBackHandler(enabled = showAudioPipeline) { showAudioPipeline = false }
-
-    PlayerBackHandler(enabled = showCast) { showCast = false }
+    // Sheets and dialogs (AudioOutputSheet, LyricsProviderSheet, VideoQualitySheet,
+    // AudioPipelineDialog, CastDialog) manage their own dismiss and back handling with
+    // animated exit transitions in PlayerDrawer and AudioPopupCard.
 
     PlayerBackHandler(enabled = lyricsOffsetOpen, onBack = onDismissLyricsOffset)
 

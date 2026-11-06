@@ -2805,9 +2805,9 @@ private fun BitChordApp(
         val replayDrawable = replay.summary?.isEmpty == false
         BackHandler(enabled = replayDrawable && replayStory != null && !showReplayShare) { replayStory = null }
         BackHandler(enabled = replayDrawable && showReplayShare) { showReplayShare = false }
-        BackHandler(enabled = showUpdateDialog) { showUpdateDialog = false }
-        BackHandler(enabled = showListenBrainzLogin) { showListenBrainzLogin = false }
-        BackHandler(enabled = showLastfmLogin) { showLastfmLogin = false }
+        // Note: Modal dialogs (update, ListenBrainz, Last.fm) are wrapped in
+        // IosModalContainer, which registers their own BackHandlers that trigger
+        // animated exit transitions.
         BackHandler(enabled = discordDialog != null) { discordDialog = null }
         BackHandler(enabled = editingSource != null) { editingSource = null }
         BackHandler(enabled = editingPartyServer) { editingPartyServer = false }
@@ -2861,28 +2861,55 @@ private fun BitChordApp(
                             (this as? AppDestination.Route)?.entry?.route is AppRoute.LibraryShowAll
                         val libraryShowAllSwap = (initial.isShowAll() && target == libraryTab) ||
                             (target.isShowAll() && initial == libraryTab)
-                        val isPush = initial is AppDestination.Tab ||
-                            (initial is AppDestination.Release && target is AppDestination.Route)
+
+                        fun destinationDepth(dest: AppDestination): Int = when (dest) {
+                            is AppDestination.Tab -> 0
+                            is AppDestination.Release -> {
+                                val detailIndex = detailStack.indexOfFirst { it.browseId == dest.browseId }
+                                val d = if (detailIndex >= 0) detailIndex + 1 else detailStack.size.coerceAtLeast(1)
+                                val routesUnder = navigator.entries.count { it.detailDepth < d }
+                                d + routesUnder
+                            }
+                            is AppDestination.Route -> {
+                                val routeIndex = navigator.entries.indexOfFirst { it.id == dest.entry.id }
+                                if (routeIndex >= 0) {
+                                    val entry = navigator.entries[routeIndex]
+                                    entry.detailDepth + routeIndex + 1
+                                } else {
+                                    detailStack.size + navigator.entries.size + 1
+                                }
+                            }
+                        }
+
+                        val initialDepth = destinationDepth(initial)
+                        val targetDepth = destinationDepth(target)
+                        val isPush = targetDepth > initialDepth
+                        val isPop = targetDepth < initialDepth
+
                         if (tabSwap || libraryShowAllSwap) {
                             EnterTransition.None togetherWith ExitTransition.None
                         } else if (reducePlayerMotion) {
                             fadeIn(tween(180)) togetherWith fadeOut(tween(180))
                         } else if (isPush) {
+                            // Forward navigation: new screen pushes in from the right, old screen shifts left with parallax
                             (slideInHorizontally(
-                                initialOffsetX = { (it * 0.92f).toInt() },
-                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
+                                initialOffsetX = { it },
+                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
                             ) + fadeIn(tween(180))) togetherWith (slideOutHorizontally(
-                                targetOffsetX = { (-it * 0.28f).toInt() },
-                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
-                            ) + fadeOut(tween(200)))
-                        } else {
-                            (slideInHorizontally(
-                                initialOffsetX = { (-it * 0.28f).toInt() },
-                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
-                            ) + fadeIn(tween(180))) togetherWith (slideOutHorizontally(
-                                targetOffsetX = { (it * 0.92f).toInt() },
-                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
+                                targetOffsetX = { -it / 3 },
+                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
                             ) + fadeOut(tween(180)))
+                        } else if (isPop) {
+                            // Back navigation: current screen pops out to the right, previous screen slides in from the left
+                            (slideInHorizontally(
+                                initialOffsetX = { -it / 3 },
+                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
+                            ) + fadeIn(tween(180))) togetherWith (slideOutHorizontally(
+                                targetOffsetX = { it },
+                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
+                            ) + fadeOut(tween(180)))
+                        } else {
+                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
                         }
                     },
                     modifier = Modifier
@@ -4178,6 +4205,7 @@ private fun BitChordApp(
                         } else {
                             playerSheetMotion::open
                         },
+                        onDismissPlayback = dismissPlayback,
                         controlsLocked = controlsLocked,
                         onBlockedControl = showHostOnlyNotice,
                         dock = activeDock,
