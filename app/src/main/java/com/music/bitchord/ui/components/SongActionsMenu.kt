@@ -437,12 +437,13 @@ fun SongActionsMenu(
                     pickingSpeed -> 2
                     else -> 0
                 },
+                modifier = Modifier.fillMaxWidth(),
                 transitionSpec = {
                     if (targetState > initialState) {
                         (slideInHorizontally { it } + fadeIn(tween(180))) togetherWith
-                            (slideOutHorizontally { -it / 2 } + fadeOut(tween(140)))
+                            (slideOutHorizontally { -it / 3 } + fadeOut(tween(140)))
                     } else {
-                        (slideInHorizontally { -it / 2 } + fadeIn(tween(180))) togetherWith
+                        (slideInHorizontally { -it / 3 } + fadeIn(tween(180))) togetherWith
                             (slideOutHorizontally { it } + fadeOut(tween(140)))
                     }
                 },
@@ -451,7 +452,7 @@ fun SongActionsMenu(
                 when (page) {
                     1 -> SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
                     2 -> PlaybackSpeedPicker(palette = palette, onBack = { pickingSpeed = false })
-                    else -> rows()
+                    else -> Column(Modifier.fillMaxWidth()) { rows() }
                 }
             }
         }

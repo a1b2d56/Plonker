@@ -27,6 +27,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -706,10 +708,11 @@ fun ConfirmationAlert(
                 textAlign = TextAlign.Center,
             )
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
-        AlertAction(label = confirmLabel, emphasised = true, onClick = onConfirm)
+        AlertAction(label = confirmLabel, emphasised = true, onClick = { onConfirm(); dismiss() })
         AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
+        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = dismiss)
     }
 }
 
@@ -780,8 +783,9 @@ private fun InfoAlertFrame(
                 textAlign = TextAlign.Center,
             )
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
-        AlertAction(label = stringResource(android.R.string.ok), emphasised = true, onClick = onDismiss)
+        AlertAction(label = stringResource(android.R.string.ok), emphasised = true, onClick = dismiss)
     }
 }
 
@@ -829,17 +833,18 @@ fun <T> ChoiceAlert(
                 )
             }
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         options.forEach { option ->
             AlertRule()
             ChoiceRow(
                 label = label(option),
                 detail = detail(option),
                 checked = option == selected,
-                onClick = { onSelect(option) },
+                onClick = { onSelect(option); dismiss() },
             )
         }
         AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
+        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = dismiss)
     }
 }
 
@@ -893,6 +898,8 @@ private fun ChoiceRow(
         }
     }
 }
+
+val LocalAlertDismiss = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 /** The scrim + frosted card frame shared by every UIAlertController-style dialog. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
@@ -1009,7 +1016,10 @@ internal fun AlertScaffold(
                     interactionSource = remember { MutableInteractionSource() },
                     onClick = {},
                 ),
-            content = content,
-        )
+        ) {
+            CompositionLocalProvider(LocalAlertDismiss provides handleDismiss) {
+                content()
+            }
+        }
     }
 }
