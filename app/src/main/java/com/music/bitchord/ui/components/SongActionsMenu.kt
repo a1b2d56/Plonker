@@ -1079,10 +1079,8 @@ private fun PlaybackSpeedPicker(palette: ArtworkPalette, onBack: () -> Unit) {
                 value = currentSpeed,
                 onValueChange = { raw ->
                     val rounded = (kotlin.math.round(raw * 20f) / 20f).coerceIn(0.5f, 2.0f)
-                    if (rounded != currentSpeed) {
-                        AppSettings.setPlaybackSpeed(rounded)
-                        haptics.play(Haptic.Select)
-                    }
+                    // The slider ticks each step itself.
+                    if (rounded != currentSpeed) AppSettings.setPlaybackSpeed(rounded)
                 },
                 valueRange = 0.5f..2.0f,
                 steps = 29,
