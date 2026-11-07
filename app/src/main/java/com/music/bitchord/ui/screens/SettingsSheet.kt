@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.IosMotion
+import androidx.compose.animation.animateContentSize
 import com.music.bitchord.ui.icons.SfIcons
 import com.music.bitchord.ui.components.IosSlider
 import com.music.bitchord.wear.WatchInstaller
@@ -2522,7 +2524,12 @@ internal fun SettingsGroup(
             .fillMaxWidth()
             .padding(horizontal = GROUP_INSET)
             .clip(GroupShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            // Rows that only exist while a switch above them is on (a URL under
+            // its toggle, the options under High performance) grow and fold the
+            // card instead of snapping it. After the clip and fill, so both
+            // follow the animated size and the rounded foot travels with it.
+            .animateContentSize(IosMotion.contentSizeSpec()),
     ) {
         content()
     }
