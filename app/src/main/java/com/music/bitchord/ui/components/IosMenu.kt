@@ -557,7 +557,13 @@ fun <T : Any> IosMenuPopover(
             .coerceIn(margin, (width - margin - panel.width).coerceAtLeast(margin))
         val lowest = (bottom - panel.height).coerceAtLeast(top)
         val hangsDown = anchorBounds != null && anchorBounds.center.y < height / 2f
-        val panelY = if (hangsDown) anchorBounds.top.roundToInt().coerceIn(top, lowest) else lowest
+        val panelY = if (hangsDown) {
+            anchorBounds.top.roundToInt().coerceIn(top, lowest)
+        } else if (anchorBounds != null) {
+            (anchorBounds.bottom.roundToInt() - panel.height).coerceIn(top, lowest)
+        } else {
+            lowest
+        }
 
         val growth: GraphicsLayerScope.() -> Unit = {
             val p = progress.value

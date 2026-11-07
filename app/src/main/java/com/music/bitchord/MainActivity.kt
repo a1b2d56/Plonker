@@ -1066,7 +1066,10 @@ private fun BitChordApp(
     val controller = rememberMediaController()
     val player = rememberPlayerState(controller)
     val dismissPlayback: () -> Unit = {
-        if (showNowPlaying) dismissPlayer()
+        if (showNowPlaying) {
+            showNowPlaying = false
+            dismissPlayer()
+        }
         controller?.let { c ->
             c.stop()
             c.clearMediaItems()

@@ -322,7 +322,18 @@ internal fun Modifier.miniPlayerGestures(
                 }
                 val flingY = if (finished) tracker.calculateVelocity().y else 0f
                 if (finished && (draggedDown >= dismissThreshold || flingY >= 900f)) {
-                    currentOnDismiss?.invoke()
+                    settle[0] = scope.launch {
+                        val from = dismissOffset.floatValue
+                        animate(
+                            initialValue = from,
+                            targetValue = from + 140f,
+                            animationSpec = spring(
+                                dampingRatio = 0.85f,
+                                stiffness = Spring.StiffnessMediumLow,
+                            ),
+                        ) { value, _ -> dismissOffset.floatValue = value }
+                        currentOnDismiss?.invoke()
+                    }
                 } else {
                     val from = dismissOffset.floatValue
                     settle[0] = scope.launch {
