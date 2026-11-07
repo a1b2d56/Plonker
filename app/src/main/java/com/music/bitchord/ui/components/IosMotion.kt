@@ -198,19 +198,12 @@ fun Modifier.iosTouchFeedback(
     pressedScale: Float = 0.96f,
     onClick: (() -> Unit)? = null,
 ): Modifier {
-    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val interactionSource = remember { MutableInteractionSource() }
     val clickPressed by interactionSource.collectIsPressedAsState()
     var watchedPressed by remember { mutableStateOf(false) }
-    val pressed = (clickPressed || watchedPressed) && !reduceAnimation
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) pressedScale else 1.0f,
-        animationSpec = spring(
-            dampingRatio = 0.70f,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
-        label = "iosTouchScale",
-    )
+    // The same give, spring and Reduce animation check as every tile's —
+    // see [pressBounce].
+    val scale by animatePressScale(clickPressed || watchedPressed, pressedScale)
     // Read inside the layer block so a press animates on the draw phase alone.
     val base = this.graphicsLayer {
         scaleX = scale

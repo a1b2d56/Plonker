@@ -1,5 +1,8 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.pressBounce
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.music.bitchord.sharedui.resources.*
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.foundation.background
@@ -150,12 +153,14 @@ private fun MoodGenreCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val press = remember { MutableInteractionSource() }
     MoodGenreSleeve(
         item = item,
         modifier = modifier
+            .pressBounce(press)
             .aspectRatio(MOOD_CARD_ASPECT)
             .clip(MOOD_CARD_SHAPE)
-            .clickable(onClick = onClick),
+            .clickable(interactionSource = press, indication = LocalIndication.current, onClick = onClick),
     )
 }
 

@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.pressBounce
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.music.bitchord.ui.components.stableRowKeys
 import com.music.bitchord.ui.components.trackRowMotion
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -508,11 +510,13 @@ private fun SongGridCard(
     onClick: () -> Unit,
     onLongPress: () -> Unit,
 ) {
+    val press = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
+            .pressBounce(press)
             .clip(CARD_SHAPE)
             .background(selectionFill(selected))
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress, interactionSource = press)
             .padding(4.dp),
     ) {
         Box(
@@ -615,10 +619,12 @@ private fun ArtistGridCard(
     onClick: () -> Unit,
     onLongPress: () -> Unit,
 ) {
+    val press = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
+            .pressBounce(press)
             .clip(CARD_SHAPE)
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress, interactionSource = press)
             .padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -689,11 +695,17 @@ private fun AlbumGridCard(
     onLongPress: () -> Unit,
 ) {
     val art = group.coverArt()
+    val press = remember { MutableInteractionSource() }
     Column(
         modifier = Modifier
+            .pressBounce(press)
             .clip(CARD_SHAPE)
             .background(selectionFill(selected))
-            .longPressMenuClickable(onClick = { onClick(group.copy(thumbnailUrl = art)) }, onLongClick = onLongPress)
+            .longPressMenuClickable(
+                onClick = { onClick(group.copy(thumbnailUrl = art)) },
+                onLongClick = onLongPress,
+                interactionSource = press,
+            )
             .padding(4.dp),
     ) {
         Box(

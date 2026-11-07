@@ -1,5 +1,8 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.pressBounce
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.music.bitchord.ui.components.trackArtSize
 import com.music.bitchord.ui.components.contextClick
 import com.music.bitchord.ui.AppUi
@@ -788,9 +791,11 @@ fun VideoShelfCard(
     subtitleColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     placeholderColor: Color = MaterialTheme.colorScheme.surfaceVariant,
 ) {
+    val press = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .pressBounce(press)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress, interactionSource = press)
             .contextClick(onLongPress),
     ) {
         Box(
@@ -850,8 +855,11 @@ internal fun NewShelfCard(
     /** A full-colour mark drawn in place of [icon], for a card that stands for a brand. */
     logo: DrawableResource? = null,
 ) {
+    val press = remember { MutableInteractionSource() }
     Column(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier
+            .pressBounce(press)
+            .clickable(interactionSource = press, indication = LocalIndication.current, onClick = onClick),
     ) {
         Box(
             modifier = Modifier
@@ -939,9 +947,11 @@ internal fun ShelfCard(
     isCurrent: Boolean = false,
     isPlaying: Boolean = false,
 ) {
+    val press = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .pressBounce(press)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress, interactionSource = press)
             .contextClick(onLongPress),
     ) {
         when (item.browseId) {
