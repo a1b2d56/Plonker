@@ -361,14 +361,10 @@ private fun GlassNowPlaying(
             // Outside the press scale, which it lifts along with everything else.
             .miniPlayerGestures(
                 pull = pull,
-                onNext = {
-                    haptics.play(Haptic.SkipNext)
-                    onNext()
-                },
-                onPrevious = {
-                    haptics.play(Haptic.SkipPrevious)
-                    onPrevious()
-                },
+                // The swipe plays its own SkipNext / SkipPrevious; wrapped here
+                // as well, every track swipe buzzed twice.
+                onNext = onNext,
+                onPrevious = onPrevious,
                 onDismiss = onDismissPlayback?.let { dismiss ->
                     {
                         haptics.play(Haptic.Pause)

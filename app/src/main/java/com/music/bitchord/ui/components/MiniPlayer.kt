@@ -71,6 +71,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import dev.chrisbanes.haze.materials.HazeMaterials
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import kotlin.math.abs
@@ -140,6 +141,9 @@ private val ART_CORNER = 8.dp
 
 /** Distance that makes a horizontal drag an intentional track change. */
 private val TRACK_SWIPE_THRESHOLD = 72.dp
+
+/** How long a dismissed bar waits for the playback to take it away before coming back. */
+private const val DISMISS_RECOVER_MS = 1_000L
 
 /**
  * How much further a drag may go sideways than up and still be a pull. A
@@ -334,6 +338,20 @@ internal fun Modifier.miniPlayerGestures(
                             ),
                         ) { value, _ -> dismissOffset.floatValue = value }
                         currentOnDismiss?.invoke()
+                        // Normally the bar leaves with the playback, and this
+                        // scope with it. If it is still here a moment later the
+                        // dismiss didn't take (no controller yet, say), so it
+                        // comes back into view rather than staying faded below
+                        // its slot.
+                        delay(DISMISS_RECOVER_MS)
+                        animate(
+                            initialValue = dismissOffset.floatValue,
+                            targetValue = 0f,
+                            animationSpec = spring(
+                                dampingRatio = 0.75f,
+                                stiffness = Spring.StiffnessMediumLow,
+                            ),
+                        ) { value, _ -> dismissOffset.floatValue = value }
                     }
                 } else {
                     val from = dismissOffset.floatValue
@@ -466,14 +484,10 @@ fun MiniPlayer(
             // Ahead of the surface, so a pull lifts the whole of it, frost and all.
             .miniPlayerGestures(
                 pull = pull,
-                onNext = {
-                    haptics.play(Haptic.SkipNext)
-                    onNext()
-                },
-                onPrevious = {
-                    haptics.play(Haptic.SkipPrevious)
-                    onPrevious()
-                },
+                // The swipe plays its own SkipNext / SkipPrevious; wrapped here
+                // as well, every track swipe buzzed twice.
+                onNext = onNext,
+                onPrevious = onPrevious,
                 onDismiss = onDismissPlayback?.let { dismiss ->
                     {
                         haptics.play(Haptic.Pause)
