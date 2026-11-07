@@ -608,13 +608,9 @@ class PlaybackService : MediaLibraryService() {
 
     /**
      * Loudness normalization, one per player like the other stages — see
-     * [LoudnessProcessor] for why it stopped being a single session effect.
-     * Paired to the players through [activeFilter]'s role rather than tracked
-     * as roles of their own: see [activeLoudness].
+     * [LoudnessProcessor] for why it stopped being a single session effect —
+     * dispatched by [loudness], declared after [scope].
      */
-    private val loudnessA = LoudnessProcessor().apply { gainFor = ::loudnessGainFor }
-    private val loudnessB = LoudnessProcessor().apply { gainFor = ::loudnessGainFor }
-    private var loudnessRetryJob: Job? = null
 
     /** The platform audio session currently advertised to system audio tools. */
     private var advertisedAudioEffectSessionId: Int = C.AUDIO_SESSION_ID_UNSET
@@ -629,17 +625,6 @@ class PlaybackService : MediaLibraryService() {
 
     private var activeFilter: TransitionFilterProcessor = transitionFilterA
     private var spareFilter: TransitionFilterProcessor = transitionFilterB
-
-    /**
-     * The loudness stage on the session player. Read off [activeFilter]'s role,
-     * which every handoff, version swap and rebuild already keeps right, so the
-     * two can never disagree about which sink is which.
-     */
-    private fun activeLoudness(): LoudnessProcessor =
-        if (activeFilter === transitionFilterA) loudnessA else loudnessB
-
-    private fun spareLoudness(): LoudnessProcessor =
-        if (activeFilter === transitionFilterA) loudnessB else loudnessA
 
     /** Automix's DSP analyzer — see [com.music.bitchord.playback.smart.TrackAnalyzer]. */
     private val trackAnalyzer = com.music.bitchord.playback.smart.TrackAnalyzer(this, AudioCache)
@@ -712,6 +697,18 @@ class PlaybackService : MediaLibraryService() {
     private var discordPresenceUp = false
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    /**
+     * The two players' loudness stages and the gain readout. Which stage is the
+     * session's is read off [activeFilter]'s role, which every handoff, version
+     * swap and rebuild already keeps right, so the two can never disagree
+     * about which sink is which.
+     */
+    private val loudness = LoudnessDispatch(
+        scope = scope,
+        aIsActive = { activeFilter === transitionFilterA },
+        player = { player },
+    )
 
     /** Canonical context owner for the active local bounded album/playlist. */
     private val boundedContextRegistry = ContextRegistry { snapshot ->
@@ -1101,7 +1098,7 @@ class PlaybackService : MediaLibraryService() {
             speakers.onLocalRepeatChanged(repeatMode)
             player?.let { WearBridge.republish(this@PlaybackService, it) }
             // Repeat-one makes the "next" track this one again.
-            player?.let { activeLoudness().nextMediaId = nextMediaIdOf(it) }
+            player?.let { loudness.active().nextMediaId = it.nextMediaIdOrNull() }
             // Repeat-all loops the queue as it stands; AutoPlay's tracks are the
             // opposite of that — an endless supply of new ones — so they come
             // back out first, and native REPEAT_MODE_ALL then wraps a plain
@@ -1145,7 +1142,7 @@ class PlaybackService : MediaLibraryService() {
             if (exoPlayer.isPlaying) prefetchAround(exoPlayer)
             // A queue edit can change what follows gaplessly, and the loudness
             // stage switches to that track on its own at the boundary.
-            activeLoudness().nextMediaId = nextMediaIdOf(exoPlayer)
+            loudness.active().nextMediaId = exoPlayer.nextMediaIdOrNull()
             if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
                 speakers.onLocalQueueChanged()
                 saveQueueSnapshot(exoPlayer)
@@ -1765,14 +1762,14 @@ class PlaybackService : MediaLibraryService() {
             spatialAudioProcessorA,
             equalizerProcessorA,
             transitionFilterA,
-            loudnessA,
+            loudness.a,
             ownsSession = true,
         )
         val sparePlayer = buildPlayer(
             spatialAudioProcessorB,
             equalizerProcessorB,
             transitionFilterB,
-            loudnessB,
+            loudness.b,
             ownsSession = false,
         )
         player = exoPlayer
@@ -1966,11 +1963,10 @@ class PlaybackService : MediaLibraryService() {
             // the session player at the handoff — so the incoming track is
             // levelled on its own sink before it renders a frame, and the
             // outgoing track keeps its own gain for the rest of the blend.
-            onArmIncoming = { item, nextId -> spareLoudness().track(item.mediaId, nextId) },
+            onArmIncoming = { item, nextId -> loudness.spare().track(item.mediaId, nextId) },
             // Both sinks, not a role: the trim is about what the pair sums to.
             onBlendHeadroom = { trim ->
-                loudnessA.setBlendTrim(trim)
-                loudnessB.setBlendTrim(trim)
+                loudness.setBlendTrim(trim)
             },
             onSettled = {
                 if (boundedEditState.hasPendingEdits) {
@@ -2009,7 +2005,7 @@ class PlaybackService : MediaLibraryService() {
                 }
             },
             syncedLines = ::loopMixLyrics,
-            loudnessGain = ::loudnessGainFor,
+            loudnessGain = loudness::gainFor,
             onMixPositionJump = { wrapped -> (mediaSession?.player as? SessionPlayer)?.announceMixPosition(wrapped) },
         )
 
@@ -2320,7 +2316,7 @@ class PlaybackService : MediaLibraryService() {
             standbyPlayer.setPlaybackSpeed(AppSettings.playbackSpeed.value)
             standbyPlayer.volume = 0f
             standbyPlayer.setMediaItems(newItems, currentIndex, alignedStartPos)
-            spareLoudness().track(mediaId, nextMediaIdOf(standbyPlayer))
+            loudness.spare().track(mediaId, standbyPlayer.nextMediaIdOrNull())
             standbyPlayer.playWhenReady = false
             standbyPlayer.prepare()
 
@@ -2441,8 +2437,7 @@ class PlaybackService : MediaLibraryService() {
                     // reason — see [LoudnessProcessor]. More so here: two
                     // versions of one song line up peak for peak.
                     val swapTrim = 1f / sqrt((inGain + outGain).coerceAtLeast(1f))
-                    loudnessA.setBlendTrim(swapTrim)
-                    loudnessB.setBlendTrim(swapTrim)
+                    loudness.setBlendTrim(swapTrim)
 
                     if (progress >= 1f) break
                     delay(16)
@@ -2452,8 +2447,7 @@ class PlaybackService : MediaLibraryService() {
                 adoptPlayerForVersionSwap(outgoing = activePlayer, incoming = standbyPlayer)
                 onSwapCommitted?.invoke()
             } finally {
-                loudnessA.setBlendTrim(1f)
-                loudnessB.setBlendTrim(1f)
+                loudness.setBlendTrim(1f)
                 if (!holdsSwitchBar) {
                     AppSettings.smartMixInProgress.value = false
                 }
@@ -3680,8 +3674,8 @@ class PlaybackService : MediaLibraryService() {
         // quality upgrade never reaches here — it returns early in
         // [Player.Listener.onMediaItemTransition] via [swappingMediaId] — which
         // is precisely what carries the applied gain across the swap.
-        setupLoudness(mediaItem?.mediaId)
-        scheduleLoudnessRetry(mediaItem?.mediaId)
+        loudness.setup(mediaItem?.mediaId)
+        loudness.scheduleRetry(mediaItem?.mediaId)
 
         // Keep a real, bounded history in the player rather than merely hiding
         // old rows in Compose. MediaController mirrors the playlist across the
@@ -7180,14 +7174,14 @@ class PlaybackService : MediaLibraryService() {
             spatialAudioProcessorA,
             equalizerProcessorA,
             transitionFilterA,
-            loudnessA,
+            loudness.a,
             ownsSession = true,
         )
         val newSpare = buildPlayer(
             spatialAudioProcessorB,
             equalizerProcessorB,
             transitionFilterB,
-            loudnessB,
+            loudness.b,
             ownsSession = false,
         )
         player = newActive
@@ -7206,7 +7200,7 @@ class PlaybackService : MediaLibraryService() {
             // transition `setMediaItems` fires lands before anything is
             // listening, so the ordinary setup path in [onTrackBecameCurrent]
             // never runs for the track the rebuild resumes on.
-            setupLoudness(items.getOrNull(index.coerceIn(items.indices))?.mediaId)
+            loudness.setup(items.getOrNull(index.coerceIn(items.indices))?.mediaId)
         }
         newActive.addListener(playbackListener)
         newActive.addAnalyticsListener(formatListener)
@@ -7383,7 +7377,7 @@ class PlaybackService : MediaLibraryService() {
         }
         scope.launch {
             AppSettings.loudnessNormalization.collect {
-                setupLoudness(player?.currentMediaItem?.mediaId)
+                loudness.setup(player?.currentMediaItem?.mediaId)
             }
         }
         scope.launch {
@@ -7395,7 +7389,7 @@ class PlaybackService : MediaLibraryService() {
             ) { off, onSpeaker -> off && onSpeaker }
                 .distinctUntilChanged()
                 .drop(1)
-                .collect { setupLoudness(player?.currentMediaItem?.mediaId) }
+                .collect { loudness.setup(player?.currentMediaItem?.mediaId) }
         }
         scope.launch {
             // Explicit <Any, _>: these flows have mixed element types, and
@@ -7455,85 +7449,6 @@ class PlaybackService : MediaLibraryService() {
         val enabled = AppSettings.spatialAudio.value && !activeTrackIsDolbyAtmos
         spatialAudioProcessorA.enabled = enabled
         spatialAudioProcessorB.enabled = enabled
-    }
-
-    /**
-     * The linear gain [LoudnessProcessor] applies to [mediaId]: YouTube's own
-     * normalization figure — see
-     * [com.music.bitchord.data.innertube.StreamResolver.loudnessDbFor] —
-     * bounded the way the platform effect this replaced was, or exactly 1 when
-     * nothing is known yet or the setting is off.
-     *
-     * Called on the audio thread, so it only reads things that are safe there:
-     * a StateFlow value and a ConcurrentHashMap.
-     *
-     * A track substituted to JioSaavn or an addon still carries a figure here
-     * as long as it was queued from YouTube, because [StreamResolver] resolves
-     * the YouTube stream alongside the substitute lookup rather than only when
-     * one fails — see [StreamResolver.loudnessDbFor]'s own doc.
-     */
-    private fun loudnessGainFor(mediaId: String): Float = loudnessGainMb(mediaId)
-        ?.let { 10.0.pow(it / 2000.0).toFloat() }
-        ?: 1f
-
-    private fun loudnessGainMb(mediaId: String?): Int? {
-        if (!AppSettings.loudnessNormalization.value) return null
-        if (AppSettings.loudnessOffOnSpeaker.value &&
-            AudioOutputStatus.current.value.routeKind == AudioRouting.Kind.PHONE
-        ) return null
-        val id = mediaId?.takeIf { it.isNotBlank() } ?: return null
-        val loudnessDb = StreamResolver.loudnessDbFor(id) ?: return null
-        return (-loudnessDb * 100.0).roundToInt().coerceIn(MIN_LOUDNESS_GAIN_MB, MAX_LOUDNESS_GAIN_MB)
-    }
-
-    /**
-     * Points the session player's loudness stage at [mediaId] and the track
-     * queued after it, and publishes the figure for the pipeline readout.
-     *
-     * Only the session player's: the spare is pointed at its own track when a
-     * transition arms it — see [CrossfadeController]'s `onArmIncoming` — which
-     * is the whole point of the stage being per player.
-     */
-    private fun setupLoudness(mediaId: String?) {
-        val exoPlayer = player ?: return
-        activeLoudness().track(mediaId, nextMediaIdOf(exoPlayer))
-        publishLoudnessFor(mediaId)
-    }
-
-    /** The track [exoPlayer] will move onto gaplessly, if any. */
-    private fun nextMediaIdOf(exoPlayer: ExoPlayer): String? {
-        val next = exoPlayer.nextMediaItemIndex
-        if (next == C.INDEX_UNSET || next !in 0 until exoPlayer.mediaItemCount) return null
-        return exoPlayer.getMediaItemAt(next).mediaId
-    }
-
-    private fun publishLoudnessFor(mediaId: String?) {
-        val gainMb = loudnessGainMb(mediaId)
-        val lufs = mediaId?.takeIf { it.isNotBlank() }?.let(StreamResolver::loudnessDbFor)
-        if (gainMb == null || lufs == null) {
-            AudioOutputStatus.publishLoudness(gainDb = null, lufs = null)
-        } else {
-            AudioOutputStatus.publishLoudness(gainDb = gainMb / 100f, lufs = lufs.toFloat())
-        }
-    }
-
-    /**
-     * One re-read of the readout, a few seconds after a transition, for the
-     * track whose YouTube figure had not resolved yet when [setupLoudness]
-     * first ran — the substitute lookup that wins the race for a JioSaavn or
-     * addon track is often quicker than the YouTube walk running alongside it.
-     *
-     * Only the readout: the gain itself is read lazily by [LoudnessProcessor]
-     * and glides in on its own the moment the figure lands.
-     */
-    private fun scheduleLoudnessRetry(mediaId: String?) {
-        loudnessRetryJob?.cancel()
-        val id = mediaId?.takeIf { it.isNotBlank() } ?: return
-        if (StreamResolver.loudnessDbFor(id) != null) return
-        loudnessRetryJob = scope.launch {
-            delay(LOUDNESS_RETRY_MS)
-            if (player?.currentMediaItem?.mediaId == id) publishLoudnessFor(id)
-        }
     }
 
     private fun observeScrobbling() {
@@ -7904,7 +7819,7 @@ class PlaybackService : MediaLibraryService() {
         serviceLyrics = null
         cancelPrefetch()
         trackAnalyzer.release()
-        loudnessRetryJob?.cancel()
+        loudness.cancel()
         // The YouTube Music history entry for whatever was playing, closed out
         // on the same terms as the ListenBrainz submit below: a swipe-away never
         // fires STATE_ENDED, and the tracker's own scope outlives this service,
@@ -9593,13 +9508,6 @@ class PlaybackService : MediaLibraryService() {
 
         /** Floor on the speed the window divides by, so a near-zero speed cannot stretch it to forever. */
         const val MIN_WINDOW_SPEED = 0.25f
-
-        /** Bounds on a track's normalization gain, in millibels: the range the platform LoudnessEnhancer this replaced accepted. */
-        const val MIN_LOUDNESS_GAIN_MB = -1500
-        const val MAX_LOUDNESS_GAIN_MB = 300
-
-        /** How long [scheduleLoudnessRetry] waits for a still-resolving figure. */
-        const val LOUDNESS_RETRY_MS = 6_000L
 
         /**
          * How long a Discord teardown may spend clearing the presence before the
