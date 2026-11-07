@@ -86,6 +86,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.contentDescription
@@ -1722,8 +1723,9 @@ private fun PlayCircle(
             // Offscreen so the clear below cuts the circle drawn under it,
             // not whatever the page has behind.
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-            .drawWithContent {
-                drawCircle(containerColor)
+            // The triangle and its pen depend on the size alone, so they are
+            // built with the cache rather than on every draw.
+            .drawWithCache {
                 val box = this.size.minDimension * iconScale
                 val unit = box / 24f
                 val origin = Offset((this.size.width - box) / 2f, (this.size.height - box) / 2f)
@@ -1733,18 +1735,17 @@ private fun PlayCircle(
                     lineTo(origin.x + 6.8f * unit, origin.y + 19.2f * unit)
                     close()
                 }
-                drawPath(triangle, Color.Black, blendMode = BlendMode.Clear)
                 // The same round-joined pen the icon is drawn with.
-                drawPath(
-                    triangle,
-                    Color.Black,
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                        width = 2f * unit,
-                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                        join = androidx.compose.ui.graphics.StrokeJoin.Round,
-                    ),
-                    blendMode = BlendMode.Clear,
+                val pen = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = 2f * unit,
+                    cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    join = androidx.compose.ui.graphics.StrokeJoin.Round,
                 )
+                onDrawWithContent {
+                    drawCircle(containerColor)
+                    drawPath(triangle, Color.Black, blendMode = BlendMode.Clear)
+                    drawPath(triangle, Color.Black, style = pen, blendMode = BlendMode.Clear)
+                }
             }
             .semantics { contentDescription = description },
     )
