@@ -11,7 +11,6 @@ import com.music.bitchord.data.TrackLog
 import com.music.bitchord.playback.smart.AutomixAnalysisSource
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
@@ -225,7 +224,7 @@ object AudioCache {
         appContext = context.applicationContext
         evictor.maxBytes = AppSettings.audioCacheLimitBytes.value
         val dir = File(context.noBackupFilesDir, CACHE_DIR_NAME)
-        val databaseProvider = StandaloneDatabaseProvider(context)
+        val databaseProvider = MediaDatabase.provider(context)
         migrateFromCacheDir(File(context.cacheDir, LEGACY_CACHE_DIR_NAME), dir, databaseProvider)
         cache = SimpleCache(dir, evictor, databaseProvider)
         // Builds before album/explicit/video-aware and credit-aware matching
@@ -274,7 +273,7 @@ object AudioCache {
      * the uid file inside the directory. Should the rename fail, the old copy
      * is deleted rather than left for the system to find.
      */
-    private fun migrateFromCacheDir(legacy: File, dir: File, databaseProvider: StandaloneDatabaseProvider) {
+    private fun migrateFromCacheDir(legacy: File, dir: File, databaseProvider: androidx.media3.database.DatabaseProvider) {
         if (!legacy.isDirectory) return
         if (!dir.exists()) {
             dir.parentFile?.mkdirs()
@@ -1339,6 +1338,10 @@ object AudioCache {
     }
 
     private var job: Job? = null
+    // Written on the main thread, read by the fetch loops on IO threads as
+    // their signal to stop: without the barrier, a fetch could go on writing a
+    // track the player has since taken over. See [fetchWhole].
+    @Volatile
     private var pendingQueue: List<String> = emptyList()
 
     /**
