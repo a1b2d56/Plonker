@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.stableRowKeys
+import com.music.bitchord.ui.components.trackRowMotion
 import com.music.bitchord.ui.components.trackArtSize
 import androidx.compose.ui.layout.ContentScale
 import com.music.bitchord.data.model.toSong
@@ -361,41 +363,49 @@ fun SearchScreen(
                                 )
                             }
                         }
-                        itemsIndexed(
-                            items = section.rows,
-                            key = { index, row ->
+                        // Keyed on the row rather than its index, so a page that
+                        // loads more or refreshes moves rows instead of fading
+                        // them all out and in again: see [stableRowKeys].
+                        val rowKeys = stableRowKeys(
+                            section.rows.map { row ->
                                 when (row) {
-                                    is SearchResult.TopTrack -> "top_${row.song.videoId}_$index"
-                                    is SearchResult.Track -> "track_${row.song.videoId}_$index"
-                                    is SearchResult.Browse -> "browse_${row.item.browseId}_$index"
+                                    is SearchResult.TopTrack -> "top_${row.song.videoId}"
+                                    is SearchResult.Track -> "track_${row.song.videoId}"
+                                    is SearchResult.Browse -> "browse_${row.item.browseId}"
                                 }
                             },
+                        )
+                        itemsIndexed(
+                            items = section.rows,
+                            key = { index, _ -> rowKeys[index] },
                         ) { index, row ->
-                            when (row) {
-                                is SearchResult.TopTrack -> Unit
-                                is SearchResult.Track -> SongRow(
-                                    song = row.song,
-                                    onClick = {
-                                        onSongClick(tracks, tracks.indexOf(row.song).coerceAtLeast(0))
-                                    },
-                                    onLongPress = { onSongLongPress(row.song) },
-                                    onSwipeToQueue = { onSongSwipe(row.song) },
-                                    isCurrent = isCurrentRow(row.song),
-                                    isPlaying = isPlaying && isCurrentRow(row.song),
-                                    searchPlayingStyle = true,
-                                )
-                                is SearchResult.Browse -> BrowseRow(
-                                    item = row.item,
-                                    onClick = { onBrowseClick(row.item) },
-                                    onLongPress = onBrowseLongPress?.let { { it(row.item) } },
-                                )
-                            }
-                            if (index < section.rows.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
-                                    thickness = 0.5.dp,
-                                    color = MaterialTheme.colorScheme.outline,
-                                )
+                            Column(trackRowMotion()) {
+                                when (row) {
+                                    is SearchResult.TopTrack -> Unit
+                                    is SearchResult.Track -> SongRow(
+                                        song = row.song,
+                                        onClick = {
+                                            onSongClick(tracks, tracks.indexOf(row.song).coerceAtLeast(0))
+                                        },
+                                        onLongPress = { onSongLongPress(row.song) },
+                                        onSwipeToQueue = { onSongSwipe(row.song) },
+                                        isCurrent = isCurrentRow(row.song),
+                                        isPlaying = isPlaying && isCurrentRow(row.song),
+                                        searchPlayingStyle = true,
+                                    )
+                                    is SearchResult.Browse -> BrowseRow(
+                                        item = row.item,
+                                        onClick = { onBrowseClick(row.item) },
+                                        onLongPress = onBrowseLongPress?.let { { it(row.item) } },
+                                    )
+                                }
+                                if (index < section.rows.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
+                                        thickness = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outline,
+                                    )
+                                }
                             }
                         }
                     }
@@ -470,36 +480,40 @@ private fun LazyListScope.librarySearchResults(
         } else {
             val tracks = results.data
             val isCurrentRow = playingRowMatcher(tracks, currentSong)
-            itemsIndexed(tracks, key = { index, song -> "${if (addons) "addon" else "library"}_${song.videoId}_$index" }) { index, song ->
+            val rowKeys = stableRowKeys(tracks.map { it.videoId })
+            val keyPrefix = if (addons) "addon" else "library"
+            itemsIndexed(tracks, key = { index, _ -> "${keyPrefix}_${rowKeys[index]}" }) { index, song ->
                 val blocked = isBlocked(song)
-                SongRow(
-                    song = song,
-                    // Dimmed rather than hidden, so the listener can see the
-                    // addon has the song and tap to learn why it won't play.
-                    modifier = if (blocked) Modifier.alpha(BLOCKED_ROW_ALPHA) else Modifier,
-                    onClick = {
-                        if (blocked) {
-                            onBlockedSongClick(song)
-                        } else {
-                            // The queue skips blocked rows, or playing through
-                            // it would stop at the first one with an error.
-                            val playable = tracks.filterNot(isBlocked)
-                            onSongClick(playable, playable.indexOfFirst { it === song })
-                        }
-                    },
-                    onLongPress = { onSongLongPress(song) },
-                    onSwipeToQueue = { if (blocked) onBlockedSongClick(song) else onSongSwipe(song) },
-                    isCurrent = isCurrentRow(song),
-                    isPlaying = isPlaying && isCurrentRow(song),
-                    searchPlayingStyle = true,
-                    showSourceQuality = addons,
-                )
-                if (index < tracks.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
-                        thickness = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outline,
+                Column(trackRowMotion()) {
+                    SongRow(
+                        song = song,
+                        // Dimmed rather than hidden, so the listener can see the
+                        // addon has the song and tap to learn why it won't play.
+                        modifier = if (blocked) Modifier.alpha(BLOCKED_ROW_ALPHA) else Modifier,
+                        onClick = {
+                            if (blocked) {
+                                onBlockedSongClick(song)
+                            } else {
+                                // The queue skips blocked rows, or playing through
+                                // it would stop at the first one with an error.
+                                val playable = tracks.filterNot(isBlocked)
+                                onSongClick(playable, playable.indexOfFirst { it === song })
+                            }
+                        },
+                        onLongPress = { onSongLongPress(song) },
+                        onSwipeToQueue = { if (blocked) onBlockedSongClick(song) else onSongSwipe(song) },
+                        isCurrent = isCurrentRow(song),
+                        isPlaying = isPlaying && isCurrentRow(song),
+                        searchPlayingStyle = true,
+                        showSourceQuality = addons,
                     )
+                    if (index < tracks.lastIndex) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
                 }
             }
         }

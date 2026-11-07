@@ -1,5 +1,8 @@
 package com.music.bitchord.ui.screens
 
+import androidx.compose.foundation.layout.Column
+import com.music.bitchord.ui.components.stableRowKeys
+import com.music.bitchord.ui.components.trackRowMotion
 import com.music.bitchord.R
 
 import androidx.compose.foundation.layout.PaddingValues
@@ -66,23 +69,26 @@ fun HistoryScreen(
                 val isCurrentRow = playingRowMatcher(songs, currentSong)
                 // The videoId alone is not a key here: the feed is deduplicated
                 // on it, but a list keyed on something that could repeat is one
-                // bad response away from a crash. The index makes it total.
+                // bad response away from a crash. [stableRowKeys] makes it total
+                // without the index, so removing an entry slides the rest up.
                 itemsIndexed(songs) { index, song ->
-                    SongRow(
-                        song = song,
-                        onClick = { onSongClick(songs, index) },
-                        onLongPress = { onSongLongPress(song) },
-                        onSwipeToQueue = { onSongSwipe(song) },
-                        isCurrent = isCurrentRow(song),
-                        isPlaying = isCurrentRow(song) && isPlaying,
-                        searchPlayingStyle = true,
-                    )
-                    if (index < songs.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
-                            thickness = 0.5.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    Column(trackRowMotion()) {
+                        SongRow(
+                            song = song,
+                            onClick = { onSongClick(songs, index) },
+                            onLongPress = { onSongLongPress(song) },
+                            onSwipeToQueue = { onSongSwipe(song) },
+                            isCurrent = isCurrentRow(song),
+                            isPlaying = isCurrentRow(song) && isPlaying,
+                            searchPlayingStyle = true,
                         )
+                        if (index < songs.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
+                                thickness = 0.5.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            )
+                        }
                     }
                 }
             }
@@ -90,11 +96,14 @@ fun HistoryScreen(
     }
 }
 
-/** Keyed on both, for the reason given at the call site. */
+/** Keyed by [stableRowKeys], for the reason given at the call site. */
 private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexed(
     songs: List<Song>,
-    row: @Composable (Int, Song) -> Unit,
-) = items(
-    count = songs.size,
-    key = { "${songs[it].videoId}:$it" },
-) { index -> row(index, songs[index]) }
+    row: @Composable androidx.compose.foundation.lazy.LazyItemScope.(Int, Song) -> Unit,
+) {
+    val keys = stableRowKeys(songs.map { it.videoId })
+    items(
+        count = songs.size,
+        key = { "history:${keys[it]}" },
+    ) { index -> row(index, songs[index]) }
+}

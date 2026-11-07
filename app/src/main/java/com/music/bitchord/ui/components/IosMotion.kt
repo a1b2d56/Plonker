@@ -53,8 +53,8 @@ val LocalIosModalScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { nu
  * Authentic Apple iOS motion curves, physics, and transitions.
  */
 object IosMotion {
-    const val SPRING_DAMPING = 0.82f
-    const val SPRING_STIFFNESS = 380f
+    const val SPRING_DAMPING = CardSpring.DAMPING
+    const val SPRING_STIFFNESS = CardSpring.STIFFNESS
 
     /**
      * Navigation push/pop: a touch firmer than the card spring, so a page

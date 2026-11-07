@@ -44,6 +44,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.music.bitchord.data.settings.MixBlend
+import com.music.bitchord.ui.components.CardSpring
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 import kotlinx.coroutines.delay
@@ -104,10 +105,9 @@ fun ThinSlider(
     var dragging by remember { mutableStateOf(false) }
     val height by animateDpAsState(
         targetValue = if (dragging) activeHeight else idleHeight,
-        // The app's card spring (IosMotion.cardSpring, which lives in :app):
-        // settled with a hint of overshoot, where the old medium-bouncy spring
-        // wobbled the bar's thickness a couple of times under the finger.
-        animationSpec = spring(dampingRatio = THICKEN_DAMPING, stiffness = THICKEN_STIFFNESS),
+        // The card spring: settled with a hint of overshoot, where the old
+        // medium-bouncy spring wobbled the bar's thickness under the finger.
+        animationSpec = spring(dampingRatio = CardSpring.DAMPING, stiffness = CardSpring.STIFFNESS),
         label = "sliderHeight",
     )
     // The gesture loop below is started once, so it reads the callbacks
@@ -292,10 +292,6 @@ fun ThinSlider(
 }
 
 private const val SHEEN_BAND_FRACTION = 0.34f
-
-/** [com.music.bitchord.ui.components.IosMotion]'s card spring, which :sharedUi can't reach. */
-private const val THICKEN_DAMPING = 0.82f
-private const val THICKEN_STIFFNESS = 380f
 
 /** Where a slider's value sits, for the haptic ticks the sliders play while dragged. */
 object SliderDetents {
