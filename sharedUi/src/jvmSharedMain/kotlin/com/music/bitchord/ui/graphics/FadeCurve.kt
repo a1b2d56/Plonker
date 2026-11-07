@@ -19,3 +19,13 @@ fun smootherStep(t: Float): Float {
  * over a tall fade.
  */
 const val FADE_CURVE_STOPS = 16
+
+/** Precomputed smootherstep lookup table across [0, FADE_CURVE_STOPS]. */
+val SMOOTHER_STEP_TABLE = FloatArray(FADE_CURVE_STOPS + 1) { i ->
+    smootherStep(i / FADE_CURVE_STOPS.toFloat())
+}
+
+/** Precomputed t fraction table across [0, FADE_CURVE_STOPS]. */
+val FADE_CURVE_T_TABLE = FloatArray(FADE_CURVE_STOPS + 1) { i ->
+    i / FADE_CURVE_STOPS.toFloat()
+}

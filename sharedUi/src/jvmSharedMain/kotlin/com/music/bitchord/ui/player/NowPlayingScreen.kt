@@ -7,6 +7,8 @@ import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.constrain
 import androidx.compose.ui.unit.Constraints
 import com.music.bitchord.ui.graphics.FADE_CURVE_STOPS
+import com.music.bitchord.ui.graphics.FADE_CURVE_T_TABLE
+import com.music.bitchord.ui.graphics.SMOOTHER_STEP_TABLE
 import com.music.bitchord.ui.graphics.smootherStep
 import com.music.bitchord.playback.PlaybackPosition
 import com.music.bitchord.sharedui.resources.*
@@ -3286,8 +3288,9 @@ fun NowPlayingScreen(
                                             // so neither end of the dissolve shows as a line.
                                             brush = Brush.verticalGradient(
                                                 colorStops = Array(FADE_CURVE_STOPS + 1) { i ->
-                                                    val t = i / FADE_CURVE_STOPS.toFloat()
-                                                    t to Color.Black.copy(alpha = 1f - shown * smootherStep(t))
+                                                    FADE_CURVE_T_TABLE[i] to Color.Black.copy(
+                                                        alpha = 1f - shown * SMOOTHER_STEP_TABLE[i]
+                                                    )
                                                 },
                                                 startY = size.height * (1f - stillFadeFraction()),
                                                 endY = size.height,

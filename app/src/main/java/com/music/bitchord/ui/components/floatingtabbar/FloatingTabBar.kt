@@ -52,7 +52,9 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -454,18 +456,35 @@ private fun SharedTransitionScope.InlineBar(
             )
         }
 
+        val hasInlineAccessory = accessory != null
+        var lastValidInlineAccessory by remember { mutableStateOf(accessory) }
         if (accessory != null) {
-            InlineAccessory(
-                accessory = accessory,
-                isAccessoryShared = isAccessoryShared,
-                shapes = shapes,
-                colors = colors,
-                elevations = elevations,
-                animatedVisibilityScope = animatedVisibilityScope,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-            )
+            lastValidInlineAccessory = accessory
+        }
+        val targetInlineAccessory = accessory ?: lastValidInlineAccessory
+        AnimatedVisibility(
+            visible = hasInlineAccessory && targetInlineAccessory != null,
+            enter = fadeIn(tween(180)) + expandHorizontally(
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+            ),
+            exit = fadeOut(tween(160)) + shrinkHorizontally(
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+            ),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+        ) {
+            targetInlineAccessory?.let { acc ->
+                InlineAccessory(
+                    accessory = acc,
+                    isAccessoryShared = isAccessoryShared,
+                    shapes = shapes,
+                    colors = colors,
+                    elevations = elevations,
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
         if (standaloneTab != null) {
