@@ -107,8 +107,19 @@ class DynamicLruCacheEvictor(
      * Reclaims space right away when [maxBytes] drops, rather than waiting for
      * the next write to notice — otherwise a lowered limit only takes effect
      * whenever the listener next happens to play something.
+     *
+     * Taken under [cache]'s own monitor. Every other entry into this class is a
+     * callback [SimpleCache][androidx.media3.datasource.cache.SimpleCache] makes
+     * from inside its synchronized methods, which is the only thing keeping the
+     * two sets and the sizes above consistent: they are plain, unsynchronized
+     * collections. This one is called from a settings coroutine instead, and run
+     * bare it walked those sets while a streaming or downloading thread was
+     * adding to them. A set left listing a span the cache no longer has is worse
+     * than a crash: [Cache.removeSpan] then returns without calling back, the
+     * loop below gets the same span from `first()` every time, and it spins
+     * forever holding the cache's lock, stalling playback and downloads with it.
      */
-    fun applyNow(cache: Cache) = evictCache(cache, 0)
+    fun applyNow(cache: Cache) = synchronized(cache) { evictCache(cache, 0) }
 
     private fun evictCache(cache: Cache, requiredSpace: Long) {
         while (currentSize + requiredSpace > maxBytes) {
