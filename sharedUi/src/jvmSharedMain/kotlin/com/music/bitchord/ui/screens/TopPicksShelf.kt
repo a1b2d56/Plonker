@@ -1,5 +1,8 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.pressBounce
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -279,13 +282,19 @@ private fun TopPickCard(
 ) {
     val text = cardText(pick, listenerName)
     val longPress = onLongPress?.let { { it(pick) } }
+    val press = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
+            .pressBounce(press)
             .aspectRatio(TOP_PICK_RATIO)
             .clip(TopPickShape)
             .thumbnailBorder(TopPickShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .longPressMenuClickable(onClick = { onClick(pick, text.title) }, onLongClick = longPress)
+            .longPressMenuClickable(
+                onClick = { onClick(pick, text.title) },
+                onLongClick = longPress,
+                interactionSource = press,
+            )
             .contextClick(longPress),
     ) {
         val eyebrowColor: Color
@@ -1598,7 +1607,12 @@ fun MoodGridPage(
 @Composable
 private fun MoodTile(mood: TopPickMood, onClick: (TopPickMood, String) -> Unit, modifier: Modifier) {
     val title = stringResource(mood.titleRes())
-    Column(modifier.clickable { onClick(mood, title) }) {
+    val press = remember { MutableInteractionSource() }
+    Column(
+        modifier
+            .pressBounce(press)
+            .clickable(interactionSource = press, indication = LocalIndication.current) { onClick(mood, title) },
+    ) {
         Box(
             Modifier
                 .fillMaxWidth()

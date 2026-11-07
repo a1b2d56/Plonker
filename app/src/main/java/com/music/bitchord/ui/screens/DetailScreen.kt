@@ -1,5 +1,9 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.WIDE_PRESS_SCALE
+import com.music.bitchord.ui.components.pressBounce
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.music.bitchord.ui.components.stableRowKeys
 import com.music.bitchord.ui.components.trackRowMotion
 import com.music.bitchord.ui.components.trackArtSize
@@ -1676,8 +1680,10 @@ private fun ActionPill(
     // says so.
     val haptics = rememberHaptics()
     val content = if (filled) Color.Black else MaterialTheme.colorScheme.onSurface
+    val press = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
+            .pressBounce(press)
             .height(size)
             .clip(CircleShape)
             .then(
@@ -1690,7 +1696,7 @@ private fun ActionPill(
                         .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
                 },
             )
-            .clickable {
+            .clickable(interactionSource = press, indication = LocalIndication.current) {
                 haptics.play(Haptic.Resume)
                 onClick()
             }
@@ -1727,11 +1733,13 @@ private fun PlayCircle(
 ) {
     val haptics = rememberHaptics()
     val description = stringResource(R.string.play)
+    val press = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
+            .pressBounce(press)
             .size(size)
             .clip(CircleShape)
-            .clickable {
+            .clickable(interactionSource = press, indication = LocalIndication.current) {
                 haptics.play(Haptic.Resume)
                 onClick()
             }
@@ -1786,8 +1794,10 @@ private fun CircleIconButton(
     enabled: Boolean = true,
 ) {
     val haptics = rememberHaptics()
+    val press = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
+            .pressBounce(press)
             .size(size)
             .alpha(if (enabled) 1f else DISABLED_ACTION_ALPHA)
             .clip(CircleShape)
@@ -1796,7 +1806,11 @@ private fun CircleIconButton(
             // only: over the page's flat tint a blurred fill would look the same.
             .liquidGlassRim(CircleShape)
             .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), CircleShape)
-            .clickable(enabled = enabled) {
+            .clickable(
+                interactionSource = press,
+                indication = LocalIndication.current,
+                enabled = enabled,
+            ) {
                 haptics.play(haptic)
                 onClick()
             },
@@ -2246,18 +2260,22 @@ private fun TopReleaseCard(
     val coverShape = remember { RoundedCornerShape(TOP_RELEASE_CORNER - TOP_RELEASE_INSET).continuous() }
     val haptics = rememberHaptics()
     val hasButton = onToggleSaved != null && saved != null
+    val press = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = ARTIST_CONTENT_GUTTER)
             .padding(bottom = 22.dp)
+            // Gentler than a tile's: this panel spans the page, and 4% of
+            // its width is a lurch rather than a give.
+            .pressBounce(press, pressedScale = WIDE_PRESS_SCALE)
             // A light veil rather than the dark glass: Apple's containers read
             // slightly white against the page, and a dark panel reads as a hole.
             .clip(shape)
             .background(Color.White.copy(alpha = LIGHT_FILL_ALPHA), shape)
             .border(1.dp, Color.White.copy(alpha = TOP_RELEASE_EDGE_ALPHA), shape)
             .clip(shape)
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress, interactionSource = press)
             .padding(
                 start = TOP_RELEASE_INSET,
                 top = TOP_RELEASE_INSET,
@@ -2374,9 +2392,11 @@ private fun SectionCard(
         )
         return
     }
+    val press = remember { MutableInteractionSource() }
     Column(
         modifier = modifier
-            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress),
+            .pressBounce(press)
+            .longPressMenuClickable(onClick = onClick, onLongClick = onLongPress, interactionSource = press),
     ) {
         AsyncImage(
             model = item.thumbnailUrl.artworkAt(CARD_ART_PX),

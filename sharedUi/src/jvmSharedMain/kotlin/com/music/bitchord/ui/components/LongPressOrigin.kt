@@ -1,7 +1,9 @@
 package com.music.bitchord.ui.components
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
@@ -13,17 +15,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.toSize
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -99,6 +100,11 @@ object LongPressOrigin {
  * reaches the screen's edge. The lifted picture leaves it off, so the row's
  * content sits as close to its plate as a row without one does, rather than a
  * gutter in from both sides.
+ *
+ * [interactionSource] is for a tile that gives under the finger: the tile puts
+ * [pressBounce] on the same source at the front of its own chain, ahead of its
+ * clip. A hold then lifts it from where it stands, slightly shrunk, because
+ * its bounds are taken through that scale.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -107,8 +113,11 @@ fun Modifier.longPressMenuClickable(
     onLongClick: (() -> Unit)?,
     enabled: Boolean = true,
     liftPadding: PaddingValues = NoLiftPadding,
+    interactionSource: MutableInteractionSource? = null,
 ): Modifier {
     val capture = remember { HoldCapture() }
+    val ownInteraction = remember { MutableInteractionSource() }
+    val interaction = interactionSource ?: ownInteraction
     val graphicsContext = LocalGraphicsContext.current
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -116,16 +125,22 @@ fun Modifier.longPressMenuClickable(
     val longClick = onLongClick?.let { held ->
         {
             capture.coordinates?.takeIf { it.isAttached }?.let { coordinates ->
-                // Not clipped to what shows: a card half off the screen is
-                // lifted whole, rather than its whole picture squeezed into the
-                // slice of it that was on screen.
-                val whole = Rect(coordinates.positionInWindow(), coordinates.size.toSize())
                 with(density) {
                     capture.trimLeft = liftPadding.calculateLeftPadding(layoutDirection).toPx()
                     capture.trimRight = liftPadding.calculateRightPadding(layoutDirection).toPx()
                 }
+                // Not clipped to what shows: a card half off the screen is
+                // lifted whole, rather than its whole picture squeezed into the
+                // slice of it that was on screen. Both corners are mapped to
+                // the window, rather than one corner plus the unscaled size,
+                // so a tile shrunk by its press is lifted from exactly where it
+                // stands. With no scale above it this is the same rectangle.
+                val size = coordinates.size
                 val item = HeldItem(
-                    Rect(whole.left + capture.trimLeft, whole.top, whole.right - capture.trimRight, whole.bottom),
+                    Rect(
+                        coordinates.localToWindow(Offset(capture.trimLeft, 0f)),
+                        coordinates.localToWindow(Offset(size.width - capture.trimRight, size.height.toFloat())),
+                    ),
                 )
                 LongPressOrigin.record(item)
                 // Before the frame that records it, so the row's ⋮ is
@@ -139,7 +154,13 @@ fun Modifier.longPressMenuClickable(
     }
     return this
         .onPlaced { capture.coordinates = it }
-        .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = longClick)
+        .combinedClickable(
+            interactionSource = interaction,
+            indication = LocalIndication.current,
+            enabled = enabled,
+            onClick = onClick,
+            onLongClick = longClick,
+        )
         .drawWithContent {
             drawContent()
             // Reading the counter is what subscribes this draw to a hold;

@@ -18,10 +18,11 @@ object CardSpring {
 }
 
 /**
- * Whether list rows animate as they move, arrive and leave. The app provides
- * it from Reduce animation; left unprovided, rows move.
+ * Whether the small motions play: list rows sliding as they move, arrive and
+ * leave, and tiles giving under a press. The app provides it from Reduce
+ * animation; left unprovided, they play.
  */
-val LocalListRowMotion = compositionLocalOf { true }
+val LocalUiMotion = compositionLocalOf { true }
 
 /**
  * A track row's motion in a lazy list: it slides to its new place when a
@@ -33,7 +34,7 @@ val LocalListRowMotion = compositionLocalOf { true }
  */
 @Composable
 fun LazyItemScope.trackRowMotion(): Modifier =
-    if (LocalListRowMotion.current) {
+    if (LocalUiMotion.current) {
         Modifier.animateItem(
             // Opacity has nothing to overshoot, so the fades are undamped
             // springs at the card's stiffness: the same pace, no bounce.
