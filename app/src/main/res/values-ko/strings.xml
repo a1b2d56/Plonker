@@ -341,6 +341,7 @@
     <string name="reduce_animation_subtitle">메인 플레이어의 그라데이션 움직임을 멈춥니다</string>
     <string name="reduce_dynamic_blur">동적 흐림 줄이기</string>
     <string name="reduce_dynamic_blur_subtitle">앱 전체의 반투명 유리 효과를 단색으로 교체합니다</string>
+    <string name="reduce_dynamic_blur_battery_saver">절전 모드가 켜져 있는 동안 사용</string>
     <string name="disable_blend_effects">블렌드 효과 끄기</string>
     <string name="disable_blend_effects_subtitle">플레이어 아이콘, 텍스트, 어두운 메뉴를 앨범 아트 색으로 물들이지 않고 흰색으로 표시합니다</string>
     <string name="liquid_glass">Liquid Glass</string>

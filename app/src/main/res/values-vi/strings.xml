@@ -238,6 +238,7 @@
     <string name="reduce_animation_subtitle">Cố định dải màu của trình phát thay vì chuyển động</string>
     <string name="reduce_dynamic_blur">Giảm độ mờ động</string>
     <string name="reduce_dynamic_blur_subtitle">Dùng màu nền đặc thay cho hiệu ứng kính mờ trong toàn bộ ứng dụng</string>
+    <string name="reduce_dynamic_blur_battery_saver">Bật khi Trình tiết kiệm pin đang bật</string>
     <string name="disable_blend_effects">Tắt hiệu ứng hòa màu</string>
     <string name="disable_blend_effects_subtitle">Hiển thị biểu tượng, chữ và menu tối của trình phát bằng màu trắng thay vì nhuộm theo ảnh bìa</string>
     <string name="liquid_glass">Kính lỏng (Liquid Glass)</string>

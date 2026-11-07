@@ -2,11 +2,16 @@ package com.music.bitchord.data.settings
 
 import com.music.bitchord.data.webdav.update
 import com.music.bitchord.ui.components.VideoThumbnails
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.os.PowerManager
+import androidx.core.content.ContextCompat
 import androidx.media3.common.Player
 import com.music.bitchord.BuildConfig
 import com.music.bitchord.auth.AuthStore
@@ -16,6 +21,8 @@ import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.playback.EqLayout
 import com.music.bitchord.playback.EqualizerPreset
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 
 /**
@@ -488,8 +495,20 @@ object AppSettings {
     /** Analyzes audio waveform/envelope to align matching playback moment between versions. */
     val smartVersionAlignment = MutableStateFlow(true)
 
-    /** Drops haze blur (status bar, mini player, bottom fade, lyrics focus) for a solid-fill look. */
-    val reduceDynamicBlur = MutableStateFlow(false)
+    /** The listener's Reduce dynamic blur switch, as saved. Draw code reads [reduceDynamicBlur]. */
+    val reduceDynamicBlurSetting = MutableStateFlow(false)
+
+    /** Whether the system's Battery Saver is on; kept current by a receiver from [init]. */
+    val powerSaveMode = MutableStateFlow(false)
+
+    private val effectiveReduceBlur = MutableStateFlow(false)
+
+    /**
+     * Drops haze blur (status bar, mini player, bottom fade, lyrics focus) for a
+     * solid-fill look: when the listener asks for it, and while Battery Saver is
+     * on — see [dynamicBlurReduced].
+     */
+    val reduceDynamicBlur: StateFlow<Boolean> = effectiveReduceBlur.asStateFlow()
 
     /**
      * Draws the player's glyphs and text, and the dark menus' rows, in plain white
@@ -942,6 +961,7 @@ object AppSettings {
         )
         readAll()
         watchConnection(context)
+        watchPowerSave(context)
     }
 
     /**
@@ -1044,7 +1064,7 @@ object AppSettings {
         squareVideoThumbnails.value = prefs.getBoolean(KEY_SQUARE_VIDEO_THUMBNAILS, false)
         VideoThumbnails.square = squareVideoThumbnails.value
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
-        reduceDynamicBlur.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
+        reduceDynamicBlurSetting.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, false)
         glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
@@ -1055,8 +1075,9 @@ object AppSettings {
         translationLanguage.value = prefs.getString(KEY_TRANSLATION_LANGUAGE, "").orEmpty()
         if (highPerformanceMode.value) {
             reduceAnimation.value = false
-            reduceDynamicBlur.value = false
+            reduceDynamicBlurSetting.value = false
         }
+        refreshDynamicBlur()
         animatedCanvas.value = prefs.getBoolean(KEY_ANIMATED_CANVAS, true)
         canvasOverCellular.value = prefs.getBoolean(KEY_CANVAS_OVER_CELLULAR, false)
         spotifyCanvasAutoHide.value = prefs.getBoolean(KEY_SPOTIFY_CANVAS_AUTO_HIDE, true)
@@ -1224,6 +1245,42 @@ object AppSettings {
      * thread mid-playback; a callback keeps that lookup off the hot path and
      * lets the settings page show which ceiling is currently in force.
      */
+    private var powerSaveWatched = false
+
+    /**
+     * Follow Battery Saver so blur steps down with the rest of the system:
+     * the haze passes are the most expensive thing the UI draws every frame.
+     */
+    private fun watchPowerSave(context: Context) {
+        if (powerSaveWatched) return
+        val app = context.applicationContext
+        val power = app.getSystemService(PowerManager::class.java) ?: return
+        val refresh = {
+            powerSaveMode.value = runCatching { power.isPowerSaveMode }.getOrDefault(false)
+            refreshDynamicBlur()
+        }
+        refresh()
+        runCatching {
+            ContextCompat.registerReceiver(
+                app,
+                object : BroadcastReceiver() {
+                    override fun onReceive(context: Context, intent: Intent) = refresh()
+                },
+                IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
+            powerSaveWatched = true
+        }
+    }
+
+    private fun refreshDynamicBlur() {
+        effectiveReduceBlur.value = dynamicBlurReduced(
+            setting = reduceDynamicBlurSetting.value,
+            powerSave = powerSaveMode.value,
+            highPerformance = highPerformanceMode.value,
+        )
+    }
+
     private fun watchConnection(context: Context) {
         val manager = context.getSystemService(ConnectivityManager::class.java) ?: return
         val refresh = {
@@ -1423,6 +1480,7 @@ object AppSettings {
     fun setReduceAnimation(value: Boolean) {
         reduceAnimation.value = value
         if (value) highPerformanceMode.value = false
+        refreshDynamicBlur()
         val editor = prefs.edit().putBoolean(KEY_REDUCE_ANIMATION, value)
         if (value) editor.putBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         editor.apply()
@@ -1515,8 +1573,9 @@ object AppSettings {
     }
 
     fun setReduceDynamicBlur(value: Boolean) {
-        reduceDynamicBlur.value = value
+        reduceDynamicBlurSetting.value = value
         if (value) highPerformanceMode.value = false
+        refreshDynamicBlur()
         val editor = prefs.edit().putBoolean(KEY_REDUCE_BLUR, value)
         if (value) editor.putBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         editor.apply()
@@ -1541,8 +1600,9 @@ object AppSettings {
         highPerformanceMode.value = value
         if (value) {
             reduceAnimation.value = false
-            reduceDynamicBlur.value = false
+            reduceDynamicBlurSetting.value = false
         }
+        refreshDynamicBlur()
         val editor = prefs.edit().putBoolean(KEY_HIGH_PERFORMANCE_MODE, value)
         if (value) {
             editor.putBoolean(KEY_REDUCE_ANIMATION, false)
@@ -2392,5 +2452,10 @@ object AppSettings {
     private const val KEY_LAST_VERSION_CODE = "last_version_code"
 }
 
-
-
+/**
+ * Whether dynamic blur is drawn as solid fills: when the listener asks for it,
+ * or while Battery Saver is on. High performance mode is the explicit request
+ * for every effect at full cost, so it overrides both.
+ */
+internal fun dynamicBlurReduced(setting: Boolean, powerSave: Boolean, highPerformance: Boolean): Boolean =
+    !highPerformance && (setting || powerSave)

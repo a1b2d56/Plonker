@@ -246,7 +246,10 @@ fun SettingsScreen(
     val nerdStats by AppSettings.showNerdStats.collectAsStateWithLifecycle()
     val listenTogetherButton by AppSettings.showListenTogetherButton.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
-    val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
+    // The switch is the listener's own choice; Battery Saver can reduce blur
+    // on top of it, which the row's subtitle says rather than the switch.
+    val reduceDynamicBlur by AppSettings.reduceDynamicBlurSetting.collectAsStateWithLifecycle()
+    val blurReducedBySystem by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
     val glassPerformance by AppSettings.glassPerformance.collectAsStateWithLifecycle()
@@ -1058,7 +1061,13 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = SfIcons.BlurOff,
                     title = reduceDynamicBlurTitle,
-                    subtitle = stringResource(R.string.reduce_dynamic_blur_subtitle),
+                    subtitle = stringResource(
+                        if (blurReducedBySystem && !reduceDynamicBlur) {
+                            R.string.reduce_dynamic_blur_battery_saver
+                        } else {
+                            R.string.reduce_dynamic_blur_subtitle
+                        },
+                    ),
                     trailing = {
                         IosSwitch(
                             checked = reduceDynamicBlur,

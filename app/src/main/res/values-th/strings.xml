@@ -228,6 +228,7 @@
     <string name="reduce_animation_subtitle">หยุดเกรเดียนต์ของเครื่องเล่นหลักแทนการเคลื่อนไหว</string>
     <string name="reduce_dynamic_blur">ลดเบลอแบบไดนามิก</string>
     <string name="reduce_dynamic_blur_subtitle">เปลี่ยนกระจกฝ้าเป็นพื้นทึบทั่วทั้งแอป</string>
+    <string name="reduce_dynamic_blur_battery_saver">เปิดอยู่ขณะที่โหมดประหยัดแบตเตอรี่เปิดอยู่</string>
     <string name="disable_blend_effects">ปิดเอฟเฟกต์ผสมสี</string>
     <string name="disable_blend_effects_subtitle">แสดงไอคอน ข้อความ และเมนูสีเข้มของเครื่องเล่นเป็นสีขาวล้วน แทนการย้อมด้วยสีจากปกอัลบั้ม</string>
     <string name="liquid_glass">Liquid Glass</string>

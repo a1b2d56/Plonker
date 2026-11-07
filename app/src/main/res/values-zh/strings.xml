@@ -207,6 +207,7 @@
     <string name="reduce_animation_subtitle">让主播放器的渐变保持静止，而不是流动</string>
     <string name="reduce_dynamic_blur">减少动态模糊</string>
     <string name="reduce_dynamic_blur_subtitle">在整个应用中用纯色填充替代磨砂玻璃效果</string>
+    <string name="reduce_dynamic_blur_battery_saver">省电模式开启时自动启用</string>
     <string name="disable_blend_effects">关闭混合效果</string>
     <string name="disable_blend_effects_subtitle">播放器图标、文字和深色菜单以纯白显示，不再混入封面颜色</string>
     <string name="full_screen_cover_art">全屏封面</string>

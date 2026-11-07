@@ -207,6 +207,7 @@
     <string name="reduce_animation_subtitle">メインプレイヤーのグラデーションを動かさず固定します</string>
     <string name="reduce_dynamic_blur">動的なぼかしを減らす</string>
     <string name="reduce_dynamic_blur_subtitle">アプリ全体ですりガラス効果を単色の塗りつぶしに置き換えます</string>
+    <string name="reduce_dynamic_blur_battery_saver">バッテリー セーバーがオンの間は有効</string>
     <string name="disable_blend_effects">ブレンド効果をオフ</string>
     <string name="disable_blend_effects_subtitle">プレーヤーのアイコン、テキスト、ダークメニューをアートワークの色に染めず、白で表示します</string>
     <string name="full_screen_cover_art">全画面カバーアート</string>

@@ -222,6 +222,7 @@
     <string name="reduce_animation_subtitle">Останавливает градиент главного плеера вместо плавного движения</string>
     <string name="reduce_dynamic_blur">Уменьшить динамическое размытие</string>
     <string name="reduce_dynamic_blur_subtitle">Заменяет матовое стекло сплошной заливкой во всём приложении</string>
+    <string name="reduce_dynamic_blur_battery_saver">Включено, пока активен режим энергосбережения</string>
     <string name="disable_blend_effects">Отключить эффекты смешивания</string>
     <string name="disable_blend_effects_subtitle">Показывает значки, текст и тёмные меню плеера чисто белыми, не окрашивая их в цвета обложки</string>
     <string name="full_screen_cover_art">Обложка на весь экран</string>

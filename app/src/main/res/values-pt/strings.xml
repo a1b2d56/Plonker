@@ -214,6 +214,7 @@
     <string name="reduce_animation_subtitle">Congela o gradiente do player principal em vez de mover</string>
     <string name="reduce_dynamic_blur">Reduzir desfoque dinâmico</string>
     <string name="reduce_dynamic_blur_subtitle">Troca o vidro fosco por preenchimentos sólidos em todo o app</string>
+    <string name="reduce_dynamic_blur_battery_saver">Ativado enquanto a Economia de bateria estiver ativa</string>
     <string name="disable_blend_effects">Desativar efeitos de mesclagem</string>
     <string name="disable_blend_effects_subtitle">Mostra ícones, texto e menus escuros do player em branco, sem tingi-los com a capa</string>
     <string name="full_screen_cover_art">Capa em tela cheia</string>
