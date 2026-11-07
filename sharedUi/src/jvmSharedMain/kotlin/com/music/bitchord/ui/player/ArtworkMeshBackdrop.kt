@@ -355,14 +355,7 @@ fun ArtworkMeshBackdrop(
         // more. The old backdrop needed a heavier one because it lightened
         // every colour it drew to a fixed band; these are the sleeve's own,
         // and a sleeve that ends dark should leave a dark screen.
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.Black.copy(alpha = 0.06f),
-                    Color.Black.copy(alpha = 0.30f),
-                ),
-            ),
-        )
+        drawRect(brush = MeshBackdropScrim)
     }
 }
 
@@ -401,6 +394,14 @@ private fun DrawScope.drawMesh(mesh: ArtworkMesh, seamY: Float, alpha: Float) {
         filterQuality = FilterQuality.Low,
     )
 }
+
+/** Scrim over the mesh gradient, keeping white text legible over bright sleeves. */
+private val MeshBackdropScrim = Brush.verticalGradient(
+    colors = listOf(
+        Color.Black.copy(alpha = 0.06f),
+        Color.Black.copy(alpha = 0.30f),
+    ),
+)
 
 /** The shade over the blurred cover, deepening toward the controls at the foot. */
 private val FullArtworkScrim = Brush.verticalGradient(

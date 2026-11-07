@@ -714,7 +714,8 @@ class WearCommandService : WearableListenerService() {
                 controller.play()
             }
             P.CMD_QUEUE -> {
-                val current = controller.currentMediaItemIndex
+                if (controller.mediaItemCount <= 0) return
+                val current = controller.currentMediaItemIndex.coerceAtLeast(0)
                 // One played track above the playing one, for context, like the phone's list.
                 val from = (current - 1).coerceAtLeast(0)
                 val to = (current + WearBridge.queueAhead).coerceAtMost(controller.mediaItemCount - 1)
