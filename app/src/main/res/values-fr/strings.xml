@@ -1464,4 +1464,8 @@
     <string name="dismiss_playback">Arrêter la lecture</string>
     <string name="haptic_feedback">Retour haptique</string>
     <string name="haptic_feedback_subtitle">Vibrer sur les boutons, curseurs et gestes</string>
+    <string name="automix_overview">Aperçu d\'Automix</string>
+    <string name="diwali_title">Plonker vous souhaite un Joyeux Diwali</string>
+    <string name="diwali_subtitle">Que cette fête des lumières remplisse votre foyer de joie et vos journées de musique.</string>
+    <string name="diwali_cta">Célébrons</string>
 </resources>

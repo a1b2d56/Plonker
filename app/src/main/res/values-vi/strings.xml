@@ -1380,4 +1380,8 @@
     <string name="dismiss_playback">Đóng phát lại</string>
     <string name="haptic_feedback">Phản hồi xúc giác</string>
     <string name="haptic_feedback_subtitle">Rung khi bấm nút, thanh trượt và cử chỉ</string>
+    <string name="automix_overview">Tổng quan về Automix</string>
+    <string name="diwali_title">Plonker chúc bạn một mùa lễ Diwali vui vẻ</string>
+    <string name="diwali_subtitle">Nguyện chúc lễ hội ánh sáng này tràn ngập niềm vui trong mái ấm và âm nhạc trong từng ngày của bạn.</string>
+    <string name="diwali_cta">Cùng ăn mừng</string>
 </resources>

@@ -1420,4 +1420,8 @@
     <string name="dismiss_playback">Oynatmayı kapat</string>
     <string name="haptic_feedback">Dokunsal geri bildirim</string>
     <string name="haptic_feedback_subtitle">Düğmelerde, kaydırıcılarda ve hareketlerde titre</string>
+    <string name="automix_overview">Automix genel bakış</string>
+    <string name="diwali_title">Plonker Mutlu Divaliler diler</string>
+    <string name="diwali_subtitle">Bu ışık festivali evinize neşe, günlerinize müzik doldursun.</string>
+    <string name="diwali_cta">Kutlayalım</string>
 </resources>

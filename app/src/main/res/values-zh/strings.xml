@@ -1440,4 +1440,8 @@
     <string name="dismiss_playback">关闭播放</string>
     <string name="haptic_feedback">触感反馈</string>
     <string name="haptic_feedback_subtitle">在按钮、滑块和手势操作时振动</string>
+    <string name="automix_overview">Automix 概览</string>
+    <string name="diwali_title">Plonker 祝您排灯节快乐</string>
+    <string name="diwali_subtitle">愿这灯节给您的家带来欢乐，让您的日子充满音乐。</string>
+    <string name="diwali_cta">一起庆祝</string>
 </resources>

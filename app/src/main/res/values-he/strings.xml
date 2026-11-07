@@ -1468,4 +1468,8 @@
     <string name="dismiss_playback">סגור השמעה</string>
     <string name="haptic_feedback">משוב רטט</string>
     <string name="haptic_feedback_subtitle">רטט בלחיצה על כפתורים, מחוונים ומחוות</string>
+    <string name="automix_overview">סקירת Automix</string>
+    <string name="diwali_title">Plonker מאחל לך דיוואלי שמח</string>
+    <string name="diwali_subtitle">מי ייתן וחג האורות ימלא את ביתך בשמחה ואת ימיך במוזיקה.</string>
+    <string name="diwali_cta">בואו נחגוג</string>
 </resources>

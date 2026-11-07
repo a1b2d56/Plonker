@@ -20,7 +20,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -29,8 +31,12 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.music.bitchord.ui.haptics.Haptic
+import com.music.bitchord.ui.haptics.rememberHaptics
+import kotlin.math.abs
 
 /**
  * Authentic Apple iOS Human Interface Guidelines slider.
@@ -58,6 +64,8 @@ fun IosSlider(
     thumbHeight: Dp = 24.dp,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
+    val haptics = rememberHaptics()
+    var lastNotifiedStep by remember(valueRange, steps) { mutableStateOf(value) }
     val isPressed by interactionSource.collectIsPressedAsState()
     val animatedWidth by animateDpAsState(
         targetValue = if (isPressed) thumbWidth + 4.dp else thumbWidth,
@@ -76,14 +84,28 @@ fun IosSlider(
         label = "iosSliderThumbScale",
     )
 
+    val handleValueChange: (Float) -> Unit = { newValue ->
+        if (steps > 0) {
+            val stepSpan = (valueRange.endInclusive - valueRange.start) / (steps + 1)
+            if (abs(newValue - lastNotifiedStep) >= stepSpan * 0.7f) {
+                haptics.play(Haptic.Tick)
+                lastNotifiedStep = newValue
+            }
+        }
+        onValueChange(newValue)
+    }
+
     Slider(
         value = value,
-        onValueChange = onValueChange,
+        onValueChange = handleValueChange,
         modifier = modifier,
         enabled = enabled,
         valueRange = valueRange,
         steps = steps,
-        onValueChangeFinished = onValueChangeFinished,
+        onValueChangeFinished = {
+            haptics.play(Haptic.Select)
+            onValueChangeFinished?.invoke()
+        },
         interactionSource = interactionSource,
         thumb = {
             IosSliderThumb(
@@ -161,14 +183,16 @@ fun IosSliderTrack(
             cornerRadius = cornerRadius,
         )
 
-        // Active track (capsule fill)
+        // Active track (clipped capsule fill matching the outer track's curve)
         if (activeWidth > 0f) {
-            drawRoundRect(
-                color = activeColor,
-                topLeft = Offset.Zero,
-                size = Size(activeWidth, size.height),
-                cornerRadius = cornerRadius,
-            )
+            clipRect(left = 0f, top = 0f, right = activeWidth, bottom = size.height) {
+                drawRoundRect(
+                    color = activeColor,
+                    topLeft = Offset.Zero,
+                    size = size,
+                    cornerRadius = cornerRadius,
+                )
+            }
         }
     }
 }

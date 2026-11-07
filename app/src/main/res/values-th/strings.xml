@@ -1446,4 +1446,8 @@
     <string name="dismiss_playback">ปิดการเล่น</string>
     <string name="haptic_feedback">การตอบสนองแบบสัมผัส</string>
     <string name="haptic_feedback_subtitle">สั่นเมื่อแตะปุ่ม แถบเลื่อน และท่าทาง</string>
+    <string name="automix_overview">ภาพรวม Automix</string>
+    <string name="diwali_title">Plonker ขอให้คุณมีความสุขในเทศกาลดิวาลี</string>
+    <string name="diwali_subtitle">ขอให้เทศกาลแห่งแสงไฟนี้เติมเต็มบ้านของคุณด้วยความสุขและวันเวลาของคุณด้วยเสียงเพลง</string>
+    <string name="diwali_cta">มาเฉลิมฉลองกัน</string>
 </resources>
