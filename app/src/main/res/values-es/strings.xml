@@ -222,6 +222,7 @@
     <string name="reduce_animation_subtitle">Detiene el degradado del reproductor principal</string>
     <string name="reduce_dynamic_blur">Reducir desenfoque dinámico</string>
     <string name="reduce_dynamic_blur_subtitle">Cambia el cristal esmerilado por fondos sólidos</string>
+    <string name="reduce_dynamic_blur_battery_saver">Activado mientras el Ahorro de batería esté activo</string>
     <string name="disable_blend_effects">Desactivar efectos de fusión</string>
     <string name="disable_blend_effects_subtitle">Muestra los iconos, el texto y los menús oscuros del reproductor en blanco, sin teñirlos con la portada</string>
     <string name="liquid_glass">Liquid Glass</string>

@@ -213,6 +213,7 @@
     <string name="reduce_animation_subtitle">מקפיא את הגרדיאנט של הנגן הראשי במקום לתת לו לנוע</string>
     <string name="reduce_dynamic_blur">הפחתת טשטוש דינמי</string>
     <string name="reduce_dynamic_blur_subtitle">מחליף אפקט זכוכית מטושטשת במילוי אחיד בכל האפליקציה</string>
+    <string name="reduce_dynamic_blur_battery_saver">פעיל כל עוד חיסכון בסוללה מופעל</string>
     <string name="disable_blend_effects">השבתת אפקטי מיזוג</string>
     <string name="disable_blend_effects_subtitle">מציג את סמלי הנגן, הטקסט והתפריטים הכהים בלבן רגיל במקום לצבוע אותם בצבעי העטיפה</string>
     <string name="full_screen_cover_art">עטיפת אלבום במסך מלא</string>

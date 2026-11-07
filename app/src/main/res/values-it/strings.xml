@@ -252,6 +252,7 @@
     <string name="reduce_animation_subtitle">Blocca la sfumatura del player principale invece di farla muovere</string>
     <string name="reduce_dynamic_blur">Riduci sfocatura dinamica</string>
     <string name="reduce_dynamic_blur_subtitle">Sostituisce il vetro smerigliato con riempimenti pieni in tutta l\'app</string>
+    <string name="reduce_dynamic_blur_battery_saver">Attivo finché il Risparmio energetico è attivo</string>
     <string name="disable_blend_effects">Disattiva effetti di fusione</string>
     <string name="disable_blend_effects_subtitle">Mostra icone, testo e menu scuri del player in bianco pieno invece di colorarli con la copertina</string>
     <string name="liquid_glass">Liquid Glass</string>

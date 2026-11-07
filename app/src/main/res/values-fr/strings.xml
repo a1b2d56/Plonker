@@ -213,6 +213,7 @@
     <string name="reduce_animation_subtitle">Fige le dégradé du lecteur principal au lieu de le faire dériver</string>
     <string name="reduce_dynamic_blur">Réduire le flou dynamique</string>
     <string name="reduce_dynamic_blur_subtitle">Remplace le verre dépoli par des couleurs unies dans toute l\'application</string>
+    <string name="reduce_dynamic_blur_battery_saver">Activé tant que l\'Économiseur de batterie est actif</string>
     <string name="disable_blend_effects">Désactiver les effets de fusion</string>
     <string name="disable_blend_effects_subtitle">Affiche les icônes, le texte et les menus sombres du lecteur en blanc pur, sans les teinter avec la pochette</string>
     <string name="full_screen_cover_art">Pochette plein écran</string>

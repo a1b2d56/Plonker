@@ -234,6 +234,7 @@
     <string name="reduce_animation_subtitle">Ana oynatıcının gradyanını kaymak yerine dondurur</string>
     <string name="reduce_dynamic_blur">Dinamik bulanıklığı azalt</string>
     <string name="reduce_dynamic_blur_subtitle">Uygulama genelinde buzlu camı düz dolgularla değiştirir</string>
+    <string name="reduce_dynamic_blur_battery_saver">Pil Tasarrufu açıkken etkin</string>
     <string name="disable_blend_effects">Karışım efektlerini kapat</string>
     <string name="disable_blend_effects_subtitle">Oynatıcı simgelerini, metni ve koyu menüleri kapak rengiyle boyamak yerine düz beyaz gösterir</string>
     <string name="liquid_glass">Liquid Glass</string>

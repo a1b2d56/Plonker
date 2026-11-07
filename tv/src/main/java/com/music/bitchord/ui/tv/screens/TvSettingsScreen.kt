@@ -89,7 +89,7 @@ fun TvSettingsScreen(
     val uiScale by TvSettings.tvUiScale.collectAsState()
     val refreshRate by TvRefreshRateController.preference.collectAsState()
     val reduceMotion by AppSettings.reduceAnimation.collectAsState()
-    val reduceTransparency by AppSettings.reduceDynamicBlur.collectAsState()
+    val reduceTransparency by AppSettings.reduceDynamicBlurSetting.collectAsState()
 
     var blurb by remember { mutableStateOf(DefaultBlurb) }
     var sheet by remember { mutableStateOf<SettingsSheet?>(null) }
