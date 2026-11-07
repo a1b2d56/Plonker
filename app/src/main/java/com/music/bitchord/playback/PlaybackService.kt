@@ -1032,6 +1032,9 @@ class PlaybackService : MediaLibraryService() {
 
     }
 
+    /** [playbackListener] and [formatListener] on the session's player, moved as one. */
+    private val sessionListeners = SessionListeners(playbackListener, formatListener)
+
     /**
      * Which track an analytics event is about, taken off the event's own window.
      *
@@ -1575,7 +1578,7 @@ class PlaybackService : MediaLibraryService() {
         // History pings fire once a track is actually audible — both when
         // playback starts and when the queue moves on while already playing.
         lastRepeatMode = exoPlayer.repeatMode
-        exoPlayer.addListener(playbackListener)
+        sessionListeners.attach(exoPlayer)
         // After the player exists and before the session is built: the
         // session's wrapper reports the user's actions to it.
         partySync = PartySync(scope) { player }.also { it.start() }
@@ -1611,8 +1614,8 @@ class PlaybackService : MediaLibraryService() {
         // Only the analytics listener reports the format the audio renderer was
         // configured with. Treated as a trigger rather than a source: the
         // publisher reads the format off the player, so it can't go stale
-        // against the track the bitrate is looked up for.
-        exoPlayer.addAnalyticsListener(formatListener)
+        // against the track the bitrate is looked up for. It went on with
+        // [playbackListener] above — see [SessionListeners].
 
         reportProgress()
         watchDirectWindow()
@@ -2300,8 +2303,7 @@ class PlaybackService : MediaLibraryService() {
         setSessionOwner(outgoing, owns = false)
         setSessionOwner(incoming, owns = true)
 
-        outgoing.removeListener(playbackListener)
-        outgoing.removeAnalyticsListener(formatListener)
+        sessionListeners.detach()
 
         player = incoming
         spare = outgoing
@@ -2310,8 +2312,7 @@ class PlaybackService : MediaLibraryService() {
         activeFilter = spareFilter
         spareFilter = heldFilter
 
-        incoming.addListener(playbackListener)
-        incoming.addAnalyticsListener(formatListener)
+        sessionListeners.attach(incoming)
         adoptFormatOf(incoming)
 
         mediaSession?.player = newSessionPlayer(incoming, requireNotNull(crossfade))
@@ -3175,8 +3176,7 @@ class PlaybackService : MediaLibraryService() {
         setSessionOwner(outgoing, owns = false)
         setSessionOwner(incoming, owns = true)
 
-        outgoing.removeListener(playbackListener)
-        outgoing.removeAnalyticsListener(formatListener)
+        sessionListeners.detach()
         // The fields move before the listeners are attached, so anything the
         // first callback reads already describes the new arrangement.
         player = incoming
@@ -3184,8 +3184,7 @@ class PlaybackService : MediaLibraryService() {
         val heldFilter = activeFilter
         activeFilter = spareFilter
         spareFilter = heldFilter
-        incoming.addListener(playbackListener)
-        incoming.addAnalyticsListener(formatListener)
+        sessionListeners.attach(incoming)
         adoptFormatOf(incoming)
 
         mediaSession?.player = newSessionPlayer(incoming, requireNotNull(crossfade))
@@ -6854,8 +6853,7 @@ class PlaybackService : MediaLibraryService() {
 
         oldActive.playWhenReady = false
         crossfade?.release()
-        oldActive.removeListener(playbackListener)
-        oldActive.removeAnalyticsListener(formatListener)
+        sessionListeners.detach()
 
         configuredFloatOutput = enableFloat
         activeFilter = transitionFilterA
@@ -6892,8 +6890,7 @@ class PlaybackService : MediaLibraryService() {
             // never runs for the track the rebuild resumes on.
             loudness.setup(items.getOrNull(index.coerceIn(items.indices))?.mediaId)
         }
-        newActive.addListener(playbackListener)
-        newActive.addAnalyticsListener(formatListener)
+        sessionListeners.attach(newActive)
 
         val newCrossfade = createCrossfadeController()
         crossfade = newCrossfade
@@ -7564,8 +7561,7 @@ class PlaybackService : MediaLibraryService() {
         crossfade = null
         mediaSession?.release()
         mediaSession = null
-        player?.removeListener(playbackListener)
-        player?.removeAnalyticsListener(formatListener)
+        sessionListeners.detach()
         player?.release()
         player = null
         // Released too, and not conditionally: mid-crossfade it is holding a
