@@ -1441,4 +1441,8 @@
     <string name="dismiss_playback">再生を終了</string>
     <string name="haptic_feedback">触覚フィードバック</string>
     <string name="haptic_feedback_subtitle">ボタン、スライダー、ジェスチャー時に振動</string>
+    <string name="automix_overview">Automixの概要</string>
+    <string name="diwali_title">Plonkerよりディワリのお祝いを申し上げます</string>
+    <string name="diwali_subtitle">この光の祭典が皆様の家庭に喜びをもたらし、音楽に満ちた日々となりますように。</string>
+    <string name="diwali_cta">お祝いする</string>
 </resources>

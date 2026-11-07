@@ -1440,4 +1440,8 @@
     <string name="dismiss_playback">Tutup pemutaran</string>
     <string name="haptic_feedback">Umpan balik haptik</string>
     <string name="haptic_feedback_subtitle">Getar pada tombol, penggeser, dan gestur</string>
+    <string name="automix_overview">Ringkasan Automix</string>
+    <string name="diwali_title">Plonker mengucapkan Selamat Diwali</string>
+    <string name="diwali_subtitle">Semoga festival cahaya ini mengisi rumah Anda dengan sukacita dan hari-hari Anda dengan musik.</string>
+    <string name="diwali_cta">Ayo Rayakan</string>
 </resources>

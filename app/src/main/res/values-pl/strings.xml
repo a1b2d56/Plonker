@@ -1503,4 +1503,8 @@
     <string name="dismiss_playback">Zamknij odtwarzanie</string>
     <string name="haptic_feedback">Wibracje dotykowe</string>
     <string name="haptic_feedback_subtitle">Wibracje przy przyciskach, suwakach i gestach</string>
+    <string name="automix_overview">Przegląd Automix</string>
+    <string name="diwali_title">Plonker życzy radosnego Diwali</string>
+    <string name="diwali_subtitle">Niech to święto świateł napełni Twój dom radością, a dni muzyką.</string>
+    <string name="diwali_cta">Świętujmy</string>
 </resources>
