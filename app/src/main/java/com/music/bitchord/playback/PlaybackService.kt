@@ -285,10 +285,6 @@ private const val ALIGNMENT_HEAD_TIMEOUT_MS = 20_000L
  */
 private const val ALIGNMENT_MEASURE_TIMEOUT_MS = 30_000L
 
-private fun Song.canStartStation(): Boolean =
-    videoId.isNotBlank() &&
-        !videoId.startsWith("content://") &&
-        !videoId.startsWith("file://")
 
 /**
  * Background playback via Media3. A [MediaLibraryService] gives us the media
@@ -310,6 +306,17 @@ class PlaybackService : MediaLibraryService() {
 
     /** The browse tree Android Auto and other media browsers see. */
     private val library by lazy { LibraryBrowser(this, scope) }
+
+    /** Favorite, Shuffle, Radio and Revert on the notification and in the car. */
+    private val buttons by lazy {
+        SessionButtons(
+            context = this,
+            session = { mediaSession },
+            currentItem = { player?.currentMediaItem },
+            canLike = ::canLike,
+            isLiked = ::isLiked,
+        )
+    }
 
 
     private val audioManager by lazy { getSystemService(AudioManager::class.java) }
@@ -549,21 +556,6 @@ class PlaybackService : MediaLibraryService() {
      */
     private var partySync: PartySync? = null
 
-    /** Commands exposed as the secondary buttons on the media notification. */
-    private val boundedContextCommand = SessionCommand(ACTION_START_BOUNDED_CONTEXT, Bundle.EMPTY)
-    private val clearBoundedContextCommand = SessionCommand(ACTION_CLEAR_BOUNDED_CONTEXT, Bundle.EMPTY)
-    private val favoriteCommand = SessionCommand(ACTION_TOGGLE_FAVORITE, Bundle.EMPTY)
-    private val autoplayCommand = SessionCommand(ACTION_TOGGLE_AUTOPLAY, Bundle.EMPTY)
-    private val shuffleCommand = SessionCommand(ACTION_TOGGLE_SHUFFLE, Bundle.EMPTY)
-    private val startStationCommand = SessionCommand(ACTION_START_STATION, Bundle.EMPTY)
-    private val revertToOriginalCommand = SessionCommand(ACTION_REVERT_TO_ORIGINAL, Bundle.EMPTY)
-    private val swapToVersionCommand = SessionCommand(ACTION_SWAP_TO_VERSION, Bundle.EMPTY)
-    private val beginRadioQueueCommand = SessionCommand(ACTION_BEGIN_RADIO_QUEUE, Bundle.EMPTY)
-    private val commitRadioQueueCommand = SessionCommand(ACTION_COMMIT_RADIO_QUEUE, Bundle.EMPTY)
-    private val upgradeQualityCommand = SessionCommand(ACTION_UPGRADE_QUALITY, Bundle.EMPTY)
-    private val swapVersionCommand = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
-    private val queueDragCommand = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
-    private val dismissPlaybackCommand = SessionCommand(ACTION_DISMISS_PLAYBACK, Bundle.EMPTY)
 
     private var favoriteActionJob: Job? = null
     private var stationActionJob: Job? = null
@@ -1823,82 +1815,8 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    /** Favorite and Shuffle: the only actions shown on the phone notification. */
-    private fun notificationButtons(): List<CommandButton> {
-        val liked = isLiked(player?.currentMediaItem)
-        // The icon constant tells controllers like Android Auto what the button
-        // means; the custom drawable swaps Material's sharp star for the
-        // player's rounded one on the notification itself.
-        val favorite = if (!canLike(player?.currentMediaItem)) null else CommandButton.Builder(
-            if (liked) CommandButton.ICON_STAR_FILLED else CommandButton.ICON_STAR_UNFILLED,
-        )
-            .setCustomIconResId(if (liked) R.drawable.ic_notification_star_filled else R.drawable.ic_notification_star)
-            .setSessionCommand(favoriteCommand)
-            .setDisplayName("Favorite")
-            .build()
-        val shuffleEnabled = QueueShuffle.enabled.value
-        val shuffle = CommandButton.Builder(
-            if (shuffleEnabled) {
-                CommandButton.ICON_SHUFFLE_ON
-            } else {
-                CommandButton.ICON_SHUFFLE_OFF
-            },
-        )
-            .setSessionCommand(shuffleCommand)
-            .setDisplayName(if (shuffleEnabled) "Shuffle off" else "Shuffle on")
-            .build()
-        return listOfNotNull(favorite, shuffle)
-    }
-
-    /** Adds Radio/Revert for controllers with room for them, e.g. Android Auto. */
-    private fun carButtons(): List<CommandButton> {
-        val current = player?.currentMediaItem?.toSong()
-        val station = current
-            ?.takeIf { it.canStartStation() }
-            ?.let {
-                CommandButton.Builder(CommandButton.ICON_RADIO)
-                    .setSessionCommand(startStationCommand)
-                    .setDisplayName(getString(R.string.start_radio))
-                    .build()
-            }
-        val revert = current
-            ?.takeIf {
-                it.hasYouTubeOriginal() &&
-                    it.localUri == null &&
-                    !OriginalVersion.isPinned(it.videoId)
-            }
-            ?.let {
-                CommandButton.Builder(CommandButton.ICON_SYNC)
-                    .setSessionCommand(revertToOriginalCommand)
-                    .setDisplayName(getString(R.string.revert_to_original))
-                    .build()
-            }
-        return notificationButtons() + listOfNotNull(station, revert)
-    }
-
-    /** Android Auto / Automotive controllers currently connected to the session. */
-    private val carControllers = mutableSetOf<MediaSession.ControllerInfo>()
-
-    /**
-     * Pushes the current button state to every surface. The phone/lock-screen
-     * notification is driven by Media3's own internal controller, so it gets
-     * an explicit override limited to Favorite/Shuffle; every other connected
-     * controller falls back to the broadcast layout, which also carries
-     * Radio/Revert.
-     *
-     * Media3 mirrors the notification controller's layout into the platform
-     * session's custom actions, and Android Auto reads the platform session,
-     * not the broadcast layout. So while a car is connected the notification
-     * override carries the car buttons too, or Radio/Revert vanish from Auto.
-     */
-    private fun refreshCustomLayouts() {
-        val session = mediaSession ?: return
-        val car = carButtons()
-        session.setCustomLayout(car)
-        session.getMediaNotificationControllerInfo()?.let {
-            session.setCustomLayout(it, if (carControllers.isEmpty()) notificationButtons() else car)
-        }
-    }
+    /** Pushes the current button state to every surface — see [SessionButtons]. */
+    private fun refreshCustomLayouts() = buttons.refresh()
 
     /**
      * Replaces everything around the current track with its YouTube Music
@@ -8367,23 +8285,7 @@ class PlaybackService : MediaLibraryService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult {
-            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS
-                .buildUpon()
-                .add(favoriteCommand)
-                .add(boundedContextCommand)
-                .add(clearBoundedContextCommand)
-                .add(autoplayCommand)
-                .add(shuffleCommand)
-                .add(startStationCommand)
-                .add(revertToOriginalCommand)
-                .add(swapToVersionCommand)
-                .add(beginRadioQueueCommand)
-                .add(commitRadioQueueCommand)
-                .add(upgradeQualityCommand)
-                .add(swapVersionCommand)
-                .add(queueDragCommand)
-                .add(dismissPlaybackCommand)
-                .build()
+            val sessionCommands = SessionCommands.available()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
                 .setAvailableSessionCommands(sessionCommands)
@@ -8391,14 +8293,11 @@ class PlaybackService : MediaLibraryService() {
         }
 
         override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
-            if (session.isAutoCompanionController(controller) || session.isAutomotiveController(controller)) {
-                carControllers += controller
-                refreshCustomLayouts()
-            }
+            buttons.onConnected(session, controller)
         }
 
         override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
-            if (carControllers.remove(controller)) refreshCustomLayouts()
+            buttons.onDisconnected(controller)
         }
 
         override fun onCustomCommand(
