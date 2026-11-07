@@ -207,7 +207,6 @@ import com.music.bitchord.playback.loadAutoplayTracks
 import com.music.bitchord.playback.playSongs
 import com.music.bitchord.playback.BoundedQueuePlanner
 import com.music.bitchord.playback.playBoundedContext
-import com.music.bitchord.playback.contextEntryKey
 import com.music.bitchord.playback.toMediaItem
 import com.music.bitchord.playback.toSong
 import com.music.bitchord.playback.toDirectYouTubeMediaItem
@@ -223,7 +222,6 @@ import com.music.bitchord.download.Downloads
 import com.music.bitchord.ui.components.BrowseTarget
 import com.music.bitchord.ui.components.DownloadManagerPage
 import com.music.bitchord.ui.components.PlaylistPickerSheet
-import com.music.bitchord.ui.components.ReorderPlaylistPage
 import com.music.bitchord.ui.components.LongPressOrigin
 import com.music.bitchord.ui.components.MenuAnchor
 import com.music.bitchord.ui.components.menuAnchor
@@ -281,6 +279,9 @@ import com.music.bitchord.ui.navigation.BrowseMenuActions
 import com.music.bitchord.ui.navigation.BrowseMenuHost
 import com.music.bitchord.ui.navigation.BrowseMenuState
 import com.music.bitchord.ui.navigation.NowPlayingSheetHost
+import com.music.bitchord.ui.navigation.PlaylistReorderState
+import com.music.bitchord.ui.navigation.ReleasePage
+import com.music.bitchord.ui.navigation.ReleasePageActions
 import com.music.bitchord.ui.navigation.SongMenuBody
 import com.music.bitchord.ui.navigation.SongMenuEnv
 import com.music.bitchord.ui.navigation.AppAlertState
@@ -307,12 +308,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.layout.onSizeChanged
 import com.music.bitchord.ui.player.PlayerDock
-import com.music.bitchord.ui.screens.DetailScreen
 import com.music.bitchord.ui.screens.sortedForDetail
 import com.music.bitchord.ui.screens.ExploreScreen
-import com.music.bitchord.ui.screens.LocalFolder
 import com.music.bitchord.ui.screens.LocalFolderState
-import com.music.bitchord.ui.screens.LocalFolderTab
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -732,10 +730,12 @@ private fun BitChordApp(
     /** Rename asked for from the menu, which hands it on to a sheet holding only the form. */
     var browseRenameInSheet by browseMenu::renameInSheet
     /** The playlist being rearranged, or null when the reorder page is shut. */
-    var reorderTarget by remember { mutableStateOf<UserPlaylist?>(null) }
+    // Held in [PlaylistReorderState]; the locals delegate to it.
+    val playlistReorder = remember { PlaylistReorderState() }
+    var reorderTarget by playlistReorder::target
     /** Its entries as YouTube has them now — fetched fresh when the sheet opens. */
-    var reorderEntries by remember { mutableStateOf<UiState<List<Song>>>(UiState.Loading) }
-    var reorderSaving by remember { mutableStateOf(false) }
+    var reorderEntries by playlistReorder::entries
+    var reorderSaving by playlistReorder::saving
     /** An album or playlist: lifted when it was a hold, else hung off the ⋯ that was tapped. */
     val openBrowseMenu: (BrowseTarget) -> Unit = { target ->
         browseMenuOrigin = LongPressOrigin.consume()
@@ -3169,234 +3169,47 @@ private fun BitChordApp(
                             // this same release page: the header any playlist has, then
                             // Songs / Artists / Albums under it. An album or artist
                             // picked there opens as a page of its own — see LocalGroups.
-                            val folder = if (page.browseId.isDeviceFolder()) {
-                                val isDownloads = page.browseId == "local:downloads"
-                                val isCache = page.browseId == CACHE_FOLDER_BROWSE_ID
-                                // The whole device: the one folder that is an offline
-                                // player in its own right, with playlists of its own
-                                // and the directories the files are kept in.
-                                val isDevice = page.browseId == "local:all"
-                                val folderSongs = (page.songs as? UiState.Success)?.data.orEmpty()
-                                // Only the Downloads folder has releases behind it: Local
-                                // Music is files this app never asked for, so there is
-                                // nothing on record about how they were grouped. Keyed on
-                                // the record as well as the list, so downloading an album
-                                // while its folder is open adds the folder rather than
-                                // waiting for the page to be reopened.
-                                val downloadCollections = remember(folderSongs, savedCollections, isDownloads) {
-                                    if (isDownloads) Downloads.collectionsAmong(folderSongs) else emptyList()
-                                }
-                                LocalFolder(
-                                    state = localFolderStates.getOrPut(page.browseId) { LocalFolderState() },
-                                    sort = folderSortOf(page.browseId),
-                                    viewType = folderViewTypeOf(page.browseId),
-                                    collections = downloadCollections,
-                                    selectable = isDownloads || isCache,
-                                    onOpenGroup = viewModel::openLocalGroup,
-                                    onGroupLongPress = { group ->
-                                        openBrowseMenu(
-                                            BrowseTarget(
-                                                browseId = group.browseId,
-                                                title = group.title,
-                                                subtitle = group.subtitle,
-                                                thumbnailUrl = group.thumbnailUrl,
-                                                type = group.type,
-                                                songs = group.songs,
-                                                downloadId = group.downloadId,
-                                            ),
-                                        )
-                                    },
-                                    onDelete = if (isDownloads) {
-                                        { selected ->
-                                            scope.launch {
-                                                selected.forEach { song -> Downloads.delete(context, song.videoId) }
-                                            }
-                                        }
-                                    } else {
-                                        null
-                                    },
-                                    onUpload = if (isDownloads &&
-                                        com.music.bitchord.data.webdav.WebDavConfig.isConfigured(webdavUrl)
-                                    ) {
-                                        { selected -> uploadToWebDav(selected) }
-                                    } else {
-                                        null
-                                    },
-                                    onDownload = if (isCache) downloadFromCache else null,
-                                    onRemoveFromCache = if (isCache) removeFromCache else null,
-                                    tabs = if (isDevice) LocalFolderTab.DEVICE else LocalFolderTab.BASIC,
-                                    playlists = if (isDevice) offlinePlaylistGroups else emptyList(),
-                                    onCreatePlaylist = if (isDevice) ({ creatingOfflinePlaylist = true }) else null,
-                                )
-                            } else {
-                                null
-                            }
-                            // An album page's rows carry no album name of their own — the
-                            // release is billed once, in the header the rows hang under — so
-                            // the page title is stamped on as they leave for the download
-                            // queue or the track menu. Without it every track saved from an
-                            // album arrives in the Downloads folder with nothing to group it
-                            // under, and its Albums tab stays empty however much is in it.
-                            val withAlbum: (Song) -> Song = { song ->
-                                if (page.type == BrowseType.ALBUM) {
-                                    song.copy(albumName = song.albumName ?: page.title)
-                                } else {
-                                    song
-                                }
-                            }
-                            // The visible list can be one render behind the page
-                            // while fill-in is completing. For a local release
-                            // handoff, cancel that fill and use the newest complete
-                            // page snapshot; Cast deliberately keeps the old full
-                            // queue path.
-                            fun playDetailSongs(songs: List<Song>, index: Int) {
-                                // Do not cancel a page's fill-in merely because a
-                                // listener tapped while the host owns playback.
-                                if (ListenTogether.state.value.controlsLocked) {
-                                    refusedByHost()
-                                    return
-                                }
-                                val source = QueueSource(
-                                    page.title,
-                                    PlaybackSourceType.BROWSE,
-                                    page.browseId,
-                                )
-                                val selected = songs.getOrNull(index)
-                                val pageSongKeys =
-                                    (page.songs as? UiState.Success)?.data.orEmpty().mapTo(HashSet()) { it.contextEntryKey() }
-                                val useBounded =
-                                    (page.type == BrowseType.ALBUM || page.type == BrowseType.PLAYLIST) &&
-                                        selected?.contextEntryKey()?.let(pageSongKeys::contains) == true &&
-                                        !CastController.state.value.casting
-                                val latestPage = if (useBounded) {
-                                    viewModel.takePlaybackContext(page.browseId)
-                                } else {
-                                    null
-                                }
-                                val latestSongs = latestPage
-                                    ?.let { (it.songs as? UiState.Success)?.data.orEmpty() }
-                                    ?.map(withAlbum)
-                                    ?.takeIf { it.isNotEmpty() }
-                                val queue = latestSongs ?: songs.map(withAlbum)
-                                if (queue.isEmpty()) return
-                                val queueIndex = selected?.let { tapped ->
-                                    queue.indexOfFirst { it.contextEntryKey() == tapped.contextEntryKey() }
-                                }?.takeIf { it >= 0 } ?: index
-                                playFrom(
-                                    queue,
-                                    queueIndex.coerceIn(queue.indices),
-                                    source,
-                                    boundedContext = useBounded,
-                                    continuationToken = latestPage?.continuation ?: page.continuation,
-                                )
-                            }
-                            // This page's songs being rearranged, drawn in place of its list.
-                            val reordering = reorderTarget?.takeIf { it.browseId == page.browseId }
-                            DetailScreen(
+                            ReleasePage(
                                 page = page,
+                                viewModel = viewModel,
+                                actions = ReleasePageActions(
+                                    scope = scope,
+                                    openSongMenu = openSongMenu,
+                                    openBrowseMenu = openBrowseMenu,
+                                    onShelfLongPress = onShelfLongPress,
+                                    onSongSwipe = onSongSwipe,
+                                    playFrom = { songs, index, source, bounded, continuation ->
+                                        playFrom(songs, index, source, boundedContext = bounded, continuationToken = continuation)
+                                    },
+                                    playRadio = playRadio,
+                                    shelfSong = shelfSong,
+                                    refusedByHost = refusedByHost,
+                                    uploadToWebDav = ::uploadToWebDav,
+                                    downloadFromCache = downloadFromCache,
+                                    removeFromCache = removeFromCache,
+                                    createOfflinePlaylist = { creatingOfflinePlaylist = true },
+                                    showQueueNotice = showQueueNotice,
+                                    setSearching = { detailSearching = it },
+                                ),
+                                navigator = navigator,
+                                reorder = playlistReorder,
                                 currentSong = player.song,
                                 isPlaying = player.isPlaying,
                                 listState = pageDetailListState,
                                 activeShelf = detailActiveShelf,
-                                onActiveShelfChange = { shelf ->
-                                    if (shelf != null) navigator.push(AppRoute.ArtistShelf(page.browseId, shelf))
-                                    else navigator.pop()
-                                },
-                                // Album/playlist playback hands the page snapshot to
-                                // the service, which then owns continuation loading.
-                                onSongClick = ::playDetailSongs,
-                                onSongLongPress = { openSongMenu(withAlbum(it)) },
-                                onSongSwipe = { onSongSwipe(withAlbum(it)) },
-                                onShuffle = { songs ->
-                                    if (songs.isNotEmpty()) {
-                                        // Shuffle goes on first so the queue is built shuffled
-                                        // as it is set — the random pick here only decides
-                                        // which track leads it.
-                                        QueueShuffle.enableForNextQueue()
-                                        playDetailSongs(songs, songs.indices.random())
-                                    }
-                                },
-                                onSectionItemClick = { item ->
-                                    val video = shelfSong(item)?.takeIf { item.browseId == null }
-                                    if (video != null) {
-                                        // An artist's Videos shelf plays, from the page it is on.
-                                        playRadio(video, QueueSource(page.title, PlaybackSourceType.BROWSE, page.browseId))
-                                    } else {
-                                        item.browseId?.let { id ->
-                                            viewModel.openDetail(
-                                                browseId = id,
-                                                title = item.title,
-                                                subtitle = item.subtitle,
-                                                thumbnailUrl = item.thumbnailUrl,
-                                                type = BrowseType.ALBUM,
-                                            )
-                                        }
-                                    }
-                                },
-                                onSectionItemLongPress = onShelfLongPress,
                                 // Only the page on its way in answers to the bar's
                                 // search button; one fading out keeps its list whole.
                                 searching = detailSearching && page.browseId == detail?.browseId,
-                                onSearchingChange = { detailSearching = it },
-                                onArtistClick = { id, name ->
-                                    viewModel.openDetail(id, name, "Artist", null, BrowseType.ARTIST)
-                                },
-                                onAddSuggested = { song -> viewModel.addSuggestedSong(page.browseId, song) },
-                                // Saving is an account action, so it isn't offered to a
-                                // guest at all — same as the like and add-to-playlist rows
-                                // in the track menu.
-                                onToggleLibrary = if (signedIn) {
-                                    { viewModel.toggleLibrary(page.browseId) }
-                                } else {
-                                    null
-                                },
-                                // Same rule for the artist page's subscribe circle:
-                                // a channel subscription is the account's, so a
-                                // guest is never shown the button.
-                                onToggleSubscription = if (signedIn) {
-                                    { viewModel.toggleSubscription(page.browseId) }
-                                } else {
-                                    null
-                                },
+                                signedIn = signedIn,
                                 releaseLibrary = releaseLibrary,
-                                onLoadReleaseLibrary = viewModel::loadReleaseLibrary,
-                                onToggleReleaseLibrary = if (signedIn) {
-                                    viewModel::toggleReleaseLibrary
-                                } else {
-                                    null
-                                },
                                 songSort = songSort,
-                                folder = folder,
-                                contentPadding = listPadding,
-                                reorder = if (reordering != null) {
-                                    { palette ->
-                                        ReorderPlaylistPage(
-                                            playlist = reordering,
-                                            entries = reorderEntries,
-                                            saving = reorderSaving,
-                                            palette = palette,
-                                            contentPadding = PaddingValues(
-                                                bottom = listPadding.calculateBottomPadding(),
-                                            ),
-                                            onClose = { reorderTarget = null },
-                                            onSave = { reordered ->
-                                                val original = (reorderEntries as? UiState.Success)?.data.orEmpty()
-                                                reorderSaving = true
-                                                viewModel.reorderPlaylist(reordering, original, reordered) { saved ->
-                                                    reorderSaving = false
-                                                    showQueueNotice(
-                                                        context.getString(
-                                                            if (saved) R.string.playlist_reordered else R.string.reorder_failed,
-                                                        ),
-                                                    )
-                                                    if (saved && reorderTarget == reordering) reorderTarget = null
-                                                }
-                                            },
-                                        )
-                                    }
-                                } else {
-                                    null
-                                },
+                                listPadding = listPadding,
+                                webdavUrl = webdavUrl,
+                                savedCollections = savedCollections,
+                                localFolderStates = localFolderStates,
+                                folderSortOf = folderSortOf,
+                                folderViewTypeOf = folderViewTypeOf,
+                                offlinePlaylistGroups = offlinePlaylistGroups,
                             )
                         } else when ((destination as? AppDestination.Tab)?.index ?: selectedTab) {
                             TAB_HOME -> HomeScreen(
@@ -5525,7 +5338,7 @@ private fun SongSort.localizedLabel(): String = when (this) {
  * every other release page gets. See [Downloads.PLAYLIST_PREFIX] and
  * [LocalGroups.PREFIX] for why they share a namespace at all.
  */
-private fun String?.isDeviceFolder(): Boolean =
+internal fun String?.isDeviceFolder(): Boolean =
     this != null && startsWith("local:") &&
         !startsWith(Downloads.PLAYLIST_PREFIX) && !startsWith(LocalGroups.PREFIX) &&
         !startsWith(OfflinePlaylists.PREFIX)
