@@ -5,7 +5,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -45,6 +44,8 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.music.bitchord.data.settings.MixBlend
+import com.music.bitchord.ui.haptics.Haptic
+import com.music.bitchord.ui.haptics.rememberHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -103,12 +104,17 @@ fun ThinSlider(
     var dragging by remember { mutableStateOf(false) }
     val height by animateDpAsState(
         targetValue = if (dragging) activeHeight else idleHeight,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMediumLow,
-        ),
+        // The app's card spring (IosMotion.cardSpring, which lives in :app):
+        // settled with a hint of overshoot, where the old medium-bouncy spring
+        // wobbled the bar's thickness a couple of times under the finger.
+        animationSpec = spring(dampingRatio = THICKEN_DAMPING, stiffness = THICKEN_STIFFNESS),
         label = "sliderHeight",
     )
+    // The gesture loop below is started once, so it reads the callbacks
+    // through these rather than keeping the first ones it was handed.
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
+    val haptics = rememberHaptics()
     // The sheen gets a minimum beat even when the switch resolves instantly —
     // a cached offset can land in a few hundred milliseconds — so its entry,
     // its sweep and its hand-over to the progress bar always play out as one
@@ -160,7 +166,9 @@ fun ThinSlider(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     dragging = true
-                    onValueChange((down.position.x / size.width).coerceIn(0f, 1f))
+                    val start = (down.position.x / size.width).coerceIn(0f, 1f)
+                    var edge = SliderDetents.edge(start)
+                    currentOnValueChange(start)
 
                     while (true) {
                         val event = awaitPointerEvent()
@@ -170,13 +178,21 @@ fun ThinSlider(
                             break
                         }
                         if (pointer.positionChanged()) {
-                            onValueChange((pointer.position.x / size.width).coerceIn(0f, 1f))
+                            val fraction = (pointer.position.x / size.width).coerceIn(0f, 1f)
+                            // A light tick as the drag reaches either end, like
+                            // iOS's volume bar; nothing in between, where a tick
+                            // per step would turn a scrub into a rattle. The
+                            // caller gives the release its own beat.
+                            val nowAt = SliderDetents.edge(fraction)
+                            if (nowAt != edge && nowAt != 0) haptics.play(Haptic.Tick)
+                            edge = nowAt
+                            currentOnValueChange(fraction)
                             pointer.consume()
                         }
                     }
 
                     dragging = false
-                    onValueChangeFinished?.invoke()
+                    currentOnValueChangeFinished?.invoke()
                 }
             },
         contentAlignment = Alignment.Center,
@@ -276,6 +292,28 @@ fun ThinSlider(
 }
 
 private const val SHEEN_BAND_FRACTION = 0.34f
+
+/** [com.music.bitchord.ui.components.IosMotion]'s card spring, which :sharedUi can't reach. */
+private const val THICKEN_DAMPING = 0.82f
+private const val THICKEN_STIFFNESS = 380f
+
+/** Where a slider's value sits, for the haptic ticks the sliders play while dragged. */
+object SliderDetents {
+    /** -1 at the start of the bar, 1 at its end, 0 anywhere between. */
+    fun edge(fraction: Float): Int = when {
+        fraction <= 0f -> -1
+        fraction >= 1f -> 1
+        else -> 0
+    }
+
+    /**
+     * Which of a stepped slider's [steps] + 2 positions [fraction] is on.
+     * Rounded rather than floored: a snapped value can land a hair under its
+     * step in floating point.
+     */
+    fun step(fraction: Float, steps: Int): Int =
+        kotlin.math.round(fraction.coerceIn(0f, 1f) * (steps + 1)).toInt()
+}
 
 /** Share of the Automix window each feathered end takes, before the limits below. */
 private const val WINDOW_FEATHER_SHARE = 0.4f

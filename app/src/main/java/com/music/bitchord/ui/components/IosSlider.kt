@@ -1,9 +1,7 @@
 package com.music.bitchord.ui.components
 
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,9 +18,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -36,7 +32,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
-import kotlin.math.abs
+import com.music.bitchord.ui.player.SliderDetents
 
 /**
  * Authentic Apple iOS Human Interface Guidelines slider.
@@ -65,32 +61,36 @@ fun IosSlider(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val haptics = rememberHaptics()
-    var lastNotifiedStep by remember(valueRange, steps) { mutableStateOf(value) }
     val isPressed by interactionSource.collectIsPressedAsState()
+    // The capsule widens under the finger on the app's card spring: one soft
+    // overshoot and settled, rather than the wobble of a medium-bouncy spring.
     val animatedWidth by animateDpAsState(
         targetValue = if (isPressed) thumbWidth + 4.dp else thumbWidth,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
+        animationSpec = IosMotion.cardSpring(),
         label = "iosSliderThumbWidth",
     )
     val thumbScale by animateFloatAsState(
         targetValue = if (isPressed) 1.04f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
+        animationSpec = IosMotion.cardSpring(),
         label = "iosSliderThumbScale",
     )
 
+    // A light tick each time a stepped slider lands on another step, and at
+    // either end of a continuous one. Kept as plain holders: they change
+    // during a drag and nothing draws from them.
+    val span = valueRange.endInclusive - valueRange.start
+    fun fractionOf(v: Float) = if (span > 0f) (v - valueRange.start) / span else 0f
+    fun detentOf(v: Float) = if (steps > 0) {
+        SliderDetents.step(fractionOf(v), steps)
+    } else {
+        SliderDetents.edge(fractionOf(v))
+    }
+    val lastDetent = remember(valueRange, steps) { intArrayOf(detentOf(value)) }
     val handleValueChange: (Float) -> Unit = { newValue ->
-        if (steps > 0) {
-            val stepSpan = (valueRange.endInclusive - valueRange.start) / (steps + 1)
-            if (abs(newValue - lastNotifiedStep) >= stepSpan * 0.7f) {
-                haptics.play(Haptic.Tick)
-                lastNotifiedStep = newValue
-            }
+        val detent = detentOf(newValue)
+        if (detent != lastDetent[0]) {
+            if (steps > 0 || detent != 0) haptics.play(Haptic.Tick)
+            lastDetent[0] = detent
         }
         onValueChange(newValue)
     }
