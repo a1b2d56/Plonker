@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.stableRowKeys
+import com.music.bitchord.ui.components.trackRowMotion
 import com.music.bitchord.ui.components.trackArtSize
 import android.os.Build
 import com.music.bitchord.R
@@ -460,6 +462,10 @@ fun DetailScreen(
     // an album's track numbers stay the album's rather than becoming positions
     // in the filtered list.
     val matches = remember(songs, query) { songs.matching(query) }
+    // One list key per row of [songs], which is what each match's index
+    // points into: built over the whole sorted list, so a row keeps its key
+    // whatever the filter leaves standing. See [stableRowKeys].
+    val rowKeys = remember(songs) { stableRowKeys(songs.map { it.videoId }) }
     // What a tap plays: the filtered set of tracks currently standing in the
     // list. When no filter is active, matches contains the full running order
     // and plays the complete release/playlist from the tapped position.
@@ -772,42 +778,47 @@ fun DetailScreen(
                             MessageState(stringResource(R.string.nothing_matches, query))
                         }
                     }
+                    // Keyed on the row itself rather than its index, so a sort or
+                    // a filter slides rows to their new places and a removal
+                    // closes the gap: see [rowKeys].
                     itemsIndexed(
                         items = matches,
-                        key = { _, entry -> "${entry.index}_${entry.value.videoId}" },
+                        key = { _, entry -> "track:${rowKeys[entry.index]}" },
                     ) { position, entry ->
                         val song = entry.value
                         val isCurrent = isCurrentRow(song)
-                        SongRow(
-                            song = if (numbered) {
-                                song
-                            } else {
-                                song.copy(thumbnailUrl = song.thumbnailUrl ?: page.thumbnailUrl)
-                            },
-                            onClick = {
-                                onSongClick(queue, position)
-                            },
-                            onLongPress = { onSongLongPress(song) },
-                            onSwipeToQueue = { onSongSwipe(song) },
-                            rowBackground = Color.Transparent,
-                            // The track's place on the release, not its place in
-                            // what the filter — or a sort — left standing.
-                            trackNumber = originalTrackNumbers[song.videoId].takeIf { numbered },
-                            subtitleColor = palette.onBackgroundVariant,
-                            downloadedTint = downloadedTint,
-                            isCurrent = isCurrent,
-                            isPlaying = isCurrent && isPlaying,
-                            activeTint = palette.accent,
-                            searchPlayingStyle = true,
-                        )
-                        if (position < matches.lastIndex) {
-                            HorizontalDivider(
-                                modifier = Modifier.padding(
-                                    start = if (numbered) NUMBERED_ROW_DIVIDER_INSET else ROW_DIVIDER_INSET,
-                                ),
-                                thickness = 0.5.dp,
-                                color = palette.divider,
+                        Column(trackRowMotion()) {
+                            SongRow(
+                                song = if (numbered) {
+                                    song
+                                } else {
+                                    song.copy(thumbnailUrl = song.thumbnailUrl ?: page.thumbnailUrl)
+                                },
+                                onClick = {
+                                    onSongClick(queue, position)
+                                },
+                                onLongPress = { onSongLongPress(song) },
+                                onSwipeToQueue = { onSongSwipe(song) },
+                                rowBackground = Color.Transparent,
+                                // The track's place on the release, not its place in
+                                // what the filter — or a sort — left standing.
+                                trackNumber = originalTrackNumbers[song.videoId].takeIf { numbered },
+                                subtitleColor = palette.onBackgroundVariant,
+                                downloadedTint = downloadedTint,
+                                isCurrent = isCurrent,
+                                isPlaying = isCurrent && isPlaying,
+                                activeTint = palette.accent,
+                                searchPlayingStyle = true,
                             )
+                            if (position < matches.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(
+                                        start = if (numbered) NUMBERED_ROW_DIVIDER_INSET else ROW_DIVIDER_INSET,
+                                    ),
+                                    thickness = 0.5.dp,
+                                    color = palette.divider,
+                                )
+                            }
                         }
                     }
                 }
@@ -824,22 +835,26 @@ fun DetailScreen(
                     suggested,
                     key = { _, song -> "suggested-${song.videoId}" },
                 ) { index, song ->
-                    SuggestedSongRow(
-                        song = song,
-                        palette = palette,
-                        onClick = { onSongClick(suggested, index) },
-                        onLongPress = { onSongLongPress(song) },
-                        onAdd = { onAddSuggested(song) },
-                        downloadedTint = downloadedTint,
-                        isCurrent = isSuggestedCurrent(song),
-                        isPlaying = isSuggestedCurrent(song) && isPlaying,
-                    )
-                    if (index < suggested.lastIndex) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
-                            thickness = 0.5.dp,
-                            color = palette.divider,
+                    // Adding one to the playlist takes it out of here, and the
+                    // rest slide up into its place.
+                    Column(trackRowMotion()) {
+                        SuggestedSongRow(
+                            song = song,
+                            palette = palette,
+                            onClick = { onSongClick(suggested, index) },
+                            onLongPress = { onSongLongPress(song) },
+                            onAdd = { onAddSuggested(song) },
+                            downloadedTint = downloadedTint,
+                            isCurrent = isSuggestedCurrent(song),
+                            isPlaying = isSuggestedCurrent(song) && isPlaying,
                         )
+                        if (index < suggested.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = ROW_DIVIDER_INSET),
+                                thickness = 0.5.dp,
+                                color = palette.divider,
+                            )
+                        }
                     }
                 }
             }

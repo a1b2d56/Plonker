@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.components.stableRowKeys
+import com.music.bitchord.ui.components.trackRowMotion
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -343,27 +345,32 @@ internal fun LazyListScope.localFolderItems(
                 )
             }
         } else {
-            itemsIndexed(songs, key = { index, song -> "song-${song.videoId}-$index" }) { index, song ->
-                SongRow(
-                    song = song,
-                    selected = song.videoId in state.selectedIds,
-                    isCurrent = isCurrentRow(song),
-                    isPlaying = isCurrentRow(song) && isPlaying,
-                    searchPlayingStyle = true,
-                    activeTint = palette.accent,
-                    subtitleColor = palette.onBackgroundVariant,
-                    rowBackground = Color.Transparent,
-                    // Every row here is on the device already.
-                    downloadedTint = null,
-                    onClick = { songClick(index) },
-                    onLongPress = { songHold(song) },
-                    onMore = { onSongLongPress(song) },
-                    onSwipeToQueue = { onSongSwipe(song) },
-                    trailing = folder.onDownload?.let { download ->
-                        { RowDownloadButton(song, palette) { download(listOf(song)) } }
-                    },
-                )
-                if (index < songs.lastIndex) FolderDivider(palette)
+            // Keyed on the row, not its index, so deleting a selection slides
+            // the rest up: see [stableRowKeys].
+            val rowKeys = stableRowKeys(songs.map { it.videoId })
+            itemsIndexed(songs, key = { index, _ -> "song-${rowKeys[index]}" }) { index, song ->
+                Column(trackRowMotion()) {
+                    SongRow(
+                        song = song,
+                        selected = song.videoId in state.selectedIds,
+                        isCurrent = isCurrentRow(song),
+                        isPlaying = isCurrentRow(song) && isPlaying,
+                        searchPlayingStyle = true,
+                        activeTint = palette.accent,
+                        subtitleColor = palette.onBackgroundVariant,
+                        rowBackground = Color.Transparent,
+                        // Every row here is on the device already.
+                        downloadedTint = null,
+                        onClick = { songClick(index) },
+                        onLongPress = { songHold(song) },
+                        onMore = { onSongLongPress(song) },
+                        onSwipeToQueue = { onSongSwipe(song) },
+                        trailing = folder.onDownload?.let { download ->
+                            { RowDownloadButton(song, palette) { download(listOf(song)) } }
+                        },
+                    )
+                    if (index < songs.lastIndex) FolderDivider(palette)
+                }
             }
         }
 
