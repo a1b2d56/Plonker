@@ -147,8 +147,6 @@ import com.music.bitchord.data.model.isUnresolvedSpotify
 import com.music.bitchord.data.model.UiState
 import com.music.bitchord.data.model.withoutVideos
 import com.music.bitchord.data.model.UserPlaylist
-import com.music.bitchord.data.model.EntityType
-import com.music.bitchord.data.model.SearchHistoryEntity
 import kotlinx.coroutines.Dispatchers
 import com.music.bitchord.data.model.durationMillis
 import com.music.bitchord.data.scrobbling.LastFM
@@ -167,10 +165,7 @@ import com.music.bitchord.ui.components.VolumeHud
 import com.music.bitchord.ui.navigation.AppDestination
 import com.music.bitchord.ui.navigation.AppRoute
 import com.music.bitchord.ui.components.SpotifyImportAlert
-import com.music.bitchord.ui.screens.LibraryReplayEntry
-import com.music.bitchord.ui.screens.libraryDeviceItems
 import com.music.bitchord.ui.screens.SPOTIFY_BROWSE_ID
-import com.music.bitchord.ui.screens.libraryLinks
 import com.music.bitchord.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.ui.screens.SpotifyCanvasAuthScreen
@@ -246,7 +241,6 @@ import com.music.bitchord.ui.components.MiniPlayer
 import com.music.bitchord.ui.components.QueueActionNotice
 import com.music.bitchord.ui.components.QueueActionNoticeHost
 import com.music.bitchord.ui.components.TopBarAccountButton
-import com.music.bitchord.ui.screens.SegmentedControl
 import com.music.bitchord.ui.components.SearchField
 import com.music.bitchord.sharedui.resources.Res as SharedRes
 import com.music.bitchord.sharedui.resources.search_hint
@@ -255,7 +249,6 @@ import com.music.bitchord.sharedui.resources.search_library_hint
 import com.music.bitchord.ui.components.TopBarDownloadButton
 import com.music.bitchord.ui.components.optimizedHazeEffect
 import com.music.bitchord.ui.components.topBarContentPadding
-import com.music.bitchord.ui.components.topBarHeight
 import com.music.bitchord.ui.components.AppLanguageDialog
 import com.music.bitchord.ui.components.TranslationLanguageDialog
 import com.music.bitchord.ui.components.LyricsSourcesDialog
@@ -273,6 +266,11 @@ import com.music.bitchord.ui.navigation.AppOverlayState
 import com.music.bitchord.ui.navigation.RouteActions
 import com.music.bitchord.ui.navigation.RoutePage
 import com.music.bitchord.ui.navigation.handlesRoute
+import com.music.bitchord.ui.navigation.ExploreTab
+import com.music.bitchord.ui.navigation.HomeTab
+import com.music.bitchord.ui.navigation.LibraryTab
+import com.music.bitchord.ui.navigation.SearchTab
+import com.music.bitchord.ui.navigation.TabActions
 import com.music.bitchord.ui.navigation.SongMenuBody
 import com.music.bitchord.ui.navigation.SongMenuEnv
 import com.music.bitchord.ui.navigation.AppAlertState
@@ -299,7 +297,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.layout.onSizeChanged
 import com.music.bitchord.ui.player.PlayerDock
 import com.music.bitchord.ui.screens.sortedForDetail
-import com.music.bitchord.ui.screens.ExploreScreen
 import com.music.bitchord.ui.screens.LocalFolderState
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.HorizontalDivider
@@ -310,9 +307,6 @@ import com.music.bitchord.data.OfflinePlaylists
 import com.music.bitchord.data.toGroup
 import com.music.bitchord.data.settings.LibraryViewType
 import com.music.bitchord.data.settings.LocalMusicSort
-import com.music.bitchord.ui.screens.HomeScreen
-import com.music.bitchord.ui.screens.LibraryScreen
-import com.music.bitchord.ui.screens.MoodGenrePlaylistsScreen
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
 import com.music.bitchord.ui.onboarding.OnboardingScreen
@@ -818,8 +812,6 @@ private fun BitChordApp(
     val homeState by viewModel.home.collectAsStateWithLifecycle()
     val hideRecents by AppSettings.hideRecents.collectAsStateWithLifecycle()
     val hideHomeVideos by AppSettings.hideHomeVideos.collectAsStateWithLifecycle()
-    val hideTopPicks by AppSettings.hideTopPicks.collectAsStateWithLifecycle()
-    val hideHomeMoods by AppSettings.hideHomeMoods.collectAsStateWithLifecycle()
     // Only what Home draws: Top Picks reads the unfiltered feed from the view model.
     val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents) {
         val loaded = homeState as? UiState.Success
@@ -832,10 +824,7 @@ private fun BitChordApp(
             homeState
         }
     }
-    val homeLoadingMore by viewModel.homeLoadingMore.collectAsStateWithLifecycle()
-    val homeRecentlyPlayedLoading by viewModel.homeRecentlyPlayedLoading.collectAsStateWithLifecycle()
     val topPicks by viewModel.topPicks.collectAsStateWithLifecycle()
-    val topPicksLoading by viewModel.topPicksLoading.collectAsStateWithLifecycle()
 
     // The top bar's icon is the quiet, always-there nudge; this is the
     // once-per-launch popup version of the same news. `updateDialogShown`
@@ -859,15 +848,8 @@ private fun BitChordApp(
         }
     }
     val query by viewModel.query.collectAsStateWithLifecycle()
-    val results by viewModel.results.collectAsStateWithLifecycle()
-    val exploreState by viewModel.explore.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
-    val moodGenreShelves by viewModel.moodGenreShelves.collectAsStateWithLifecycle()
-    val libraryState by viewModel.library.collectAsStateWithLifecycle()
-    val filter by viewModel.filter.collectAsStateWithLifecycle()
     val searchSource by viewModel.searchSource.collectAsStateWithLifecycle()
-    val libraryResults by viewModel.libraryResults.collectAsStateWithLifecycle()
-    val addonResults by viewModel.addonResults.collectAsStateWithLifecycle()
     // Collected rather than read once, so addon rows in search re-dim the
     // moment the quality setting, the connection or the watch's cap moves.
     val addonCeiling = AppSettings.ceilingFor(
@@ -910,10 +892,6 @@ private fun BitChordApp(
     val lyricsSource by viewModel.lyricsSource.collectAsStateWithLifecycle()
     val lyricsChecked by viewModel.lyricsChecked.collectAsStateWithLifecycle()
     val lyricsProviderStates by viewModel.lyricsProviderStates.collectAsStateWithLifecycle()
-    val searchHistory by viewModel.searchHistory.collectAsStateWithLifecycle()
-    val searchSuggestions by viewModel.suggestions.collectAsStateWithLifecycle()
-    val searchLoadingMore by viewModel.searchLoadingMore.collectAsStateWithLifecycle()
-    val searchScrollReset by viewModel.searchScrollReset.collectAsStateWithLifecycle()
     val releaseLibrary by viewModel.releaseLibrary.collectAsStateWithLifecycle()
     // Local Music, Downloads and the other device folders draw as release
     // pages, but they have no artwork to wash the top inset in, so they keep
@@ -2768,6 +2746,31 @@ private fun BitChordApp(
     // so they can never disagree about what is on top.
     val canGoBack = navigator.entries.isNotEmpty() || detailStack.isNotEmpty() ||
         selectedMoodGenre != null || selectedTab != TAB_HOME
+    // What the four tab pages reach that lives here — see [TabActions].
+    val tabActions = TabActions(
+        shelfSong = shelfSong,
+        playRadio = playRadio,
+        playFrom = { songs, index, source -> playFrom(songs, index, source) },
+        onShelfLongPress = onShelfLongPress,
+        openTopPick = openTopPick,
+        playMood = playMood,
+        openSongMenu = openSongMenu,
+        onSongSwipe = onSongSwipe,
+        openBrowseMenu = openBrowseMenu,
+        downloadIdFor = downloadIdFor,
+        onSearchSourceChange = onSearchSourceChange,
+        onLibraryItemClick = onLibraryItemClick,
+        onBrowseLongPress = onBrowseLongPress,
+        openDiwali = { showDiwali = true },
+        searchFocusHandled = { searchFocusRequested = false },
+        pickPlaylistFor = { song -> playlistTarget = song },
+        createPlaylist = { creatingPlaylist = true },
+        importSpotifyPlaylist = { showSpotifyImportDialog = true },
+        openReplayAt = { page ->
+            replayLandingPage = page
+            navigator.push(AppRoute.Replay)
+        },
+    )
     val goBack: () -> Unit = {
         if (!navigator.pop() && !viewModel.closeMoodGenre()) selectedTab = TAB_HOME
     }
@@ -3058,326 +3061,28 @@ private fun BitChordApp(
                                 offlinePlaylistGroups = offlinePlaylistGroups,
                             )
                         } else when ((destination as? AppDestination.Tab)?.index ?: selectedTab) {
-                            TAB_HOME -> HomeScreen(
-                                state = visibleHomeState,
-                                listState = homeListState,
-                                currentSong = player.song,
-                                isPlaying = player.isPlaying,
-                                title = stringResource(R.string.listen_now),
-                                festiveLogo = diwaliFestive,
-                                onFestiveLogoClick = { showDiwali = true },
-                                signedIn = signedIn,
-                                onSignIn = { webSession = WebSessionMode.SIGN_IN },
-                                onItemClick = { item, shelfTitle ->
-                                    val song = shelfSong(item)
-                                    // Hoisted because ShelfItem lives in :shared, and
-                                    // Kotlin will not smart-cast a public nullable
-                                    // property declared in another module.
-                                    val browseId = item.browseId
-                                    when {
-                                        song != null -> playRadio(
-                                            song,
-                                            QueueSource(shelfTitle, PlaybackSourceType.HOME),
-                                        )
-                                        browseId != null -> viewModel.openDetail(
-                                            browseId = browseId,
-                                            title = item.title,
-                                            subtitle = item.subtitle,
-                                            thumbnailUrl = item.thumbnailUrl,
-                                        )
-                                    }
-                                },
-                                onItemLongPress = onShelfLongPress,
-                                onRetry = viewModel::loadHome,
-                                refreshing = MainViewModel.Feed.HOME in refreshing,
-                                onRefresh = { viewModel.refresh(MainViewModel.Feed.HOME) },
-                                pullState = homePull,
-                                contentPadding = listPadding,
-                                onLoadMore = viewModel::loadMoreHome,
-                                loadingMore = homeLoadingMore,
-                                recentlyPlayedLoading = homeRecentlyPlayedLoading && !hideRecents,
-                                topPicks = topPicks,
-                                topPicksLoading = topPicksLoading,
-                                listenerName = account?.name,
-                                // Neither shelf is drawn without its callback.
-                                onTopPickClick = openTopPick.takeUnless { hideTopPicks },
-                                onMoodClick = playMood.takeUnless { hideHomeMoods },
-                                onMoodsShowAll = { navigator.push(AppRoute.Moods) },
-                                // Nothing on Home is seen while the greeting covers it.
-                                artworkMotion = artworkMotion && !showDiwali,
-                                onTopPickLongPress = { pick ->
-                                    pick.browseId?.let { browseId ->
-                                        onShelfLongPress(
-                                            ShelfItem(
-                                                title = pick.title,
-                                                subtitle = pick.artistName.orEmpty(),
-                                                thumbnailUrl = pick.images.firstOrNull(),
-                                                videoId = null,
-                                                browseId = browseId,
-                                            ),
-                                        )
-                                    }
-                                },
+                            TAB_HOME -> HomeTab(
+                                viewModel = viewModel, navigator = navigator, alerts = alerts, overlays = overlays, actions = tabActions,
+                                visibleHomeState = visibleHomeState, homeListState = homeListState, homePull = homePull,
+                                player = player, signedIn = signedIn, diwaliFestive = diwaliFestive, showDiwali = showDiwali,
+                                artworkMotion = artworkMotion, listPadding = listPadding,
                             )
-                            TAB_EXPLORE -> selectedMoodGenre?.let { category ->
-                                MoodGenrePlaylistsScreen(
-                                    title = category.title,
-                                    state = moodGenreShelves,
-                                    listState = moodGenreListState,
-                                    onItemClick = { item ->
-                                        item.videoId?.let { videoId ->
-                                            playRadio(
-                                                Song(
-                                                    videoId = videoId,
-                                                    title = item.title,
-                                                    artist = InnertubeParser.artistFromSubtitle(item.subtitle),
-                                                    thumbnailUrl = item.thumbnailUrl,
-                                                    isVideo = item.isVideo,
-                                                ),
-                                                QueueSource(
-                                                    category.title,
-                                                    PlaybackSourceType.EXPLORE,
-                                                    category.browseId,
-                                                ),
-                                            )
-                                        } ?: item.browseId?.let { browseId ->
-                                            viewModel.openDetail(
-                                                browseId = browseId,
-                                                title = item.title,
-                                                subtitle = item.subtitle,
-                                                thumbnailUrl = item.thumbnailUrl,
-                                            )
-                                        }
-                                    },
-                                    onRetry = { viewModel.openMoodGenre(category) },
-                                    contentPadding = listPadding,
-                                )
-                            } ?: ExploreScreen(
-                                state = exploreState,
-                                listState = exploreListState,
-                                onCategoryClick = viewModel::openMoodGenre,
-                                onRetry = viewModel::loadExplore,
-                                refreshing = MainViewModel.Feed.EXPLORE in refreshing,
-                                onRefresh = { viewModel.refresh(MainViewModel.Feed.EXPLORE) },
-                                pullState = explorePull,
-                                contentPadding = listPadding,
+                            TAB_EXPLORE -> ExploreTab(
+                                viewModel = viewModel, navigator = navigator, alerts = alerts, overlays = overlays, actions = tabActions,
+                                exploreListState = exploreListState, moodGenreListState = moodGenreListState,
+                                explorePull = explorePull, listPadding = listPadding,
                             )
-                            TAB_SEARCH -> SearchScreen(
-                                query = query,
-                                onQueryChange = viewModel::onQueryChange,
-                                filter = filter,
-                                currentSong = player.song,
-                                isPlaying = player.isPlaying,
-                                onFilterChange = viewModel::onFilterChange,
-                                results = results,
-                                loadingMore = searchLoadingMore,
-                                onLoadMore = viewModel::loadMoreSearchResults,
-                                listState = searchListState,
-                                scrollResetTrigger = searchScrollReset,
-                                focusRequested = searchFocusRequested,
-                                onFocusHandled = { searchFocusRequested = false },
-                                // Search hits are alternatives to each other, not a running
-                                // order — play the one tapped and build a station from it.
-                                onSongClick = { songs, index ->
-                                    songs.getOrNull(index)?.let { song ->
-                                        viewModel.recordEntity(SearchHistoryEntity(
-                                            id = song.videoId,
-                                            title = song.title,
-                                            subtitle = song.artist.ifEmpty { "" },
-                                            artworkUrl = song.thumbnailUrl,
-                                            entityType = EntityType.TRACK,
-                                        ))
-                                        playRadio(song, QueueSource(searchLabel, PlaybackSourceType.SEARCH))
-                                    }
-                                },
-                                onSongLongPress = openSongMenu,
-                                onSongSwipe = onSongSwipe,
-                                onTopResultPlay = { song ->
-                                    viewModel.recordEntity(SearchHistoryEntity(
-                                        id = song.videoId,
-                                        title = song.title,
-                                        subtitle = song.artist.ifEmpty { "" },
-                                        artworkUrl = song.thumbnailUrl,
-                                        entityType = EntityType.TRACK,
-                                    ))
-                                    playRadio(song, QueueSource(searchLabel, PlaybackSourceType.SEARCH))
-                                },
-                                onTopResultPlaylist = { song ->
-                                    viewModel.recordEntity(SearchHistoryEntity(
-                                        id = song.videoId,
-                                        title = song.title,
-                                        subtitle = song.artist.ifEmpty { "" },
-                                        artworkUrl = song.thumbnailUrl,
-                                        entityType = EntityType.TRACK,
-                                    ))
-                                    viewModel.loadPlaylists()
-                                    playlistTarget = song
-                                },
-                                onBrowseClick = { item ->
-                                    viewModel.recordEntity(SearchHistoryEntity(
-                                        id = item.browseId ?: "",
-                                        title = item.title,
-                                        subtitle = item.subtitle.ifBlank { "" },
-                                        artworkUrl = item.thumbnailUrl,
-                                        entityType = when (item.type) {
-                                            BrowseType.ALBUM -> EntityType.ALBUM
-                                            BrowseType.ARTIST -> EntityType.ARTIST
-                                            BrowseType.PLAYLIST -> EntityType.PLAYLIST
-                                            BrowseType.OTHER -> EntityType.OTHER
-                                        },
-                                    ))
-                                    viewModel.openDetail(
-                                        browseId = item.browseId,
-                                        title = item.title,
-                                        subtitle = item.subtitle,
-                                        thumbnailUrl = item.thumbnailUrl,
-                                        type = item.type,
-                                    )
-                                },
-                                onBrowseLongPress = { item ->
-                                    // A search row does say what it is, so its own type is
-                                    // better than what the browse id can be read to mean.
-                                    if (item.type != BrowseType.ARTIST) {
-                                        openBrowseMenu(
-                                            BrowseTarget(
-                                                browseId = item.browseId,
-                                                title = item.title,
-                                                subtitle = item.subtitle,
-                                                thumbnailUrl = item.thumbnailUrl,
-                                                type = item.type,
-                                                downloadId = downloadIdFor(item.browseId),
-                                            ),
-                                        )
-                                    }
-                                },
-                                history = searchHistory,
-                                suggestions = searchSuggestions,
-                                typeaheadResults = viewModel.typeaheadResults.collectAsStateWithLifecycle().value,
-                                onSubmit = viewModel::submitSearch,
-                                // Suggestions land in search history via searchFor → recordSearch.
-                                // History items (onHistoryClick) navigate/play without re-logging.
-                                onSuggestionClick = viewModel::searchFor,
-                                onHistoryClick = { entity ->
-                                    // Tap a history entity: navigate to it or play it directly.
-                                    // Do NOT recordEntity here — tapping an existing history item
-                                    // must not update its timestamp and push it to the top.
-                                    when (entity.entityType) {
-                                        EntityType.TRACK -> {
-                                            // Play the track by its video id
-                                            playRadio(
-                                                com.music.bitchord.data.model.Song(
-                                                    videoId = entity.id,
-                                                    title = entity.title,
-                                                    artist = entity.subtitle,
-                                                    thumbnailUrl = entity.artworkUrl,
-                                                ),
-                                                QueueSource(entity.title, PlaybackSourceType.SEARCH),
-                                            )
-                                        }
-                                        EntityType.ALBUM, EntityType.ARTIST, EntityType.PLAYLIST, EntityType.OTHER -> {
-                                            viewModel.openDetail(
-                                                browseId = entity.id,
-                                                title = entity.title,
-                                                subtitle = entity.subtitle,
-                                                thumbnailUrl = entity.artworkUrl,
-                                            )
-                                        }
-                                    }
-                                },
-                                onHistoryRemove = viewModel::removeSearch,
-                                onHistoryClear = viewModel::clearSearchHistory,
-                                onTypeaheadLongPress = openSongMenu,
-                                contentPadding = listPadding,
-                                // Snug under the bar rather than a page's breathing
-                                // gap below it: the field is in the bar (see the bar's
-                                // accessory), so what comes next is the field's own
-                                // suggestions and filters, and a gap reads as a break.
-                                topPadding = topBarHeight() + 4.dp,
-                                showField = false,
-                                // The settings page's own two-state selector, so the
-                                // app has one look for "pick one of these".
-                                sourceSwitcher = {
-                                    SegmentedControl(
-                                        options = listOf(
-                                            stringResource(R.string.search_source_youtube),
-                                            stringResource(R.string.library),
-                                            stringResource(R.string.search_source_addons),
-                                        ),
-                                        selectedIndex = searchSource.ordinal,
-                                        onSelect = { index -> onSearchSourceChange(SearchSource.entries[index]) },
-                                    )
-                                },
-                                searchingLibrary = searchSource == SearchSource.LIBRARY,
-                                libraryResults = libraryResults,
-                                searchingAddons = searchSource == SearchSource.ADDONS,
-                                addonResults = addonResults,
-                                isBlocked = { song ->
-                                    val configId = SourceRegistry.parseTrackKey(song.videoId)?.first
-                                    !SourceRegistry.permitsForPlayback(configId, addonCeiling)
-                                },
-                                onBlockedSongClick = { song -> blockedAddonSong = song },
-                                addonHistory =viewModel.addonSearchHistory.collectAsStateWithLifecycle().value,
-                                onAddonHistoryClick = { term ->
-                                    viewModel.onQueryChange(term)
-                                    viewModel.submitSearch()
-                                },
-                                onAddonHistoryRemove = viewModel::removeAddonSearch,
-                                onAddonHistoryClear = viewModel::clearAddonSearchHistory,
-                                // The same queue opening the Local Music folder and
-                                // tapping the row there would give.
-                                onLibrarySongClick = { songs, index ->
-                                    playFrom(
-                                        songs,
-                                        index,
-                                        if (searchSource == SearchSource.ADDONS) {
-                                            QueueSource(
-                                                context.getString(R.string.search_source_addons),
-                                                PlaybackSourceType.BROWSE,
-                                                "addons:search",
-                                            )
-                                        } else {
-                                            QueueSource(
-                                                context.getString(R.string.local_music),
-                                                PlaybackSourceType.BROWSE,
-                                                "local:all",
-                                            )
-                                        },
-                                    )
-                                },
+                            TAB_SEARCH -> SearchTab(
+                                viewModel = viewModel, navigator = navigator, alerts = alerts, overlays = overlays, actions = tabActions,
+                                searchListState = searchListState, player = player,
+                                searchFocusRequested = searchFocusRequested, addonCeiling = addonCeiling,
+                                listPadding = listPadding,
                             )
-                            else -> LibraryScreen(
-                                signedIn = signedIn,
-                                state = libraryState,
-                                listState = libraryListState,
-                                onShelfItemClick = onLibraryItemClick,
-                                // Every shelf here has a menu behind it now — the account's
-                                // own playlists get rename and delete on top of what a saved
-                                // album or a Liked Music card gets. Holding an artist still
-                                // does nothing; see [onBrowseLongPress].
-                                onShelfItemLongPress = onBrowseLongPress,
-                                onNewPlaylist = { creatingPlaylist = true },
-                                onImportSpotifyPlaylist = { showSpotifyImportDialog = true },
-                                onShowAll = { shelf -> navigator.push(AppRoute.LibraryShowAll(shelf)) },
-                                replay = {
-                                    LibraryReplayEntry(
-                                        cards = replayCards,
-                                        loading = replay.loading,
-                                        holder = account?.name.orEmpty(),
-                                        memberSince = replay.memberSince,
-                                        onOpenReplay = { page ->
-                                            replayLandingPage = page
-                                            navigator.push(AppRoute.Replay)
-                                        },
-                                    )
-                                },
-                                onSignIn = { webSession = WebSessionMode.SIGN_IN },
-                                onRetry = viewModel::loadLibrary,
-                                refreshing = MainViewModel.Feed.LIBRARY in refreshing,
-                                onRefresh = { viewModel.refresh(MainViewModel.Feed.LIBRARY) },
-                                pullState = libraryPull,
-                                contentPadding = listPadding,
-                                links = libraryLinks(),
-                                deviceItems = libraryDeviceItems(downloadedReleases) + localPlaylistItems,
+                            else -> LibraryTab(
+                                viewModel = viewModel, navigator = navigator, alerts = alerts, overlays = overlays, actions = tabActions,
+                                libraryListState = libraryListState, libraryPull = libraryPull, signedIn = signedIn,
+                                replay = replay, replayCards = replayCards, downloadedReleases = downloadedReleases,
+                                localPlaylistItems = localPlaylistItems, listPadding = listPadding,
                             )
                         }
                     }
