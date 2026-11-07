@@ -166,26 +166,14 @@ import com.music.bitchord.ui.components.handleDacVolumeKey
 import com.music.bitchord.ui.components.VolumeHud
 import com.music.bitchord.ui.navigation.AppDestination
 import com.music.bitchord.ui.navigation.AppRoute
-import com.music.bitchord.ui.screens.EqualizerPresetPage
-import com.music.bitchord.ui.screens.SettingsChoicePage
 import com.music.bitchord.ui.components.SpotifyImportAlert
-import com.music.bitchord.ui.screens.WearOsScreen
-import com.music.bitchord.ui.screens.AccountAndScrobblingScreen
-import com.music.bitchord.ui.screens.DiscordScreen
-import com.music.bitchord.ui.screens.EqualizerScreen
-import com.music.bitchord.ui.screens.HistoryScreen
 import com.music.bitchord.ui.screens.LibraryReplayEntry
 import com.music.bitchord.ui.screens.libraryDeviceItems
 import com.music.bitchord.ui.screens.SPOTIFY_BROWSE_ID
 import com.music.bitchord.ui.screens.libraryLinks
 import com.music.bitchord.ui.screens.CACHE_FOLDER_BROWSE_ID
-import com.music.bitchord.ui.screens.ListenTogetherScreen
-import com.music.bitchord.ui.screens.SettingsScreen
-import com.music.bitchord.ui.screens.SourcesScreen
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.ui.screens.SpotifyCanvasAuthScreen
-import com.music.bitchord.ui.screens.SpotifyLibraryScreen
-import com.music.bitchord.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.music.bitchord.playback.AudioCache
 import com.music.bitchord.playback.LinkRequest
 import com.music.bitchord.playback.MusicLink
@@ -220,7 +208,6 @@ import com.music.bitchord.download.MediaTagger
 import com.music.bitchord.download.DownloadTarget
 import com.music.bitchord.download.Downloads
 import com.music.bitchord.ui.components.BrowseTarget
-import com.music.bitchord.ui.components.DownloadManagerPage
 import com.music.bitchord.ui.components.PlaylistPickerSheet
 import com.music.bitchord.ui.components.LongPressOrigin
 import com.music.bitchord.ui.components.MenuAnchor
@@ -282,6 +269,10 @@ import com.music.bitchord.ui.navigation.NowPlayingSheetHost
 import com.music.bitchord.ui.navigation.PlaylistReorderState
 import com.music.bitchord.ui.navigation.ReleasePage
 import com.music.bitchord.ui.navigation.ReleasePageActions
+import com.music.bitchord.ui.navigation.AppOverlayState
+import com.music.bitchord.ui.navigation.RouteActions
+import com.music.bitchord.ui.navigation.RoutePage
+import com.music.bitchord.ui.navigation.handlesRoute
 import com.music.bitchord.ui.navigation.SongMenuBody
 import com.music.bitchord.ui.navigation.SongMenuEnv
 import com.music.bitchord.ui.navigation.AppAlertState
@@ -294,7 +285,6 @@ import com.music.bitchord.data.TopPicks
 import com.music.bitchord.data.model.TopPick
 import com.music.bitchord.data.model.TopPickKind
 import com.music.bitchord.data.model.TopPickMood
-import com.music.bitchord.ui.screens.MoodGridPage
 import com.music.bitchord.ui.player.NowPlayingScreen
 import com.music.bitchord.ui.player.MusicVideoEngine
 import com.music.bitchord.ui.player.PlayerSheetMotion
@@ -321,7 +311,6 @@ import com.music.bitchord.data.toGroup
 import com.music.bitchord.data.settings.LibraryViewType
 import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.screens.HomeScreen
-import com.music.bitchord.ui.screens.LibraryGridPage
 import com.music.bitchord.ui.screens.LibraryScreen
 import com.music.bitchord.ui.screens.MoodGenrePlaylistsScreen
 import com.music.bitchord.ui.screens.SearchScreen
@@ -329,7 +318,6 @@ import com.music.bitchord.data.settings.SongSort
 import com.music.bitchord.ui.onboarding.OnboardingScreen
 import com.music.bitchord.ui.festive.DiwaliGate
 import com.music.bitchord.ui.festive.DiwaliGreetingScreen
-import com.music.bitchord.ui.replay.ReplayScreen
 import com.music.bitchord.ui.replay.cards
 import com.music.bitchord.ui.replay.ReplayShareSheet
 import com.music.bitchord.ui.replay.ReplayStories
@@ -602,7 +590,10 @@ private fun BitChordApp(
      * What the in-app browser is open for, or null while it is closed —
      * signing in, or picking a channel in YouTube Music's own Accounts list.
      */
-    var webSession by remember { mutableStateOf<WebSessionMode?>(null) }
+    // The sheets and sign-ins pushed pages ask for, held in [AppOverlayState];
+    // the locals delegate to it so every caller keeps the same names.
+    val overlays = remember { AppOverlayState() }
+    var webSession by overlays::webSession
     // Replay: the page (a route on the back stack — see [AppNavigator]), the
     // stories over it, and the share sheet over those. Closing one has to
     // reveal what it was opened from.
@@ -613,7 +604,7 @@ private fun BitChordApp(
     var showReplayShare by rememberSaveable { mutableStateOf(false) }
     /** Which story card the share sheet is for, or null for the whole Replay. */
     var replaySharePage by rememberSaveable { mutableStateOf<ReplayStoryPage?>(null) }
-    var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
+    var showSpotifyCanvasAuth by overlays::showSpotifyCanvasAuth
 
     // Root-level alerts (sources, Discord, bit-perfect, download notices):
     // their state and drawing live in [AppAlertHost] — see there for why they
@@ -631,21 +622,21 @@ private fun BitChordApp(
     var editingPartyServer by alerts::editingPartyServer
     var editingSignatureApi by alerts::editingSignatureApi
     var librarySortMenuOpen by remember { mutableStateOf(false) }
-    var showLyricsSources by remember { mutableStateOf(false) }
-    var showAppLanguage by remember { mutableStateOf(false) }
-    var showTranslationLanguage by remember { mutableStateOf(false) }
-    var showAccountSelector by remember { mutableStateOf(false) }
-    var showListenBrainzLogin by remember { mutableStateOf(false) }
-    var showLastfmLogin by remember { mutableStateOf(false) }
-    var showWebDavEditor by remember { mutableStateOf(false) }
-    var showSmbEditor by remember { mutableStateOf(false) }
+    var showLyricsSources by overlays::showLyricsSources
+    var showAppLanguage by overlays::showAppLanguage
+    var showTranslationLanguage by overlays::showTranslationLanguage
+    var showAccountSelector by overlays::showAccountSelector
+    var showListenBrainzLogin by overlays::showListenBrainzLogin
+    var showLastfmLogin by overlays::showLastfmLogin
+    var showWebDavEditor by overlays::showWebDavEditor
+    var showSmbEditor by overlays::showSmbEditor
     // Discord Rich Presence: its own page under Account & integrations (a
     // route), its own full-screen sign-in, and one slot for whichever of its
     // alerts is open. The alerts live out here rather than on the page because
     // their scrim has to cover the tab bar and mini player, which are drawn
     // after it.
-    var showDiscordLogin by remember { mutableStateOf(false) }
-    var showSpotifyLogin by remember { mutableStateOf(false) }
+    var showDiscordLogin by overlays::showDiscordLogin
+    var showSpotifyLogin by overlays::showSpotifyLogin
     var discordDialog by alerts::discordDialog
     var songActions by remember { mutableStateOf<Song?>(null) }
     var showLyricsOffset by remember { mutableStateOf(false) }
@@ -1329,8 +1320,6 @@ private fun BitChordApp(
     val exploreLabel = stringResource(R.string.explore)
     val libraryLabel = stringResource(R.string.library)
     val searchLabel = stringResource(R.string.search)
-    val historyLabel = stringResource(R.string.history)
-    val replayLabel = stringResource(R.string.replay)
     val queueLabel = stringResource(R.string.queue)
     val sharedLinkLabel = stringResource(R.string.shared_link)
     val openedFileLabel = stringResource(R.string.opened_file)
@@ -2969,200 +2958,57 @@ private fun BitChordApp(
                         detailListStates.getOrPut(key) { LazyListState() }
                     }
                     val pageContent: @Composable () -> Unit = {
-                        if (pageRoute == AppRoute.History) {
-                            HistoryScreen(
-                                state = historyState,
-                                listState = historyListState,
-                                currentSong = player.song,
-                                isPlaying = player.isPlaying,
-                                onSongClick = { songs, index ->
-                                    playFrom(songs, index, QueueSource(historyLabel, PlaybackSourceType.HISTORY))
-                                },
-                                onSongLongPress = { song ->
-                                    menuFromHistory = true
-                                    openSongMenu(song)
-                                },
-                                onSongSwipe = onSongSwipe,
-                                onRetry = viewModel::loadHistory,
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute is AppRoute.LibraryShowAll) {
-                            pageRoute.shelf.let { shelf ->
-                                LibraryGridPage(
-                                    shelf = shelf,
-                                    gridState = libraryShowAllGridState,
-                                    onItemClick = onLibraryItemClick,
-                                    onItemLongPress = onBrowseLongPress,
-                                    // Only the Playlists shelf can grow one — see
-                                    // [PlaylistShelf].
-                                    onNewPlaylist = if (shelf.title == YtMusicRepository.PLAYLISTS_SHELF) {
-                                        { creatingPlaylist = true }
-                                    } else {
-                                        null
+                        if (pageRoute != null && handlesRoute(pageRoute)) {
+                            RoutePage(
+                                pageRoute = pageRoute,
+                                viewModel = viewModel,
+                                navigator = navigator,
+                                alerts = alerts,
+                                overlays = overlays,
+                                actions = RouteActions(
+                                    playFrom = { songs, index, source -> playFrom(songs, index, source) },
+                                    openSongMenu = openSongMenu,
+                                    openSongMenuFromHistory = { song ->
+                                        menuFromHistory = true
+                                        openSongMenu(song)
                                     },
-                                    contentPadding = listPadding,
-                                )
-                            }
-                        } else if (pageRoute == AppRoute.Moods) {
-                            MoodGridPage(
-                                gridState = moodsGridState,
-                                onClick = playMood,
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute == AppRoute.Replay) {
-                            ReplayScreen(
-                                state = replay,
-                                holder = account?.name.orEmpty(),
-                                onPeriodChange = setReplayPeriod,
-                                onOpenStory = { replayStory = it },
-                                // A track tapped on a chart is one the user already
-                                // knows they like, so it starts a station off itself
-                                // rather than queueing the chart it was on — the
-                                // same reading [playRadio] makes of a search hit.
-                                onPlaySong = { song ->
-                                    playRadio(song, QueueSource(replayLabel, PlaybackSourceType.REPLAY))
-                                },
-                                // Pushed over Replay, so back returns to it.
-                                onOpenArtist = { id, name ->
-                                    openByName(id, name, null, BrowseType.ARTIST)
-                                },
-                                onOpenAlbum = { id, title, artist, art ->
-                                    openByName(id, title, artist, BrowseType.ALBUM, art)
-                                },
-                                onShare = {
-                                    replaySharePage = null
-                                    showReplayShare = true
-                                },
-                                contentPadding = listPadding,
-                                listState = replayListState,
-                                landingPage = replayLandingPage,
-                            )
-                        } else if (pageRoute == AppRoute.Spotify) {
-                            SpotifyLibraryScreen(
-                                onOpenPlaylist = { playlist ->
-                                    viewModel.openDetail(
-                                        browseId = SPOTIFY_PAGE_PREFIX + playlist.id,
-                                        title = playlist.name,
-                                        subtitle = playlist.owner ?: context.getString(R.string.spotify),
-                                        thumbnailUrl = playlist.imageUrl,
-                                        type = BrowseType.PLAYLIST,
-                                    )
-                                },
-                                onOpenLogin = { showSpotifyLogin = true },
-                                onOpenTokenSetup = { showSpotifyCanvasAuth = true },
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute == AppRoute.Discord) {
-                            DiscordScreen(
-                                song = player.song,
-                                positionMs = player.position.positionMs,
-                                durationMs = player.durationMs,
-                                onOpenLogin = { showDiscordLogin = true },
-                                onOpenDialog = { discordDialog = it },
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute == AppRoute.AccountScrobbling) {
-                            AccountAndScrobblingScreen(
-                                signedIn = signedIn,
+                                    onSongSwipe = onSongSwipe,
+                                    onLibraryItemClick = onLibraryItemClick,
+                                    onBrowseLongPress = onBrowseLongPress,
+                                    playMood = playMood,
+                                    playRadio = playRadio,
+                                    openByName = { id, name, subtitle, type, art -> openByName(id, name, subtitle, type, art) },
+                                    setReplayPeriod = setReplayPeriod,
+                                    openReplayStory = { replayStory = it },
+                                    shareReplay = {
+                                        replaySharePage = null
+                                        showReplayShare = true
+                                    },
+                                    openReplay = {
+                                        replayLandingPage = ReplayStoryPage.INTRO
+                                        navigator.push(AppRoute.Replay)
+                                    },
+                                    createPlaylist = { creatingPlaylist = true },
+                                    inviteHandled = {
+                                        activeJamInviteCode = null
+                                        activeJamInviteServer = null
+                                    },
+                                ),
+                                player = player,
+                                historyState = historyState,
+                                historyListState = historyListState,
+                                libraryShowAllGridState = libraryShowAllGridState,
+                                moodsGridState = moodsGridState,
+                                replay = replay,
+                                replayListState = replayListState,
+                                replayLandingPage = replayLandingPage,
                                 account = account,
-                                channelName = selectedChannelName,
-                                onSignIn = {
-                                    navigator.clear()
-                                    webSession = WebSessionMode.SIGN_IN
-                                },
-                                onSwitchChannel = {
-                                    viewModel.loadChannels()
-                                    showAccountSelector = true
-                                },
-                                onSignOut = { viewModel.signOut() },
-                                onOpenListenBrainzLogin = { showListenBrainzLogin = true },
-                                onOpenLastfmLogin = { showLastfmLogin = true },
-                                onOpenDiscord = { navigator.push(AppRoute.Discord) },
-                                onOpenSpotify = { navigator.push(AppRoute.Spotify) },
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute == AppRoute.Sources) {
-                            SourcesScreen(
-                                contentPadding = listPadding,
-                                onEditSource = { editingSource = it },
-                                onChooseSourceQuality = { choosingSourceQuality = it },
-                                onExplainOutdatedAddon = { explainingOutdatedAddon = it },
-                                onEditWebDav = { showWebDavEditor = true },
-                                onEditSmb = { showSmbEditor = true },
-                                onConfirmJioSaavn = { confirmJioSaavn = true },
-                            )
-                        } else if (pageRoute == AppRoute.Downloads) {
-                            DownloadManagerPage(
-                                onCleared = { navigator.pop() },
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute == AppRoute.WearOs) {
-                            WearOsScreen(contentPadding = listPadding)
-                        } else if (pageRoute == AppRoute.ListenTogether) {
-                            ListenTogetherScreen(
+                                selectedChannelName = selectedChannelName,
                                 signedIn = signedIn,
-                                inviteCode = activeJamInviteCode,
-                                inviteServer = activeJamInviteServer,
-                                onInviteHandled = {
-                                    activeJamInviteCode = null
-                                    activeJamInviteServer = null
-                                },
-                                onSignIn = {
-                                    navigator.clear()
-                                    webSession = WebSessionMode.SIGN_IN
-                                },
-                                contentPadding = listPadding,
-                                onEditServer = { editingPartyServer = true },
-                            )
-                        } else if (pageRoute == AppRoute.Equalizer) {
-                            EqualizerScreen(
-                                contentPadding = listPadding,
-                                onOpenPresets = { navigator.push(AppRoute.EqualizerPresets) },
-                            )
-                        } else if (pageRoute == AppRoute.EqualizerPresets) {
-                            EqualizerPresetPage(
-                                onChosen = { navigator.pop() },
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute is AppRoute.SettingsChoice) {
-                            SettingsChoicePage(
-                                choice = pageRoute.choice,
-                                onChosen = { navigator.pop() },
-                                onConfirmBitPerfect = { confirmBitPerfect = it },
-                                contentPadding = listPadding,
-                            )
-                        } else if (pageRoute == AppRoute.Settings || pageRoute is AppRoute.SettingsSection) {
-                            // The main page and every category's page are the
-                            // one screen, each showing its own share of the rows.
-                            SettingsScreen(
-                                section = (pageRoute as? AppRoute.SettingsSection)?.category,
-                                onOpenSection = { navigator.push(AppRoute.SettingsSection(it)) },
-                                onOpenChoice = { navigator.push(AppRoute.SettingsChoice(it)) },
+                                activeJamInviteCode = activeJamInviteCode,
+                                activeJamInviteServer = activeJamInviteServer,
                                 windowWidth = windowWidth,
-                                signedIn = signedIn,
-                                account = account,
-                                onSignIn = {
-                                    navigator.clear()
-                                    webSession = WebSessionMode.SIGN_IN
-                                },
-                                onSignOut = { viewModel.signOut() },
-                                onAccountScrobbling = { navigator.push(AppRoute.AccountScrobbling) },
-                                onEqualizer = { navigator.push(AppRoute.Equalizer) },
-                                onOpenReplay = {
-                                    replayLandingPage = ReplayStoryPage.INTRO
-                                    navigator.push(AppRoute.Replay)
-                                },
-                                onLyricsSources = { showLyricsSources = true },
-                                onTranslationLanguage = { showTranslationLanguage = true },
-                                onSources = { navigator.push(AppRoute.Sources) },
-                                onListenTogether = { navigator.push(AppRoute.ListenTogether) },
-                                onWearOs = { navigator.push(AppRoute.WearOs) },
-                                onSpotifyCanvasAuth = { showSpotifyCanvasAuth = true },
-                                onAppLanguage = { showAppLanguage = true },
-                                onEditSignatureApi = { editingSignatureApi = true },
-                                onConfirmBitPerfect = { confirmBitPerfect = it },
-                                onConfirmFixedVolume = { confirmFixedVolume = true },
-                                contentPadding = listPadding,
+                                listPadding = listPadding,
                             )
                         } else if (page != null) {
                             // Local Music, Downloads and the other device folders are
