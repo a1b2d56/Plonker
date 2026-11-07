@@ -5096,8 +5096,10 @@ private fun BitChordApp(
             )
         }
 
-        if (showSpotifyImportDialog) {
-            BackHandler { showSpotifyImportDialog = false }
+        IosModalContainer(
+            visible = showSpotifyImportDialog,
+            onDismiss = { showSpotifyImportDialog = false },
+        ) {
             SpotifyImportAlert(
                 hazeState = hazeState,
                 signedIn = signedIn,
@@ -5844,25 +5846,43 @@ private fun BitChordApp(
         // leaving the batch suspended on a dismissed dialog would hang the
         // upload with no way to reach the question again.
         val uploadConflict by com.music.bitchord.data.webdav.WebDavUploads.conflict.collectAsStateWithLifecycle()
-        uploadConflict?.let { req ->
-            var applyToAll by remember(req) { mutableStateOf(false) }
-            val answer: (com.music.bitchord.data.webdav.WebDavUploads.Choice) -> Unit = { choice ->
-                req.answer.complete(
-                    com.music.bitchord.data.webdav.WebDavUploads.Resolution(choice, applyToAll),
+        var lastWebDavConflict by remember {
+            mutableStateOf<com.music.bitchord.data.webdav.WebDavUploads.ConflictRequest?>(null)
+        }
+        if (uploadConflict != null) {
+            lastWebDavConflict = uploadConflict
+        }
+        IosModalContainer(
+            visible = uploadConflict != null,
+            onDismiss = {
+                uploadConflict?.answer?.complete(
+                    com.music.bitchord.data.webdav.WebDavUploads.Resolution(
+                        com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP,
+                        false,
+                    ),
+                )
+            },
+        ) {
+            lastWebDavConflict?.let { req ->
+                var applyToAll by remember(req) { mutableStateOf(false) }
+                val answer: (com.music.bitchord.data.webdav.WebDavUploads.Choice) -> Unit = { choice ->
+                    req.answer.complete(
+                        com.music.bitchord.data.webdav.WebDavUploads.Resolution(choice, applyToAll),
+                    )
+                }
+                WebDavConflictAlert(
+                    hazeState = hazeState,
+                    fileName = req.fileName,
+                    showApplyToAll = req.remaining > 0,
+                    applyToAll = applyToAll,
+                    onApplyToAllChange = { applyToAll = it },
+                    onOverwrite = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.OVERWRITE) },
+                    onKeepBoth = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.KEEP_BOTH) },
+                    onSkip = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP) },
+                    onDismiss = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP) },
+                    animatedScope = this,
                 )
             }
-            BackHandler { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP) }
-            WebDavConflictAlert(
-                hazeState = hazeState,
-                fileName = req.fileName,
-                showApplyToAll = req.remaining > 0,
-                applyToAll = applyToAll,
-                onApplyToAllChange = { applyToAll = it },
-                onOverwrite = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.OVERWRITE) },
-                onKeepBoth = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.KEEP_BOTH) },
-                onSkip = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP) },
-                onDismiss = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP) },
-            )
         }
 
         // ---- Discord sign-in (full screen WebView) ----
@@ -5945,75 +5965,120 @@ private fun BitChordApp(
             )
         }
 
-        discordDialog?.let { which ->
-            DiscordDialogHost(
-                which = which,
-                hazeState = hazeState,
-                onDismiss = { discordDialog = null },
-            )
+        var lastDiscordDialog by remember { mutableStateOf<DiscordDialog?>(null) }
+        if (discordDialog != null) {
+            lastDiscordDialog = discordDialog
+        }
+        IosModalContainer(
+            visible = discordDialog != null,
+            onDismiss = { discordDialog = null },
+        ) {
+            lastDiscordDialog?.let { which ->
+                DiscordDialogHost(
+                    which = which,
+                    hazeState = hazeState,
+                    onDismiss = { discordDialog = null },
+                )
+            }
         }
 
         // At the root with the source editor, and for the same two reasons: it
         // is a haze card that has to sample the backdrop it is *not* inside,
         // and a full-window scrim that has to be full-window.
-        if (editingPartyServer) {
+        IosModalContainer(
+            visible = editingPartyServer,
+            onDismiss = { editingPartyServer = false },
+        ) {
             PartyServerEditor(
                 hazeState = hazeState,
                 onDismiss = { editingPartyServer = false },
             )
         }
 
-        if (editingSignatureApi) {
+        IosModalContainer(
+            visible = editingSignatureApi,
+            onDismiss = { editingSignatureApi = false },
+        ) {
             SignatureApiEditor(
                 hazeState = hazeState,
                 onDismiss = { editingSignatureApi = false },
             )
         }
 
-        editingSource?.let { config ->
-            SourceEditorAlert(
-                hazeState = hazeState,
-                config = config,
-                onDismiss = { editingSource = null },
-                onSaved = { editingSource = null },
-                onDelete = {
-                    SourceRegistry.remove(config.id)
-                    editingSource = null
-                },
-                scope = scope,
-            )
+        var lastEditingSource by remember { mutableStateOf<SourceConfig?>(null) }
+        if (editingSource != null) {
+            lastEditingSource = editingSource
+        }
+        IosModalContainer(
+            visible = editingSource != null,
+            onDismiss = { editingSource = null },
+        ) {
+            lastEditingSource?.let { config ->
+                SourceEditorAlert(
+                    hazeState = hazeState,
+                    config = config,
+                    onDismiss = { editingSource = null },
+                    onSaved = { editingSource = null },
+                    onDelete = {
+                        SourceRegistry.remove(config.id)
+                        editingSource = null
+                    },
+                    scope = scope,
+                )
+            }
         }
 
-        choosingSourceQuality?.let { config ->
-            ChoiceAlert(
-                hazeState = hazeState,
-                title = stringResource(R.string.audio_quality),
-                message = null,
-                options = config.qualityOptions,
-                selected = config.activeQuality,
-                label = { it?.label.orEmpty() },
-                onSelect = { option ->
-                    // Off the stored config, not the one this list opened with:
-                    // a probe may have refreshed it since.
-                    SourceRegistry.config(config.id)?.let {
-                        SourceRegistry.update(it.copy(pickedQuality = option?.value))
-                    }
-                    choosingSourceQuality = null
-                },
-                onDismiss = { choosingSourceQuality = null },
-            )
+        var lastChoosingSourceQuality by remember { mutableStateOf<SourceConfig?>(null) }
+        if (choosingSourceQuality != null) {
+            lastChoosingSourceQuality = choosingSourceQuality
+        }
+        IosModalContainer(
+            visible = choosingSourceQuality != null,
+            onDismiss = { choosingSourceQuality = null },
+        ) {
+            lastChoosingSourceQuality?.let { config ->
+                ChoiceAlert(
+                    hazeState = hazeState,
+                    title = stringResource(R.string.audio_quality),
+                    message = null,
+                    options = config.qualityOptions,
+                    selected = config.activeQuality,
+                    label = { it?.label.orEmpty() },
+                    onSelect = { option ->
+                        // Off the stored config, not the one this list opened with:
+                        // a probe may have refreshed it since.
+                        SourceRegistry.config(config.id)?.let {
+                            SourceRegistry.update(it.copy(pickedQuality = option?.value))
+                        }
+                        choosingSourceQuality = null
+                    },
+                    onDismiss = { choosingSourceQuality = null },
+                )
+            }
         }
 
-        explainingOutdatedAddon?.let { config ->
-            InfoAlert(
-                hazeState = hazeState,
-                title = config.displayName,
-                description = stringResource(R.string.source_needs_update),
-                onDismiss = { explainingOutdatedAddon = null },
-            )
+        var lastOutdatedAddon by remember { mutableStateOf<SourceConfig?>(null) }
+        if (explainingOutdatedAddon != null) {
+            lastOutdatedAddon = explainingOutdatedAddon
+        }
+        IosModalContainer(
+            visible = explainingOutdatedAddon != null,
+            onDismiss = { explainingOutdatedAddon = null },
+        ) {
+            lastOutdatedAddon?.let { config ->
+                InfoAlert(
+                    hazeState = hazeState,
+                    title = config.displayName,
+                    description = stringResource(R.string.source_needs_update),
+                    onDismiss = { explainingOutdatedAddon = null },
+                )
+            }
         }
 
-        if (confirmJioSaavn) {
+        IosModalContainer(
+            visible = confirmJioSaavn,
+            onDismiss = { confirmJioSaavn = false },
+        ) {
             ConfirmationAlert(
                 hazeState = hazeState,
                 title = stringResource(R.string.enable_jiosaavn),
@@ -6029,21 +6094,33 @@ private fun BitChordApp(
             )
         }
 
-        confirmBitPerfect?.let { mode ->
-            ConfirmationAlert(
-                hazeState = hazeState,
-                title = stringResource(R.string.bit_perfect_confirm_title),
-                description = stringResource(R.string.bit_perfect_confirm_message),
-                confirmLabel = stringResource(R.string.enable),
-                onConfirm = {
-                    AppSettings.setBitPerfectMode(mode)
-                    confirmBitPerfect = null
-                },
-                onDismiss = { confirmBitPerfect = null },
-            )
+        var lastConfirmBitPerfect by remember { mutableStateOf<BitPerfectMode?>(null) }
+        if (confirmBitPerfect != null) {
+            lastConfirmBitPerfect = confirmBitPerfect
+        }
+        IosModalContainer(
+            visible = confirmBitPerfect != null,
+            onDismiss = { confirmBitPerfect = null },
+        ) {
+            lastConfirmBitPerfect?.let { mode ->
+                ConfirmationAlert(
+                    hazeState = hazeState,
+                    title = stringResource(R.string.bit_perfect_confirm_title),
+                    description = stringResource(R.string.bit_perfect_confirm_message),
+                    confirmLabel = stringResource(R.string.enable),
+                    onConfirm = {
+                        AppSettings.setBitPerfectMode(mode)
+                        confirmBitPerfect = null
+                    },
+                    onDismiss = { confirmBitPerfect = null },
+                )
+            }
         }
 
-        if (confirmFixedVolume) {
+        IosModalContainer(
+            visible = confirmFixedVolume,
+            onDismiss = { confirmFixedVolume = false },
+        ) {
             ConfirmationAlert(
                 hazeState = hazeState,
                 title = stringResource(R.string.usb_allow_fixed_volume_confirm_title),
@@ -6060,30 +6137,50 @@ private fun BitChordApp(
         // Over the page and its frosted bars, under nothing but the alerts.
         DacVolumeHud(hazeState)
 
-        blockedAddonSong?.let { song ->
-            AddonBlockedAlert(
-                hazeState = hazeState,
-                song = song,
-                onDismiss = { blockedAddonSong = null },
-            )
+        var lastBlockedAddonSong by remember { mutableStateOf<Song?>(null) }
+        if (blockedAddonSong != null) {
+            lastBlockedAddonSong = blockedAddonSong
+        }
+        IosModalContainer(
+            visible = blockedAddonSong != null,
+            onDismiss = { blockedAddonSong = null },
+        ) {
+            lastBlockedAddonSong?.let { song ->
+                AddonBlockedAlert(
+                    hazeState = hazeState,
+                    song = song,
+                    onDismiss = { blockedAddonSong = null },
+                )
+            }
         }
 
-        addonLeftOutOfDownload?.let { (addon, why) ->
-            InfoAlert(
-                hazeState = hazeState,
-                title = stringResource(R.string.download_addon_left_out_title, addon),
-                description = when (why) {
-                    SourceRegistry.DownloadExclusion.DOWNLOADS_NOT_ALLOWED ->
-                        stringResource(R.string.download_addon_not_allowed, addon)
-                    SourceRegistry.DownloadExclusion.NEEDS_LOSSLESS_OUTPUT ->
-                        stringResource(R.string.download_addon_needs_lossless_output, addon)
-                },
-                onDismiss = { addonLeftOutOfDownload = null },
-                // A download can be asked for from the player or from either
-                // menu, and each is a window of its own over this one. Drawn
-                // here, the alert opened behind whichever it was.
-                inOwnWindow = playerRaised || songActions != null || browseActions != null,
-            )
+        var lastLeftOutOfDownload by remember {
+            mutableStateOf<Pair<String, SourceRegistry.DownloadExclusion>?>(null)
+        }
+        if (addonLeftOutOfDownload != null) {
+            lastLeftOutOfDownload = addonLeftOutOfDownload
+        }
+        IosModalContainer(
+            visible = addonLeftOutOfDownload != null,
+            onDismiss = { addonLeftOutOfDownload = null },
+        ) {
+            lastLeftOutOfDownload?.let { (addon, why) ->
+                InfoAlert(
+                    hazeState = hazeState,
+                    title = stringResource(R.string.download_addon_left_out_title, addon),
+                    description = when (why) {
+                        SourceRegistry.DownloadExclusion.DOWNLOADS_NOT_ALLOWED ->
+                            stringResource(R.string.download_addon_not_allowed, addon)
+                        SourceRegistry.DownloadExclusion.NEEDS_LOSSLESS_OUTPUT ->
+                            stringResource(R.string.download_addon_needs_lossless_output, addon)
+                    },
+                    onDismiss = { addonLeftOutOfDownload = null },
+                    // A download can be asked for from the player or from either
+                    // menu, and each is a window of its own over this one. Drawn
+                    // here, the alert opened behind whichever it was.
+                    inOwnWindow = playerRaised || songActions != null || browseActions != null,
+                )
+            }
         }
 
     }

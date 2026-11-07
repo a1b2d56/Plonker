@@ -109,10 +109,11 @@ fun ListenBrainzTokenAlert(
                 keyboardActions = KeyboardActions(onDone = { onSave() }),
             )
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
         AlertAction(label = stringResource(R.string.save), emphasised = true, onClick = onSave)
         AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
+        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = dismiss)
     }
 }
 
@@ -177,11 +178,12 @@ fun LastfmLoginAlert(
             onClick = onSignIn,
             enabled = !loading && usernameInput.isNotBlank() && passwordInput.isNotBlank(),
         )
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
         AlertAction(
             label = stringResource(R.string.cancel),
             emphasised = false,
-            onClick = onDismiss,
+            onClick = dismiss,
             enabled = !loading,
         )
     }
@@ -205,8 +207,9 @@ fun DiscordTokenAlert(
     loading: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
+    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -236,6 +239,7 @@ fun DiscordTokenAlert(
                 keyboardActions = KeyboardActions(onDone = { if (tokenInput.isNotBlank()) onSave() }),
             )
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
         AlertAction(
             label = if (loading) stringResource(R.string.checking) else stringResource(R.string.save),
@@ -247,7 +251,7 @@ fun DiscordTokenAlert(
         AlertAction(
             label = stringResource(R.string.cancel),
             emphasised = false,
-            onClick = onDismiss,
+            onClick = dismiss,
             enabled = !loading,
         )
     }
@@ -274,8 +278,9 @@ fun TextValueAlert(
     saveEnabled: Boolean = true,
     /** A third action between Save and Cancel, for a value that can be cleared. */
     onRemove: (() -> Unit)? = null,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
+    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -303,6 +308,7 @@ fun TextValueAlert(
                 keyboardActions = KeyboardActions(onDone = { onSave() }),
             )
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
         AlertAction(
             label = stringResource(R.string.save),
@@ -315,7 +321,7 @@ fun TextValueAlert(
             AlertAction(label = stringResource(R.string.remove), emphasised = false, onClick = onRemove)
         }
         AlertRule()
-        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = onDismiss)
+        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = dismiss)
     }
 }
 
@@ -429,11 +435,12 @@ fun ServerEditorAlert(
                 enabled = !testing,
             )
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
         AlertAction(
             label = stringResource(R.string.cancel),
             emphasised = false,
-            onClick = onDismiss,
+            onClick = dismiss,
             enabled = !testing,
         )
     }
@@ -620,8 +627,9 @@ fun WebDavConflictAlert(
     onKeepBoth: () -> Unit,
     onSkip: () -> Unit,
     onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
 ) {
-    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss) {
+    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -642,23 +650,24 @@ fun WebDavConflictAlert(
                 textAlign = TextAlign.Center,
             )
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
         AlertAction(
             label = stringResource(R.string.webdav_keep_both),
             emphasised = true,
-            onClick = onKeepBoth,
+            onClick = { onKeepBoth(); dismiss() },
         )
         AlertRule()
         AlertAction(
             label = stringResource(R.string.webdav_overwrite),
             emphasised = false,
-            onClick = onOverwrite,
+            onClick = { onOverwrite(); dismiss() },
         )
         AlertRule()
         AlertAction(
             label = stringResource(R.string.webdav_skip),
             emphasised = false,
-            onClick = onSkip,
+            onClick = { onSkip(); dismiss() },
         )
         if (showApplyToAll) {
             AlertRule()
