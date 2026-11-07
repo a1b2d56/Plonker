@@ -124,7 +124,6 @@ import com.music.bitchord.data.AppUpdateChecker
 import com.music.bitchord.data.LocalMediaRepository
 import com.music.bitchord.data.listentogether.JamInviteLink
 import com.music.bitchord.data.listentogether.ListenTogether
-import com.music.bitchord.data.listentogether.partyQueueIndexOf
 import com.music.bitchord.data.NerdStats
 import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.innertube.InnertubeParser
@@ -136,7 +135,6 @@ import com.music.bitchord.data.model.SearchFilter
 import com.music.bitchord.data.model.SearchResult
 import com.music.bitchord.data.model.ShelfItem
 import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.model.isUnresolvedSpotify
 import com.music.bitchord.data.model.UiState
 import com.music.bitchord.data.model.withoutVideos
 import com.music.bitchord.data.model.UserPlaylist
@@ -169,20 +167,17 @@ import com.music.bitchord.playback.OriginalVersion
 import com.music.bitchord.playback.PlayerDeepLink
 import com.music.bitchord.playback.QueueBuilder
 import com.music.bitchord.playback.QueueCoordinator
+import com.music.bitchord.playback.PlayRequests
+import com.music.bitchord.playback.QueueController
 import com.music.bitchord.playback.QueueCoordinator.asQueueEntry
 import com.music.bitchord.playback.QueueShuffle
 import com.music.bitchord.playback.QueueSource
-import com.music.bitchord.playback.cast.CastController
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.playback.autoplayEnabledFor
 import com.music.bitchord.playback.autoplaySectionStart
 import com.music.bitchord.playback.beginRadioQueue
 import com.music.bitchord.playback.commitRadioQueue
-import com.music.bitchord.playback.fromAutoplay
-import com.music.bitchord.playback.loadAutoplayTracks
 import com.music.bitchord.playback.playSongs
-import com.music.bitchord.playback.BoundedQueuePlanner
-import com.music.bitchord.playback.playBoundedContext
 import com.music.bitchord.playback.toMediaItem
 import com.music.bitchord.playback.toSong
 import com.music.bitchord.playback.toDirectYouTubeMediaItem
@@ -329,8 +324,6 @@ private const val TOP_FADE_START = 0.55f
 
 /** How much of the header's height the fade takes to reach full strength. */
 private const val TOP_FADE_RAMP = 0.3f
-
-private const val INITIAL_RADIO_TRACKS = 24
 
 internal fun shouldSkipAfterDislike(
     previousStatus: LikeStatus,
@@ -734,12 +727,10 @@ private fun BitChordApp(
     // signal to focus the input field.
     var searchFocusRequested by remember { mutableStateOf(false) }
     val searchFieldFocus = remember { FocusRequester() }
-    // Invalidates an in-flight radio lookup when a later play request wins.
-    var playRequestGeneration by remember { mutableIntStateOf(0) }
-    // Starting radio from the item already playing must not replace that media
-    // item just to add UI metadata. This temporary label covers that seed; all
-    // following radio items carry radioName in their MediaItem extras.
-    var activeRadioSeed by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Which play request is the latest, and the station label for a radio
+    // started off the playing track — see [PlayRequests].
+    val playRequests = remember { PlayRequests() }
+    val activeRadioSeed by playRequests::radioSeed
 
     // The modal player owns light status glyphs and its own contrast scrim.
     // Every other surface follows the theme; Replay's page and stories remain
@@ -1473,69 +1464,20 @@ private fun BitChordApp(
         }
     }
 
+    // Building and starting queues lives in [QueueController]; it follows the
+    // connection, the queue the UI shows and the party lock, handed to it on
+    // every pass because a remembered object can't capture them once.
+    val queueController = remember { QueueController(context, scope, playRequests) }
+    queueController.controller = controller
+    queueController.currentQueue = player.queue
+    queueController.refusedByHost = refusedByHost
     fun playFrom(
         allSongs: List<Song>,
         allIndex: Int,
         source: QueueSource,
         boundedContext: Boolean = false,
         continuationToken: String? = null,
-    ) {
-        // A Spotify page lists songs it has not found on YouTube Music yet (or
-        // never will); those can't be queued, so play the rest in their order.
-        if (allSongs.getOrNull(allIndex)?.isUnresolvedSpotify == true) return
-        val songs = allSongs.filterNot { it.isUnresolvedSpotify }
-        val index = songs.indexOf(allSongs.getOrNull(allIndex)).coerceAtLeast(0)
-        playRequestGeneration++
-        activeRadioSeed = null
-        scope.launch {
-            if (refusedByHost()) return@launch
-            val c = controller ?: return@launch
-            val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
-                ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
-            val currentIndex = c.currentMediaItemIndex
-
-            if (ListenTogether.state.value.inParty) {
-                val selectedSong = songs.getOrNull(index) ?: return@launch
-                val party = ListenTogether.state.value
-                val partyQueue = party.queue.items
-                val partyIndex = partyQueueIndexOf(party.queue, party.playback, party.playback.track?.videoId)
-                val upcomingPartyTracks = if (partyIndex >= 0) {
-                    partyQueue.drop(partyIndex + 1)
-                } else {
-                    emptyList()
-                }
-                val timeline = QueueCoordinator.buildPartyPlaybackQueue(
-                    tappedSong = selectedSong,
-                    source = source,
-                    upcomingPartyTracks = upcomingPartyTracks,
-                )
-                c.playSongs(timeline, 0)
-            } else {
-                // A Cast session still owns the full queue on the phone so the
-                // receiver can follow its existing queue semantics. The bounded
-                // service path is local-player-only; the service repeats this
-                // guard for commands that race a newly connected receiver.
-                //
-                // Any list too long to fit the window goes this way too, whatever
-                // page it came from: a whole library in the player is a whole
-                // library re-sent to every media controller on each queue edit.
-                val bounded = boundedContext || songs.size > BoundedQueuePlanner.MAX_PHYSICAL_CONTEXT
-                if (bounded && !CastController.state.value.casting) {
-                    c.playBoundedContext(songs, index, source, continuationToken)
-                } else {
-                    val result = QueueCoordinator.buildContextQueue(
-                        currentTimeline = currentTimeline,
-                        currentIndex = currentIndex,
-                        newContextSongs = songs,
-                        selectedIndex = index,
-                        contextSource = source,
-                    )
-                    c.playSongs(result.timeline, result.startIndex)
-                }
-            }
-            // Start playback in the mini-player; the user opens the full view by tapping it.
-        }
-    }
+    ) = queueController.playFrom(allSongs, allIndex, source, boundedContext, continuationToken)
     // Kept for entry points whose rows already carry their origin (notably a
     // collection action fetched before this callback). The explicit wrappers
     // below are preferred because a track's album is not necessarily where it
@@ -1555,7 +1497,7 @@ private fun BitChordApp(
         ) {
             optimisticVersionSong = null
         }
-        if (activeRadioSeed?.first != player.song?.videoId) activeRadioSeed = null
+        playRequests.onTrackChanged(player.song?.videoId)
         if (keepVideoId != player.song?.videoId) keepVideoId = null
         if (player.song?.videoId != convertedAudioId) {
             convertedFromVideo = null
@@ -1569,117 +1511,11 @@ private fun BitChordApp(
         }
     }
 
-    /**
-     * A song picked on its own — off a home card or a search hit — starts a
-     * station rather than queueing the list it was shown in. Searching
-     * "Perfect" and tapping the top hit otherwise queues twenty covers and
-     * remixes of the same song. Album, artist and playlist pages keep [play],
-     * where the surrounding list *is* the thing the user asked for.
-     */
-    val playRadio: (Song, QueueSource) -> Unit = { song, source ->
-        playRequestGeneration++
-        activeRadioSeed = null
-        scope.launch {
-            if (refusedByHost()) return@launch
-            val c = controller ?: return@launch
-            val currentTimeline = player.queue.takeIf { it.size == c.mediaItemCount }
-                ?: (0 until c.mediaItemCount).map { c.getMediaItemAt(it).toSong() }
-            val currentIndex = c.currentMediaItemIndex
-            val oneOffQueue = QueueCoordinator.buildOneOffQueue(
-                currentTimeline = currentTimeline,
-                currentIndex = currentIndex,
-                tappedSong = song,
-                source = source,
-            )
-            c.playSongs(oneOffQueue, 0)
-            // Start radio in the mini-player; the user opens the full view by tapping it.
-        }
-    }
+    /** A song picked on its own starts a station — see [QueueController.playRadio]. */
+    val playRadio: (Song, QueueSource) -> Unit = queueController::playRadio
 
-    /**
-     * Starts the explicit station offered by every song overflow menu.
-     *
-     * The related tracks come from YouTube Music's own RDAMVM watch queue.
-     * Loading happens before the player is touched so a failed request cannot
-     * destroy the queue already playing. Once ready, the whole old queue is
-     * replaced in one Media3 operation.
-     */
-    val startRadio: (Song) -> Unit = { song ->
-        val originalController = controller
-        if (originalController != null && !refusedByHost()) {
-            val request = ++playRequestGeneration
-            // Ignore AutoPlay's tail: it may legitimately grow while the
-            // request is in flight and does not mean the listener chose a
-            // different queue. A new album/song queue does.
-            val originalManualQueue = (0 until originalController.mediaItemCount)
-                .map { originalController.getMediaItemAt(it) }
-                .filterNot { it.fromAutoplay }
-                .map { it.mediaId }
-            scope.launch {
-                val seed = song.copy(
-                    radioName = song.title,
-                    playbackSource = song.title,
-                    playbackSourceType = PlaybackSourceType.SHARED_LINK,
-                    playbackSourceId = song.videoId,
-                )
-                val related = loadAutoplayTracks(
-                    existing = listOf(seed),
-                    seedSong = seed,
-                    limit = INITIAL_RADIO_TRACKS,
-                ).getOrElse {
-                    if (request == playRequestGeneration) {
-                        Toast.makeText(context, R.string.couldnt_load_tracks, Toast.LENGTH_SHORT).show()
-                    }
-                    return@launch
-                }
-                if (related.isEmpty()) {
-                    if (request == playRequestGeneration) {
-                        Toast.makeText(context, R.string.couldnt_load_tracks, Toast.LENGTH_SHORT).show()
-                    }
-                    return@launch
-                }
-                val activeController = controller
-                val activeManualQueue = (0 until activeController.mediaItemCount)
-                    .map { activeController.getMediaItemAt(it) }
-                    .filterNot { it.fromAutoplay }
-                    .map { it.mediaId }
-                if (request != playRequestGeneration || activeManualQueue != originalManualQueue) {
-                    return@launch
-                }
-                // Cancel any armed crossfade/AutoPlay work and erase the old
-                // cold-start snapshot before the visible queue is replaced.
-                activeController.beginRadioQueue()
-                val currentIndex = activeController.currentMediaItemIndex
-                val currentItem = activeController.currentMediaItem
-                if (currentIndex >= 0 && currentItem?.mediaId == song.videoId) {
-                    // Keep the current MediaItem itself untouched. Replacing it,
-                    // even with the same song, reparses the source at position
-                    // zero and audibly stops/restarts the track.
-                    // Station first, old tail after: removing first leaves the
-                    // current track briefly last, and AutoPlay answers that by
-                    // appending this same radio a second time.
-                    activeController.addMediaItems(currentIndex + 1, related.map { it.toMediaItem() })
-                    val oldTail = currentIndex + 1 + related.size
-                    if (oldTail < activeController.mediaItemCount) {
-                        activeController.removeMediaItems(oldTail, activeController.mediaItemCount)
-                    }
-                    if (currentIndex > 0) activeController.removeMediaItems(0, currentIndex)
-                    activeRadioSeed = song.videoId to song.title
-                } else {
-                    activeRadioSeed = null
-                    activeController.playSongs(listOf(seed) + related, 0)
-                }
-                // Make this station — never the queue from before it — what a
-                // fresh process restores, even if it is killed immediately.
-                activeController.commitRadioQueue()
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.radio_started, song.title),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
-        }
-    }
+    /** The overflow menu's Start radio — see [QueueController.startRadio]. */
+    val startRadio: (Song) -> Unit = queueController::startRadio
     /**
      * A Top Picks card: opens the release, or starts the station behind it.
      *
@@ -1699,10 +1535,10 @@ private fun BitChordApp(
                 thumbnailUrl = pick.images.firstOrNull(),
             )
         } else if (controller != null && !refusedByHost()) {
-            val request = ++playRequestGeneration
+            val request = playRequests.begin()
             scope.launch {
                 val songs = TopPicks.queue(pick).getOrNull().orEmpty()
-                if (request != playRequestGeneration) return@launch
+                if (!playRequests.isCurrent(request)) return@launch
                 val activeController = controller ?: return@launch
                 if (songs.isEmpty()) {
                     Toast.makeText(context, R.string.couldnt_load_tracks, Toast.LENGTH_SHORT).show()
@@ -1717,7 +1553,7 @@ private fun BitChordApp(
                         playbackSourceId = sourceId,
                     )
                 }
-                activeRadioSeed = null
+                playRequests.radioSeed = null
                 activeController.beginRadioQueue()
                 activeController.playSongs(station, 0)
                 activeController.commitRadioQueue()
