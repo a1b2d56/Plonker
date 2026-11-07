@@ -2560,7 +2560,11 @@ class CrossfadeController(
         )
         loopBuildJob = scope.launch {
             val began = SystemClock.elapsedRealtime()
-            val session = withContext(Dispatchers.Default) {
+            // A skip while the decks are decoding cancels this job, but the
+            // decode can't stop part-way and finishes regardless. Its session
+            // holds the native renderer, so it is closed rather than dropped:
+            // see [buildOrRelease].
+            val session = buildOrRelease(Dispatchers.Default, release = LoopMixSession::close) {
                 runCatching {
                     LoopMixSession.build(plan, outItem.mediaId, inItem.mediaId, sampleRate, inLevel) { side, from, to ->
                         if (side == LoopMix.Side.OUT) {
