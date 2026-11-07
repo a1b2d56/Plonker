@@ -21,7 +21,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -103,6 +105,26 @@ fun IosModalContainer(
         CompositionLocalProvider(LocalIosModalScope provides this) {
             content()
         }
+    }
+}
+
+/**
+ * [IosModalContainer] for a modal that is open *on* something — a config being
+ * edited, a mode being confirmed. Shown while [item] is non-null, and keeps
+ * drawing the last non-null value through the exit animation, so the card
+ * doesn't empty out the moment the caller clears its slot.
+ */
+@Composable
+fun <T : Any> IosModalContainer(
+    item: T?,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable AnimatedVisibilityScope.(T) -> Unit,
+) {
+    var retained by remember { mutableStateOf(item) }
+    if (item != null && item != retained) retained = item
+    IosModalContainer(visible = item != null, onDismiss = onDismiss, modifier = modifier) {
+        retained?.let { content(it) }
     }
 }
 

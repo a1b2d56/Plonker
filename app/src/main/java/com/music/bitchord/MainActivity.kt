@@ -161,8 +161,6 @@ import kotlinx.coroutines.withContext
 import com.music.bitchord.data.model.durationMillis
 import com.music.bitchord.data.scrobbling.LastFM
 import com.music.bitchord.data.settings.AppSettings
-import com.music.bitchord.data.settings.BitPerfectMode
-import com.music.bitchord.ui.AddonBlockedAlert
 import com.music.bitchord.data.settings.LibrarySort
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.ui.components.AccountProfileSelector
@@ -170,7 +168,6 @@ import com.music.bitchord.ui.components.IosModalContainer
 import com.music.bitchord.ui.components.IosMotion
 import com.music.bitchord.ui.components.LocalIosModalScope
 import com.music.bitchord.playback.ACTION_DISMISS_PLAYBACK
-import com.music.bitchord.ui.components.DacVolumeHud
 import com.music.bitchord.ui.components.DacVolumeKeys
 import com.music.bitchord.ui.components.LocalPlayingBarsMotion
 import com.music.bitchord.ui.components.handleDacVolumeKey
@@ -182,8 +179,6 @@ import com.music.bitchord.ui.screens.SettingsChoicePage
 import com.music.bitchord.ui.components.SpotifyImportAlert
 import com.music.bitchord.ui.screens.WearOsScreen
 import com.music.bitchord.ui.screens.AccountAndScrobblingScreen
-import com.music.bitchord.ui.screens.DiscordDialog
-import com.music.bitchord.ui.screens.DiscordDialogHost
 import com.music.bitchord.ui.screens.DiscordScreen
 import com.music.bitchord.ui.screens.EqualizerScreen
 import com.music.bitchord.ui.screens.HistoryScreen
@@ -193,10 +188,7 @@ import com.music.bitchord.ui.screens.SPOTIFY_BROWSE_ID
 import com.music.bitchord.ui.screens.libraryLinks
 import com.music.bitchord.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.bitchord.ui.screens.ListenTogetherScreen
-import com.music.bitchord.ui.screens.PartyServerEditor
-import com.music.bitchord.ui.screens.SignatureApiEditor
 import com.music.bitchord.ui.screens.SettingsScreen
-import com.music.bitchord.ui.screens.SourceEditorAlert
 import com.music.bitchord.ui.screens.SourcesScreen
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.ui.screens.SpotifyCanvasAuthScreen
@@ -241,8 +233,6 @@ import com.music.bitchord.download.DownloadTarget
 import com.music.bitchord.download.Downloads
 import com.music.bitchord.ui.components.BrowseActionsMenu
 import com.music.bitchord.ui.components.BrowseTarget
-import com.music.bitchord.ui.components.ConfirmationAlert
-import com.music.bitchord.ui.components.InfoAlert
 import com.music.bitchord.ui.components.DownloadManagerPage
 import com.music.bitchord.ui.components.PlaylistPickerSheet
 import com.music.bitchord.ui.components.ReorderPlaylistPage
@@ -279,9 +269,7 @@ import com.music.bitchord.ui.components.backdrop.backdrops.rememberSnapshotBackd
 import com.music.bitchord.ui.components.backdrop.backdrops.snapshotBackdropSource
 import com.music.bitchord.ui.components.isGlassSupported
 import com.music.bitchord.data.sources.SourceConfig
-import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.data.sources.SourceRegistry
-import com.music.bitchord.ui.components.ChoiceAlert
 import com.music.bitchord.ui.components.ListenBrainzTokenAlert
 import com.music.bitchord.ui.components.MiniPlayer
 import com.music.bitchord.ui.components.QueueActionNotice
@@ -302,7 +290,9 @@ import com.music.bitchord.ui.components.TranslationLanguageDialog
 import com.music.bitchord.ui.components.LyricsSourcesDialog
 import com.music.bitchord.ui.components.ServerEditorHost
 import com.music.bitchord.ui.components.UpdateAvailableDialog
-import com.music.bitchord.ui.components.WebDavConflictAlert
+import com.music.bitchord.ui.navigation.AppAlertHost
+import com.music.bitchord.ui.navigation.AppAlertState
+import com.music.bitchord.ui.navigation.WebDavConflictHost
 import com.music.bitchord.ui.components.FieldConfig
 import com.music.bitchord.ui.icons.BitChordIcons
 import androidx.media3.common.Player
@@ -649,26 +639,21 @@ private fun BitChordApp(
     var replaySharePage by rememberSaveable { mutableStateOf<ReplayStoryPage?>(null) }
     var showSpotifyCanvasAuth by remember { mutableStateOf(false) }
 
-    // Hosted here rather than inside SourcesScreen so its frosted card has
-    // something to blur: that screen is drawn inside the `hazeSource` subtree,
-    // and a haze effect sampling the layer it is itself part of renders with no
-    // background at all. Hosting it here also puts the scrim over the tab bar
-    // and the mini player, like every other alert in the app.
-    var editingSource by remember { mutableStateOf<SourceConfig?>(null) }
-    var choosingSourceQuality by remember { mutableStateOf<SourceConfig?>(null) }
-    /** An addon whose "Outdated addon" line was tapped; see [SourceConfig.needsAddonUpdate]. */
-    var explainingOutdatedAddon by remember { mutableStateOf<SourceConfig?>(null) }
-    var confirmJioSaavn by remember { mutableStateOf(false) }
-    var confirmBitPerfect by remember { mutableStateOf<BitPerfectMode?>(null) }
-    var confirmFixedVolume by remember { mutableStateOf(false) }
-    /** An addon search row tapped while the quality setting skips its addon; see [AddonBlockedAlert]. */
-    var blockedAddonSong by remember { mutableStateOf<com.music.bitchord.data.model.Song?>(null) }
-    /** An addon a download just went ahead without, and why; see [SourceRegistry.addonsLeftOutOfDownloads]. */
-    var addonLeftOutOfDownload by remember {
-        mutableStateOf<Pair<String, SourceRegistry.DownloadExclusion>?>(null)
-    }
-    var editingPartyServer by remember { mutableStateOf(false) }
-    var editingSignatureApi by remember { mutableStateOf(false) }
+    // Root-level alerts (sources, Discord, bit-perfect, download notices):
+    // their state and drawing live in [AppAlertHost] — see there for why they
+    // are hosted at the root. The locals delegate to it so every page callback
+    // keeps writing the same names.
+    val alerts = remember { AppAlertState() }
+    var editingSource by alerts::editingSource
+    var choosingSourceQuality by alerts::choosingSourceQuality
+    var explainingOutdatedAddon by alerts::explainingOutdatedAddon
+    var confirmJioSaavn by alerts::confirmJioSaavn
+    var confirmBitPerfect by alerts::confirmBitPerfect
+    var confirmFixedVolume by alerts::confirmFixedVolume
+    var blockedAddonSong by alerts::blockedAddonSong
+    var addonLeftOutOfDownload by alerts::addonLeftOutOfDownload
+    var editingPartyServer by alerts::editingPartyServer
+    var editingSignatureApi by alerts::editingSignatureApi
     var librarySortMenuOpen by remember { mutableStateOf(false) }
     var showLyricsSources by remember { mutableStateOf(false) }
     var showAppLanguage by remember { mutableStateOf(false) }
@@ -685,7 +670,7 @@ private fun BitChordApp(
     // after it.
     var showDiscordLogin by remember { mutableStateOf(false) }
     var showSpotifyLogin by remember { mutableStateOf(false) }
-    var discordDialog by remember { mutableStateOf<DiscordDialog?>(null) }
+    var discordDialog by alerts::discordDialog
     var songActions by remember { mutableStateOf<Song?>(null) }
     var showLyricsOffset by remember { mutableStateOf(false) }
     /**
@@ -5841,49 +5826,7 @@ private fun BitChordApp(
             )
         }
 
-        // A clash mid-upload, answered here so the scrim covers the tab bar
-        // and mini player like every other alert. Backing out is a skip —
-        // leaving the batch suspended on a dismissed dialog would hang the
-        // upload with no way to reach the question again.
-        val uploadConflict by com.music.bitchord.data.webdav.WebDavUploads.conflict.collectAsStateWithLifecycle()
-        var lastWebDavConflict by remember {
-            mutableStateOf<com.music.bitchord.data.webdav.WebDavUploads.ConflictRequest?>(null)
-        }
-        if (uploadConflict != null) {
-            lastWebDavConflict = uploadConflict
-        }
-        IosModalContainer(
-            visible = uploadConflict != null,
-            onDismiss = {
-                uploadConflict?.answer?.complete(
-                    com.music.bitchord.data.webdav.WebDavUploads.Resolution(
-                        com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP,
-                        false,
-                    ),
-                )
-            },
-        ) {
-            lastWebDavConflict?.let { req ->
-                var applyToAll by remember(req) { mutableStateOf(false) }
-                val answer: (com.music.bitchord.data.webdav.WebDavUploads.Choice) -> Unit = { choice ->
-                    req.answer.complete(
-                        com.music.bitchord.data.webdav.WebDavUploads.Resolution(choice, applyToAll),
-                    )
-                }
-                WebDavConflictAlert(
-                    hazeState = hazeState,
-                    fileName = req.fileName,
-                    showApplyToAll = req.remaining > 0,
-                    applyToAll = applyToAll,
-                    onApplyToAllChange = { applyToAll = it },
-                    onOverwrite = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.OVERWRITE) },
-                    onKeepBoth = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.KEEP_BOTH) },
-                    onSkip = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP) },
-                    onDismiss = { answer(com.music.bitchord.data.webdav.WebDavUploads.Choice.SKIP) },
-                    animatedScope = this,
-                )
-            }
-        }
+        WebDavConflictHost(hazeState)
 
         // ---- Discord sign-in (full screen WebView) ----
         if (showDiscordLogin) {
@@ -5965,223 +5908,12 @@ private fun BitChordApp(
             )
         }
 
-        var lastDiscordDialog by remember { mutableStateOf<DiscordDialog?>(null) }
-        if (discordDialog != null) {
-            lastDiscordDialog = discordDialog
-        }
-        IosModalContainer(
-            visible = discordDialog != null,
-            onDismiss = { discordDialog = null },
-        ) {
-            lastDiscordDialog?.let { which ->
-                DiscordDialogHost(
-                    which = which,
-                    hazeState = hazeState,
-                    onDismiss = { discordDialog = null },
-                )
-            }
-        }
-
-        // At the root with the source editor, and for the same two reasons: it
-        // is a haze card that has to sample the backdrop it is *not* inside,
-        // and a full-window scrim that has to be full-window.
-        IosModalContainer(
-            visible = editingPartyServer,
-            onDismiss = { editingPartyServer = false },
-        ) {
-            PartyServerEditor(
-                hazeState = hazeState,
-                onDismiss = { editingPartyServer = false },
-            )
-        }
-
-        IosModalContainer(
-            visible = editingSignatureApi,
-            onDismiss = { editingSignatureApi = false },
-        ) {
-            SignatureApiEditor(
-                hazeState = hazeState,
-                onDismiss = { editingSignatureApi = false },
-            )
-        }
-
-        var lastEditingSource by remember { mutableStateOf<SourceConfig?>(null) }
-        if (editingSource != null) {
-            lastEditingSource = editingSource
-        }
-        IosModalContainer(
-            visible = editingSource != null,
-            onDismiss = { editingSource = null },
-        ) {
-            lastEditingSource?.let { config ->
-                SourceEditorAlert(
-                    hazeState = hazeState,
-                    config = config,
-                    onDismiss = { editingSource = null },
-                    onSaved = { editingSource = null },
-                    onDelete = {
-                        SourceRegistry.remove(config.id)
-                        editingSource = null
-                    },
-                    scope = scope,
-                )
-            }
-        }
-
-        var lastChoosingSourceQuality by remember { mutableStateOf<SourceConfig?>(null) }
-        if (choosingSourceQuality != null) {
-            lastChoosingSourceQuality = choosingSourceQuality
-        }
-        IosModalContainer(
-            visible = choosingSourceQuality != null,
-            onDismiss = { choosingSourceQuality = null },
-        ) {
-            lastChoosingSourceQuality?.let { config ->
-                ChoiceAlert(
-                    hazeState = hazeState,
-                    title = stringResource(R.string.audio_quality),
-                    message = null,
-                    options = config.qualityOptions,
-                    selected = config.activeQuality,
-                    label = { it?.label.orEmpty() },
-                    onSelect = { option ->
-                        // Off the stored config, not the one this list opened with:
-                        // a probe may have refreshed it since.
-                        SourceRegistry.config(config.id)?.let {
-                            SourceRegistry.update(it.copy(pickedQuality = option?.value))
-                        }
-                        choosingSourceQuality = null
-                    },
-                    onDismiss = { choosingSourceQuality = null },
-                )
-            }
-        }
-
-        var lastOutdatedAddon by remember { mutableStateOf<SourceConfig?>(null) }
-        if (explainingOutdatedAddon != null) {
-            lastOutdatedAddon = explainingOutdatedAddon
-        }
-        IosModalContainer(
-            visible = explainingOutdatedAddon != null,
-            onDismiss = { explainingOutdatedAddon = null },
-        ) {
-            lastOutdatedAddon?.let { config ->
-                InfoAlert(
-                    hazeState = hazeState,
-                    title = config.displayName,
-                    description = stringResource(R.string.source_needs_update),
-                    onDismiss = { explainingOutdatedAddon = null },
-                )
-            }
-        }
-
-        IosModalContainer(
-            visible = confirmJioSaavn,
-            onDismiss = { confirmJioSaavn = false },
-        ) {
-            ConfirmationAlert(
-                hazeState = hazeState,
-                title = stringResource(R.string.enable_jiosaavn),
-                description = stringResource(R.string.jiosaavn_mismatch_warning),
-                confirmLabel = stringResource(R.string.enable_anyway),
-                onConfirm = {
-                    SourceRegistry.configs.value
-                        .firstOrNull { it.kind == SourceKind.JIOSAAVN }
-                        ?.let { SourceRegistry.setEnabled(it.id, true) }
-                    confirmJioSaavn = false
-                },
-                onDismiss = { confirmJioSaavn = false },
-            )
-        }
-
-        var lastConfirmBitPerfect by remember { mutableStateOf<BitPerfectMode?>(null) }
-        if (confirmBitPerfect != null) {
-            lastConfirmBitPerfect = confirmBitPerfect
-        }
-        IosModalContainer(
-            visible = confirmBitPerfect != null,
-            onDismiss = { confirmBitPerfect = null },
-        ) {
-            lastConfirmBitPerfect?.let { mode ->
-                ConfirmationAlert(
-                    hazeState = hazeState,
-                    title = stringResource(R.string.bit_perfect_confirm_title),
-                    description = stringResource(R.string.bit_perfect_confirm_message),
-                    confirmLabel = stringResource(R.string.enable),
-                    onConfirm = {
-                        AppSettings.setBitPerfectMode(mode)
-                        confirmBitPerfect = null
-                    },
-                    onDismiss = { confirmBitPerfect = null },
-                )
-            }
-        }
-
-        IosModalContainer(
-            visible = confirmFixedVolume,
-            onDismiss = { confirmFixedVolume = false },
-        ) {
-            ConfirmationAlert(
-                hazeState = hazeState,
-                title = stringResource(R.string.usb_allow_fixed_volume_confirm_title),
-                description = stringResource(R.string.usb_allow_fixed_volume_confirm_message),
-                confirmLabel = stringResource(R.string.enable),
-                onConfirm = {
-                    AppSettings.setUsbAllowFixedVolume(true)
-                    confirmFixedVolume = false
-                },
-                onDismiss = { confirmFixedVolume = false },
-            )
-        }
-
-        // Over the page and its frosted bars, under nothing but the alerts.
-        DacVolumeHud(hazeState)
-
-        var lastBlockedAddonSong by remember { mutableStateOf<Song?>(null) }
-        if (blockedAddonSong != null) {
-            lastBlockedAddonSong = blockedAddonSong
-        }
-        IosModalContainer(
-            visible = blockedAddonSong != null,
-            onDismiss = { blockedAddonSong = null },
-        ) {
-            lastBlockedAddonSong?.let { song ->
-                AddonBlockedAlert(
-                    hazeState = hazeState,
-                    song = song,
-                    onDismiss = { blockedAddonSong = null },
-                )
-            }
-        }
-
-        var lastLeftOutOfDownload by remember {
-            mutableStateOf<Pair<String, SourceRegistry.DownloadExclusion>?>(null)
-        }
-        if (addonLeftOutOfDownload != null) {
-            lastLeftOutOfDownload = addonLeftOutOfDownload
-        }
-        IosModalContainer(
-            visible = addonLeftOutOfDownload != null,
-            onDismiss = { addonLeftOutOfDownload = null },
-        ) {
-            lastLeftOutOfDownload?.let { (addon, why) ->
-                InfoAlert(
-                    hazeState = hazeState,
-                    title = stringResource(R.string.download_addon_left_out_title, addon),
-                    description = when (why) {
-                        SourceRegistry.DownloadExclusion.DOWNLOADS_NOT_ALLOWED ->
-                            stringResource(R.string.download_addon_not_allowed, addon)
-                        SourceRegistry.DownloadExclusion.NEEDS_LOSSLESS_OUTPUT ->
-                            stringResource(R.string.download_addon_needs_lossless_output, addon)
-                    },
-                    onDismiss = { addonLeftOutOfDownload = null },
-                    // A download can be asked for from the player or from either
-                    // menu, and each is a window of its own over this one. Drawn
-                    // here, the alert opened behind whichever it was.
-                    inOwnWindow = playerRaised || songActions != null || browseActions != null,
-                )
-            }
-        }
+        AppAlertHost(
+            state = alerts,
+            hazeState = hazeState,
+            scope = scope,
+            downloadNoticeInOwnWindow = playerRaised || songActions != null || browseActions != null,
+        )
 
     }
 }
