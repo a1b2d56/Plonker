@@ -65,11 +65,19 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
         val delaySamples = (sampleRate * DELAY_MS / 1000f)
             .roundToInt()
             .coerceAtLeast(1)
+        // Cleared only when the rate changes the line's length. A configure
+        // also arrives at a gapless track boundary, where the audio is
+        // continuous: emptying the line there cut the outgoing song's
+        // cross-feed dead and started the next with none, a step in the
+        // waveform heard as a click whenever the join wasn't silent. A real
+        // break (a seek, a new queue) comes through [onFlush] instead.
         if (delayLeft.size != delaySamples) {
             delayLeft = FloatArray(delaySamples)
             delayRight = FloatArray(delaySamples)
+            delayIndex = 0
+            lowpassLeft = 0f
+            lowpassRight = 0f
         }
-        onFlush()
     }
 
     /**

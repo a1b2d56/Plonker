@@ -23,13 +23,18 @@ class PeakLimiter {
     private var releaseCoef = 1f
     private var reduction = 1f
 
+    /**
+     * Sets the release for [sampleRate], keeping whatever reduction is in
+     * hand. A configure also arrives at a gapless track boundary, where the
+     * audio carries straight on, and letting go there jumped the level by
+     * however much the limiter was holding. [reset] is for a real break.
+     */
     fun configure(sampleRate: Int) {
         releaseCoef = if (sampleRate <= 0) {
             1f
         } else {
             (1.0 - exp(-1.0 / (RELEASE_SECONDS * sampleRate))).toFloat()
         }
-        reduction = 1f
     }
 
     /** Lets go at once, for a seek or a bypass: there is nothing left to be continuous with. */
