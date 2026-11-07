@@ -3626,6 +3626,13 @@ class PlaybackService : MediaLibraryService() {
         alreadyAudible: Boolean = false,
     ) {
         val exoPlayer = player ?: return
+        if (mediaItem == null || exoPlayer.mediaItemCount <= 0) {
+            currentAudioInputFormat = null
+            NerdStats.onTrackTransition(null)
+            measuredBitrateCache.clear()
+            AudioOutputStatus.onTrackTransition()
+            return
+        }
         syncBoundedContextCursor(exoPlayer, mediaItem)
         if (boundedContextWindow != null && !ListenTogether.state.value.inParty) {
             saveBoundedContextSnapshot(exoPlayer)
@@ -4680,6 +4687,9 @@ class PlaybackService : MediaLibraryService() {
         clearDiscordPresence()
         stopLyricsTicker()
         ListeningRecorder.onStopped()
+        boundedContextWindow = null
+        boundedContextToken = null
+        boundedContextSource = null
         eachPlayer { p ->
             p.stop()
             p.clearMediaItems()
@@ -6098,6 +6108,7 @@ class PlaybackService : MediaLibraryService() {
         val context = boundedContextRegistry.snapshot() ?: return
         val source = boundedContextSource ?: return
         if (context.contextToken != boundedContextToken || context.songs.isEmpty()) return
+        if (player.mediaItemCount <= 0) return
         val currentIndex = player.currentMediaItemIndex.coerceIn(0, player.mediaItemCount - 1)
         val range = LastPlayed.window(player.mediaItemCount, currentIndex)
         if (range.isEmpty()) return

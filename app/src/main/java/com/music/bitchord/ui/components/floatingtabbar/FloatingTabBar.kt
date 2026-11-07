@@ -40,6 +40,7 @@
 package com.music.bitchord.ui.components.floatingtabbar
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -48,6 +49,11 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.keyframes
@@ -472,7 +478,7 @@ private fun SharedTransitionScope.InlineBar(
                 tabBarContentModifier = tabBarContentModifier,
                 modifier = Modifier
                     .fillMaxHeight()
-                    .aspectRatio(1f)
+                    .aspectRatio(1f, matchHeightConstraintsFirst = true)
             )
         }
     }
@@ -587,18 +593,9 @@ private fun SharedTransitionScope.InlineAccessory(
     accessory?.let { accessory ->
         Box(
             modifier = modifier
-                .then(
-                    if (isAccessoryShared) {
-                        Modifier.sharedElement(
-                            sharedContentState = rememberSharedContentState("accessory"),
-                            animatedVisibilityScope = animatedVisibilityScope
-                        )
-                    } else {
-                        Modifier.animateEnterExitAccessory(
-                            sharedTransitionScope = this,
-                            animatedVisibilityScope = animatedVisibilityScope
-                        )
-                    }
+                .animateEnterExitAccessory(
+                    sharedTransitionScope = this,
+                    animatedVisibilityScope = animatedVisibilityScope
                 )
         ) {
             accessory(
@@ -639,16 +636,33 @@ private fun SharedTransitionScope.ExpandedBar(
         verticalArrangement = Arrangement.spacedBy(sizes.componentSpacing),
         modifier = Modifier.fillMaxWidth()
     ) {
+        val hasAccessory = accessory != null
+        var lastValidAccessory by remember { mutableStateOf(accessory) }
         if (accessory != null) {
-            ExpandedAccessory(
-                accessory = accessory,
-                isAccessoryShared = isAccessoryShared,
-                shapes = shapes,
-                colors = colors,
-                elevations = elevations,
-                animatedVisibilityScope = animatedVisibilityScope,
-                modifier = Modifier.fillMaxWidth()
-            )
+            lastValidAccessory = accessory
+        }
+        val targetAccessory = accessory ?: lastValidAccessory
+        AnimatedVisibility(
+            visible = hasAccessory && targetAccessory != null,
+            enter = fadeIn(tween(200)) + expandVertically(
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+            ),
+            exit = fadeOut(tween(180)) + shrinkVertically(
+                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            targetAccessory?.let { acc ->
+                ExpandedAccessory(
+                    accessory = acc,
+                    isAccessoryShared = isAccessoryShared,
+                    shapes = shapes,
+                    colors = colors,
+                    elevations = elevations,
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         // Full width, and the tab pill takes whatever the standalone tab leaves,
@@ -687,7 +701,7 @@ private fun SharedTransitionScope.ExpandedBar(
                     tabBarContentModifier = tabBarContentModifier,
                     modifier = Modifier
                         .fillMaxHeight()
-                        .aspectRatio(1f)
+                        .aspectRatio(1f, matchHeightConstraintsFirst = true)
                 )
             }
         }
@@ -706,18 +720,9 @@ private fun SharedTransitionScope.ExpandedAccessory(
 ) {
     Box(
         modifier = modifier
-            .then(
-                if (isAccessoryShared) {
-                    Modifier.sharedElement(
-                        sharedContentState = rememberSharedContentState("accessory"),
-                        animatedVisibilityScope = animatedVisibilityScope
-                    )
-                } else {
-                    Modifier.animateEnterExitAccessory(
-                        sharedTransitionScope = this,
-                        animatedVisibilityScope = animatedVisibilityScope
-                    )
-                }
+            .animateEnterExitAccessory(
+                sharedTransitionScope = this,
+                animatedVisibilityScope = animatedVisibilityScope
             )
     ) {
         accessory(

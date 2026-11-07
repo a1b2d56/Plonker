@@ -39,6 +39,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -137,6 +140,12 @@ fun GlassNavBar(
     // The theme's own glass tint, as the liquid top bar has it — no white wash.
     val glassSurface: @Composable () -> Modifier = { Modifier.liquidGlass(shape = pillShape) }
 
+    var lastSong by remember { mutableStateOf(song) }
+    LaunchedEffect(song) {
+        if (song != null) lastSong = song
+    }
+    val currentSong = song ?: lastSong
+
     FloatingTabBar(
         selectedTabKey = selectedIndex,
         scrollConnection = scrollConnection,
@@ -146,10 +155,10 @@ fun GlassNavBar(
             .padding(bottom = NAV_BAR_LIFT)
             .fillMaxWidth(),
         tabBarContentModifier = glassSurface,
-        inlineAccessory = song?.let { current ->
+        inlineAccessory = if (song != null && currentSong != null) {
             { accessoryModifier, _ ->
                 GlassNowPlaying(
-                    song = current,
+                    song = currentSong,
                     isInline = true,
                     isPlaying = isPlaying,
                     isLoading = isLoading,
@@ -166,11 +175,11 @@ fun GlassNavBar(
                     modifier = accessoryModifier.then(glassSurface()),
                 )
             }
-        },
-        expandedAccessory = song?.let { current ->
+        } else null,
+        expandedAccessory = if (song != null && currentSong != null) {
             { accessoryModifier, _ ->
                 GlassNowPlaying(
-                    song = current,
+                    song = currentSong,
                     isInline = false,
                     isPlaying = isPlaying,
                     isLoading = isLoading,
@@ -187,7 +196,7 @@ fun GlassNavBar(
                     modifier = accessoryModifier.fillMaxWidth().then(glassSurface()),
                 )
             }
-        },
+        } else null,
         // Transparent: the glass surface underneath is the background, and a
         // colour over it would be the thing you saw instead of the backdrop.
         colors = FloatingTabBarDefaults.colors(

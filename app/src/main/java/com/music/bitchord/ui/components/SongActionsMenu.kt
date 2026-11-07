@@ -431,29 +431,12 @@ fun SongActionsMenu(
         Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             // The player's menu has the sleep timer, and swaps its rows for
             // the picker in place.
-            AnimatedContent(
-                targetState = when {
-                    pickingSleepTimer -> 1
-                    pickingSpeed -> 2
-                    else -> 0
-                },
-                modifier = Modifier.fillMaxWidth(),
-                transitionSpec = {
-                    if (targetState > initialState) {
-                        (slideInHorizontally { it } + fadeIn(tween(180))) togetherWith
-                            (slideOutHorizontally { -it / 3 } + fadeOut(tween(140)))
-                    } else {
-                        (slideInHorizontally { -it / 3 } + fadeIn(tween(180))) togetherWith
-                            (slideOutHorizontally { it } + fadeOut(tween(140)))
-                    }
-                },
-                label = "songActionsSubpage",
-            ) { page ->
-                when (page) {
-                    1 -> SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
-                    2 -> PlaybackSpeedPicker(palette = palette, onBack = { pickingSpeed = false })
-                    else -> Column(Modifier.fillMaxWidth()) { rows() }
-                }
+            if (pickingSleepTimer) {
+                SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
+            } else if (pickingSpeed) {
+                PlaybackSpeedPicker(palette = palette, onBack = { pickingSpeed = false })
+            } else {
+                rows()
             }
         }
     }
