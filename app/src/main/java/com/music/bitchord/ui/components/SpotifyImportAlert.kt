@@ -278,9 +278,10 @@ fun SpotifyImportAlert(
                 }
             }
         }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
         AlertRule()
         if (unmatched != null) {
-            AlertAction(label = stringResource(R.string.done), emphasised = true, onClick = onDismiss)
+            AlertAction(label = stringResource(R.string.done), emphasised = true, onClick = dismiss)
         } else {
             AlertAction(
                 label = stringResource(R.string.spotify_import_button),
@@ -292,7 +293,7 @@ fun SpotifyImportAlert(
             AlertAction(
                 label = stringResource(R.string.cancel),
                 emphasised = false,
-                onClick = onDismiss,
+                onClick = dismiss,
                 enabled = !working,
             )
         }
