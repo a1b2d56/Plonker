@@ -28,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
@@ -76,14 +78,22 @@ fun ShimmerBox(modifier: Modifier = Modifier, shape: Shape = BlockShape) {
                 // The band travels from fully off one edge to fully off the
                 // other, which leaves a beat of flat grey between passes rather
                 // than a highlight permanently parked somewhere on the block.
+                //
+                // Built once per size at the origin and slid with the canvas:
+                // `sweep` is read only in the draw, so each frame of the pass
+                // is a redraw rather than a new gradient and shader.
                 val band = size.width * 0.5f
-                val startX = -band + sweep.value * (size.width + band * 2)
                 val brush = Brush.horizontalGradient(
                     colors = listOf(base, highlight, base),
-                    startX = startX,
-                    endX = startX + band,
+                    startX = 0f,
+                    endX = band,
                 )
-                onDrawBehind { drawRect(brush) }
+                onDrawBehind {
+                    val startX = -band + sweep.value * (size.width + band * 2)
+                    translate(left = startX) {
+                        drawRect(brush, topLeft = Offset(-startX, 0f), size = size)
+                    }
+                }
             },
     )
 }

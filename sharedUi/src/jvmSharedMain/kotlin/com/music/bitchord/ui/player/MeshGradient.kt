@@ -8,7 +8,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -22,6 +21,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -172,7 +174,7 @@ fun MeshGradientBackground(
     // that is the far side of the window and nobody ever saw it, which is how it
     // went unnoticed; in a pane beside a page it was a hand's width of gradient
     // laid over the feed.
-    Canvas(
+    Spacer(
         modifier = modifier
             .fillMaxSize()
             .clipToBounds()
@@ -181,52 +183,58 @@ fun MeshGradientBackground(
                 scaleY = 1.3f
             }
             .background(baseColor)
-            .blur(blurRadius),
-    ) {
-        val anchors = listOf(
-            Offset(0.20f, 0.25f),
-            Offset(0.80f, 0.20f),
-            Offset(0.75f, 0.80f),
-            Offset(0.25f, 0.75f),
-        )
-        val speeds = listOf(1f, -0.7f, 0.85f, -1.15f)
-        val drift = phase.value
-
-        animatedColors.forEachIndexed { index, color ->
-            val anchor = anchors[index]
-            val center = Offset(
-                x = (anchor.x + 0.16f * cos(drift * speeds[index] + index * 1.7f)) * size.width,
-                y = (anchor.y + 0.16f * sin(drift * speeds[index] * 0.9f + index * 2.3f)) * size.height,
-            )
-            val radius = size.maxDimension * 0.62f
-            drawCircle(
-                // Along smootherstep rather than a straight falloff: a straight one
-                // stops dead at the rim, and that corner showed as a ring where each
-                // blob ended, even through the blur.
-                brush = Brush.radialGradient(
-                    colorStops = Array(FADE_CURVE_STOPS + 1) { i ->
-                        val t = i / FADE_CURVE_STOPS.toFloat()
-                        t to color.copy(alpha = BLOB_ALPHA * (1f - smootherStep(t)))
-                    },
-                    center = center,
-                    radius = radius,
-                ),
-                radius = radius,
-                center = center,
-            )
-        }
-
-        // Gentle scrim so white text stays legible over bright art.
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.Black.copy(alpha = 0.10f),
-                    Color.Black.copy(alpha = 0.38f),
-                ),
-            ),
-        )
-    }
+            .blur(blurRadius)
+            // The drift moves every frame for as long as the player is up, so
+            // nothing is built per frame: each blob's gradient is made once per
+            // size and palette, centred on the origin, and the canvas is moved
+            // under it instead. Only `phase` is read in the draw, so a drift
+            // frame is a redraw and never a rebuild.
+            .drawWithCache {
+                val radius = size.maxDimension * 0.62f
+                val blobs = Array(animatedColors.size) { index ->
+                    // Along smootherstep rather than a straight falloff: a straight
+                    // one stops dead at the rim, and that corner showed as a ring
+                    // where each blob ended, even through the blur.
+                    blobBrush(animatedColors[index], radius)
+                }
+                onDrawBehind {
+                    val drift = phase.value
+                    for (index in blobs.indices) {
+                        val speed = MeshSpeeds[index]
+                        val x = (MeshAnchorX[index] + 0.16f * cos(drift * speed + index * 1.7f)) * size.width
+                        val y = (MeshAnchorY[index] + 0.16f * sin(drift * speed * 0.9f + index * 2.3f)) * size.height
+                        translate(left = x, top = y) {
+                            drawCircle(brush = blobs[index], radius = radius, center = Offset.Zero)
+                        }
+                    }
+                    // Gentle scrim so white text stays legible over bright art.
+                    drawRect(brush = MeshScrim)
+                }
+            },
+    )
 }
+
+/** Where each blob drifts around, as fractions of the backdrop, and how fast. */
+private val MeshAnchorX = floatArrayOf(0.20f, 0.80f, 0.75f, 0.25f)
+private val MeshAnchorY = floatArrayOf(0.25f, 0.20f, 0.80f, 0.75f)
+private val MeshSpeeds = floatArrayOf(1f, -0.7f, 0.85f, -1.15f)
+
+private val MeshScrim = Brush.verticalGradient(
+    colors = listOf(
+        Color.Black.copy(alpha = 0.10f),
+        Color.Black.copy(alpha = 0.38f),
+    ),
+)
+
+/** One blob's falloff, centred on the origin so a single shader serves every drift frame. */
+private fun blobBrush(color: Color, radius: Float): Brush = Brush.radialGradient(
+    colorStops = Array(FADE_CURVE_STOPS + 1) { i ->
+        val t = i / FADE_CURVE_STOPS.toFloat()
+        t to color.copy(alpha = BLOB_ALPHA * (1f - smootherStep(t)))
+    },
+    center = Offset.Zero,
+    radius = radius,
+)
 
 /** A blob's opacity at its centre. */
 private const val BLOB_ALPHA = 0.85f

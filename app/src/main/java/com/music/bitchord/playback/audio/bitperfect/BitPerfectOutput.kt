@@ -261,31 +261,40 @@ internal object BitPerfectOutput {
             ?: throw BitPerfectTransportException("no_audio_manager")
         val mode = AppSettings.bitPerfectMode.value
         val convert = AppSettings.convertForLimitedDac.value
-        val transport = when (mode) {
-            BitPerfectMode.OFF -> throw BitPerfectTransportException("off")
-            BitPerfectMode.USB_ANDROID -> {
-                if (Build.VERSION.SDK_INT < 34) throw BitPerfectTransportException("android_version")
-                MixerTransport.open(manager, sampleRate, channels, sourceBits, convert)
+        // Every refusal the sink can fall back from is a BitPerfectTransportException.
+        // Some audio HALs and OEM builds refuse a route by *throwing* from
+        // AudioManager / AudioTrack / UsbManager instead of returning false; left
+        // as they are, those escape the fallback and surface as a playback error
+        // rather than a quiet switch to the normal output.
+        val transport = try {
+            when (mode) {
+                BitPerfectMode.OFF -> throw BitPerfectTransportException("off")
+                BitPerfectMode.USB_ANDROID -> {
+                    if (Build.VERSION.SDK_INT < 34) throw BitPerfectTransportException("android_version")
+                    MixerTransport.open(manager, sampleRate, channels, sourceBits, convert)
+                }
+                BitPerfectMode.DAP_EXCLUSIVE -> {
+                    if (Build.VERSION.SDK_INT < 27) throw BitPerfectTransportException("android_version")
+                    ExclusiveTransport.open(manager, sampleRate, channels, sourceBits, convert)
+                }
+                BitPerfectMode.USB_DIRECT -> {
+                    val usb = UsbDirectDevices.manager(context) ?: throw BitPerfectTransportException("no_usb")
+                    val device = UsbDirectDevices.audioDevice(usb) ?: throw BitPerfectTransportException("no_usb")
+                    if (!usb.hasPermission(device)) throw BitPerfectTransportException("permission_denied")
+                    UsbDirectTransport.open(
+                        manager = usb,
+                        device = device,
+                        rate = sampleRate,
+                        channels = channels,
+                        sourceBits = sourceBits,
+                        convert = convert,
+                        allowFixedVolume = AppSettings.usbAllowFixedVolume.value,
+                        rememberedDb = UsbDirectDevices.rememberedVolume(device.deviceId),
+                    )
+                }
             }
-            BitPerfectMode.DAP_EXCLUSIVE -> {
-                if (Build.VERSION.SDK_INT < 27) throw BitPerfectTransportException("android_version")
-                ExclusiveTransport.open(manager, sampleRate, channels, sourceBits, convert)
-            }
-            BitPerfectMode.USB_DIRECT -> {
-                val usb = UsbDirectDevices.manager(context) ?: throw BitPerfectTransportException("no_usb")
-                val device = UsbDirectDevices.audioDevice(usb) ?: throw BitPerfectTransportException("no_usb")
-                if (!usb.hasPermission(device)) throw BitPerfectTransportException("permission_denied")
-                UsbDirectTransport.open(
-                    manager = usb,
-                    device = device,
-                    rate = sampleRate,
-                    channels = channels,
-                    sourceBits = sourceBits,
-                    convert = convert,
-                    allowFixedVolume = AppSettings.usbAllowFixedVolume.value,
-                    rememberedDb = UsbDirectDevices.rememberedVolume(device.deviceId),
-                )
-            }
+        } catch (error: RuntimeException) {
+            throw BitPerfectTransportException("platform", error)
         }
         owner = requester
         active = transport
