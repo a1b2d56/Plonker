@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -215,8 +216,9 @@ fun DownloadManagerPage(
         modifier = modifier.fillMaxSize(),
         contentPadding = contentPadding,
     ) {
-        item(key = "header") {
-            Column(Modifier.fillMaxWidth()) {
+        item(key = "header", contentType = "header") {
+            // The batch bar comes and goes with the session; grow into it.
+            Column(Modifier.fillMaxWidth().animateContentSize(IosMotion.contentSizeSpec())) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -283,9 +285,12 @@ fun DownloadManagerPage(
             }
         }
 
-        items(items, key = { it.videoId }) { item ->
+        items(items, key = { it.videoId }, contentType = { "download" }) { item ->
             DownloadManagerRow(
                 item = item,
+                // Rows join as tracks are asked for and leave as they are
+                // cancelled or cleared; let the rest of the list close up.
+                modifier = Modifier.animateItem(),
                 onCancel = { Downloads.cancel(item.videoId) },
                 onRetry = { Downloads.enqueue(context, item.song, item.from) },
             )
@@ -299,12 +304,13 @@ private fun DownloadManagerRow(
     item: DownloadSession.Item,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val progress = item.progress
     val failed = progress as? DownloadProgress.Failed
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,

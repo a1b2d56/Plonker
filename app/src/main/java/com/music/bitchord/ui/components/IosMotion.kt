@@ -2,6 +2,19 @@ package com.music.bitchord.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -42,6 +55,49 @@ val LocalIosModalScope = staticCompositionLocalOf<AnimatedVisibilityScope?> { nu
 object IosMotion {
     const val SPRING_DAMPING = 0.82f
     const val SPRING_STIFFNESS = 380f
+
+    /**
+     * Navigation push/pop: a touch firmer than the card spring, so a page
+     * travelling the full width settles without a visible overshoot.
+     */
+    const val NAV_DAMPING = 0.88f
+    const val NAV_STIFFNESS = 400f
+    private const val NAV_FADE_MS = 180
+
+    /** The shared card spring, for any value that should move like a modal card. */
+    fun <T> cardSpring(): FiniteAnimationSpec<T> =
+        spring(dampingRatio = SPRING_DAMPING, stiffness = SPRING_STIFFNESS)
+
+    /** For [androidx.compose.animation.animateContentSize] on expanding cards and rows. */
+    fun contentSizeSpec(): FiniteAnimationSpec<IntSize> =
+        spring(dampingRatio = SPRING_DAMPING, stiffness = SPRING_STIFFNESS)
+
+    private fun navOffsetSpec(): FiniteAnimationSpec<IntOffset> =
+        spring(dampingRatio = NAV_DAMPING, stiffness = NAV_STIFFNESS)
+
+    /**
+     * Forward navigation, UINavigationController-style: the new page slides in
+     * from the right while the one it covers drifts a third of the way
+     * back (parallax), both fading over [NAV_FADE_MS].
+     */
+    fun navPush(): ContentTransform =
+        (
+            slideInHorizontally(navOffsetSpec()) { it } + fadeIn(tween(NAV_FADE_MS))
+        ) togetherWith (
+            slideOutHorizontally(navOffsetSpec()) { -it / 3 } + fadeOut(tween(NAV_FADE_MS))
+        )
+
+    /** The exact reverse of [navPush]: the page leaves to the right. */
+    fun navPop(): ContentTransform =
+        (
+            slideInHorizontally(navOffsetSpec()) { -it / 3 } + fadeIn(tween(NAV_FADE_MS))
+        ) togetherWith (
+            slideOutHorizontally(navOffsetSpec()) { it } + fadeOut(tween(NAV_FADE_MS))
+        )
+
+    /** A change of context with no direction to it, or any change under reduced motion. */
+    fun navCrossfade(): ContentTransform =
+        fadeIn(tween(NAV_FADE_MS)) togetherWith fadeOut(tween(NAV_FADE_MS))
 
     /** Modal scrim background enter transition. */
     fun modalScrimEnter(): EnterTransition =
@@ -130,22 +186,32 @@ fun <T : Any> IosModalContainer(
 
 /**
  * Applies iOS subtle button bounce / press scale feedback to any composable.
+ *
+ * With [onClick] it is the click target itself. Without one it only *watches*
+ * the pointer (on the initial pass, consuming nothing), so it can sit on a
+ * row or card whose own `clickable` / `combinedClickable` handles the tap —
+ * and it lets go as soon as the gesture turns into a scroll, the way a UIKit
+ * highlight does. Off under "Reduce animation".
  */
 @Composable
 fun Modifier.iosTouchFeedback(
     pressedScale: Float = 0.96f,
     onClick: (() -> Unit)? = null,
 ): Modifier {
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val clickPressed by interactionSource.collectIsPressedAsState()
+    var watchedPressed by remember { mutableStateOf(false) }
+    val pressed = (clickPressed || watchedPressed) && !reduceAnimation
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) pressedScale else 1.0f,
+        targetValue = if (pressed) pressedScale else 1.0f,
         animationSpec = spring(
             dampingRatio = 0.70f,
             stiffness = Spring.StiffnessMediumLow,
         ),
         label = "iosTouchScale",
     )
+    // Read inside the layer block so a press animates on the draw phase alone.
     val base = this.graphicsLayer {
         scaleX = scale
         scaleY = scale
@@ -157,6 +223,22 @@ fun Modifier.iosTouchFeedback(
             onClick = onClick,
         )
     } else {
-        base
+        base.pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                watchedPressed = true
+                try {
+                    while (true) {
+                        // Final pass: by now a scrollable parent has had its
+                        // say, and a consumed move means the touch became a drag.
+                        val event = awaitPointerEvent(PointerEventPass.Final)
+                        val scrolled = event.changes.any { it.isConsumed && it.positionChange() != Offset.Zero }
+                        if (scrolled || event.changes.none { it.pressed }) break
+                    }
+                } finally {
+                    watchedPressed = false
+                }
+            }
+        }
     }
 }

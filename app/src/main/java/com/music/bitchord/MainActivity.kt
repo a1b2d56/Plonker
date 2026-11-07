@@ -28,8 +28,6 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
@@ -2925,27 +2923,15 @@ private fun BitChordApp(
                         if (tabSwap || libraryShowAllSwap) {
                             EnterTransition.None togetherWith ExitTransition.None
                         } else if (reducePlayerMotion) {
-                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                            IosMotion.navCrossfade()
                         } else if (isPush) {
-                            // Forward navigation: new screen pushes in from the right, old screen shifts left with parallax
-                            (slideInHorizontally(
-                                initialOffsetX = { it },
-                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
-                            ) + fadeIn(tween(180))) togetherWith (slideOutHorizontally(
-                                targetOffsetX = { -it / 3 },
-                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
-                            ) + fadeOut(tween(180)))
+                            // Forward: in from the right, the old page shifts back with parallax.
+                            IosMotion.navPush()
                         } else if (isPop) {
-                            // Back navigation: current screen pops out to the right, previous screen slides in from the left
-                            (slideInHorizontally(
-                                initialOffsetX = { -it / 3 },
-                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
-                            ) + fadeIn(tween(180))) togetherWith (slideOutHorizontally(
-                                targetOffsetX = { it },
-                                animationSpec = spring(dampingRatio = 0.88f, stiffness = 400f),
-                            ) + fadeOut(tween(180)))
+                            // Back: out to the right, the previous page slides back in.
+                            IosMotion.navPop()
                         } else {
-                            fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                            IosMotion.navCrossfade()
                         }
                     },
                     modifier = Modifier
