@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.player.lyrics.LyricsShareRequest
+import com.music.bitchord.ui.player.lyrics.lyricsShareAvailable
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap

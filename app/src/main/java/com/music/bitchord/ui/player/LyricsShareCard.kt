@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.player.lyrics.LyricsShareLine
+import com.music.bitchord.ui.player.lyrics.LyricsShareRequest
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas

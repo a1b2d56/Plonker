@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.player.lyrics.LyricsShareRequest
+import com.music.bitchord.ui.player.lyrics.lyricsShareAvailable
 import com.music.bitchord.wear.WearBridge
 import android.content.Context
 import android.database.ContentObserver
