@@ -99,6 +99,7 @@
     <string name="next_from">Tiếp theo từ: %1$s</string>
     <string name="next_in_queue">Tiếp theo trong hàng đợi</string>
     <string name="no_lyrics_for_track">Không có lời cho bài hát này</string>
+    <string name="jump_to_current_line">Đến dòng hiện tại</string>
     <string name="no_lyrics_found">Không tìm thấy lời bài hát</string>
     <string name="now_playing">Đang phát</string>
     <string name="open_lyrics">Lyrics</string>

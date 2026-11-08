@@ -99,6 +99,7 @@
     <string name="next_from">接下來來自：%1$s</string>
     <string name="next_in_queue">佇列中的下一首</string>
     <string name="no_lyrics_for_track">此曲目沒有歌詞</string>
+    <string name="jump_to_current_line">跳到目前歌詞</string>
     <string name="no_lyrics_found">未找到歌詞</string>
     <string name="now_playing">正在播放</string>
     <string name="open_lyrics">Lyrics</string>

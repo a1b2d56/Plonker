@@ -99,6 +99,7 @@
     <string name="next_from">Prossimo da: %1$s</string>
     <string name="next_in_queue">Prossimo in coda</string>
     <string name="no_lyrics_for_track">Nessun testo per questo brano</string>
+    <string name="jump_to_current_line">Vai alla riga attuale</string>
     <string name="no_lyrics_found">Nessun testo trovato</string>
     <string name="now_playing">In riproduzione</string>
     <string name="open_lyrics">Lyrics</string>

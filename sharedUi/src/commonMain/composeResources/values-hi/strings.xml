@@ -99,6 +99,7 @@
     <string name="next_from">अगला यहाँ से: %1$s</string>
     <string name="next_in_queue">कतार में अगला</string>
     <string name="no_lyrics_for_track">इस ट्रैक के लिए कोई लिरिक्स नहीं हैं</string>
+    <string name="jump_to_current_line">मौजूदा पंक्ति पर जाएँ</string>
     <string name="no_lyrics_found">कोई लिरिक्स नहीं मिले</string>
     <string name="now_playing">अभी चल रहा है</string>
     <string name="open_lyrics">Lyrics</string>
