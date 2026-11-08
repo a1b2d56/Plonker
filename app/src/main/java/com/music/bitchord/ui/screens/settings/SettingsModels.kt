@@ -3,6 +3,7 @@ package com.music.bitchord.ui.screens.settings
 import android.content.Context
 import android.content.Intent
 import android.media.audiofx.AudioEffect
+import android.os.Build
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -170,25 +171,56 @@ internal fun formatCacheSize(mb: Int): String {
 internal fun BitPerfectMode.localizedLabel(): String = stringResource(
     when (this) {
         BitPerfectMode.OFF -> R.string.off
-        BitPerfectMode.ALWAYS -> R.string.bit_perfect_always
-        BitPerfectMode.MATCH_SOURCE -> R.string.bit_perfect_match_source
+        BitPerfectMode.USB_ANDROID -> R.string.bit_perfect_mode_usb_android
+        BitPerfectMode.DAP_EXCLUSIVE -> R.string.bit_perfect_mode_dap_exclusive
+        BitPerfectMode.USB_DIRECT -> R.string.bit_perfect_mode_usb_direct
     },
 )
+
+/** Whether this phone can use [this] at all, independent of what is plugged in. */
+internal val BitPerfectMode.isSupported: Boolean
+    get() = when (this) {
+        BitPerfectMode.OFF -> true
+        BitPerfectMode.USB_ANDROID -> Build.VERSION.SDK_INT >= 34
+        BitPerfectMode.DAP_EXCLUSIVE -> Build.VERSION.SDK_INT >= 27
+        BitPerfectMode.USB_DIRECT -> true
+    }
 
 @Composable
 internal fun BitPerfectMode.description(): String = stringResource(
-    when (this) {
-        BitPerfectMode.OFF -> R.string.bit_perfect_off_subtitle
-        BitPerfectMode.ALWAYS -> R.string.bit_perfect_always_subtitle
-        BitPerfectMode.MATCH_SOURCE -> R.string.bit_perfect_match_source_subtitle
+    when {
+        this == BitPerfectMode.USB_ANDROID && !isSupported -> R.string.bit_perfect_requires_android_14
+        this == BitPerfectMode.DAP_EXCLUSIVE && !isSupported -> R.string.bit_perfect_requires_android_8_1
+        this == BitPerfectMode.OFF -> R.string.bit_perfect_mode_off_subtitle
+        this == BitPerfectMode.USB_ANDROID -> R.string.bit_perfect_mode_usb_android_subtitle
+        this == BitPerfectMode.USB_DIRECT -> R.string.bit_perfect_mode_usb_direct_subtitle
+        else -> R.string.bit_perfect_mode_dap_exclusive_subtitle
     },
 )
 
+/**
+ * What the exclusive output is doing now, rather than what was asked of it:
+ * a mode can be on while the playing track still goes through the mixer.
+ */
 @Composable
 internal fun bitPerfectSubtitle(mode: BitPerfectMode, status: BitPerfectOutput.Status): String = when {
-    mode == BitPerfectMode.OFF -> stringResource(R.string.bit_perfect_off_summary)
-    !status.plugged -> stringResource(R.string.bit_perfect_no_dac)
-    status.active -> status.formatText
-        ?: stringResource(R.string.bit_perfect_active_unknown)
-    else -> stringResource(R.string.bit_perfect_waiting_for_track)
+    mode == BitPerfectMode.OFF || !mode.isSupported -> mode.description()
+    status.active && status.dacLimited -> stringResource(
+        R.string.bit_perfect_status_dac_limited,
+        status.deviceName.orEmpty(),
+        "%.1f".format(status.sampleRateHz / 1000.0),
+        status.outputBits,
+    )
+    status.active && !status.exact -> stringResource(
+        R.string.bit_perfect_status_inexact,
+        status.deviceName.orEmpty(),
+    )
+    status.active -> stringResource(
+        R.string.bit_perfect_status_active,
+        status.deviceName.orEmpty(),
+        "%.1f".format(status.sampleRateHz / 1000.0),
+        status.outputBits,
+    )
+    status.fallbackReason != null -> stringResource(R.string.bit_perfect_status_unavailable, status.fallbackReason)
+    else -> stringResource(R.string.bit_perfect_status_waiting)
 }
