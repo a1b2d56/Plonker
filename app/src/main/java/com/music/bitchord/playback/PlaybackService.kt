@@ -82,14 +82,10 @@ import com.music.bitchord.data.NerdStats
 import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.discord.DiscordRPC
 import com.music.bitchord.data.discord.discordAudioQualityLine
-import com.music.bitchord.data.innertube.PlaybackTracker
 import com.music.bitchord.data.stats.ListeningRecorder
 import com.music.bitchord.data.innertube.StreamResolver
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
-import com.music.bitchord.data.scrobbling.LastFM
-import com.music.bitchord.data.scrobbling.ListenBrainzManager
-import com.music.bitchord.data.scrobbling.ScrobbleManager
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.BitPerfectMode
@@ -246,9 +242,6 @@ class PlaybackService : MediaLibraryService() {
     /** Shared with the crossfade's tail player, so both read the same disk cache. */
     private var mediaSourceFactory: DefaultMediaSourceFactory? = null
 
-    /** Last sampled position of the playing track, in seconds. */
-    private var lastPositionSeconds = 0L
-
     /** When the current track was chosen, for the time-to-first-audio log. */
     private var trackSelectedAt: Long? = null
 
@@ -273,12 +266,6 @@ class PlaybackService : MediaLibraryService() {
     private var audibleMediaId: String? = null
 
 
-    private var scrobbleManager: ScrobbleManager? = null
-    private var listenBrainzSong: Song? = null
-
-    private var listenBrainzStartMs: Long = 0L
-
-    private var listenBrainzDurationMs: Long? = null
 
     /**
      * The gateway connection publishing what's playing to Discord, or null when
@@ -389,6 +376,9 @@ class PlaybackService : MediaLibraryService() {
             )
         },
     )
+
+    /** What the listener's plays leave behind, and the sleep timer — see [PlaybackHistoryAndSleepTimer]. */
+    private val history = PlaybackHistoryAndSleepTimer(scope = scope, player = { player })
 
     private val autoplay: AutoplaySupply = AutoplaySupply(
         scope = scope,
@@ -506,7 +496,7 @@ class PlaybackService : MediaLibraryService() {
                 audibleMediaId = exoPlayer.currentMediaItem?.mediaId
                 consecutiveErrorSkips = 0
             }
-            if (isPlaying) registerCurrentPlay()
+            if (isPlaying) history.registerCurrentPlay()
             // Nothing to read ahead for while paused, and a pause is often
             // the last thing that happens before the process goes idle.
             if (isPlaying) prefetchAround(exoPlayer) else cancelPrefetch()
@@ -517,29 +507,7 @@ class PlaybackService : MediaLibraryService() {
             // the artwork are known to be settled.
             publishWidgetState()
 
-            val song = exoPlayer.currentMediaItem?.toSong()
-            val durationMs = exoPlayer.duration.takeIf { it > 0 }
-            scrobbleManager?.onPlayerStateChanged(isPlaying, song, durationMs)
-
-            // The listening record has to be told a pause happened, not merely
-            // stop being told about play: its sampler measures the gap between
-            // ticks, and an unclosed one across a pause is an afternoon on the
-            // lock screen arriving as an afternoon of listening.
-            if (!isPlaying) ListeningRecorder.onStopped()
-
-            // ListenBrainz: "now playing" on play/resume too, not just on
-            // transition — a track started from idle or resumed from pause
-            // otherwise stays silent on the site.
-            if (isPlaying && song != null) {
-                if (listenBrainzSong?.videoId != song.videoId || listenBrainzStartMs == 0L) {
-                    listenBrainzSong = song
-                    listenBrainzStartMs = System.currentTimeMillis()
-                    listenBrainzDurationMs = durationMs
-                } else if (listenBrainzDurationMs == null) {
-                    listenBrainzDurationMs = durationMs
-                }
-                submitListenBrainzPlayingNow(song, exoPlayer.currentPosition, durationMs)
-            }
+            history.onIsPlayingChanged(isPlaying, exoPlayer)
 
             // Discord: a pause has to clear the presence, not just stop
             // refreshing it. Discord's countdown runs on its own clock from the
@@ -679,25 +647,7 @@ class PlaybackService : MediaLibraryService() {
             val exoPlayer = player ?: return
             if (state == Player.STATE_ENDED) {
                 SleepTimer.cancel()
-                // The queue ran dry, so no transition will ever close the last
-                // track out. Without this its history entry keeps whatever
-                // watchtime the 30-second sampler happened to have reported and
-                // is never marked finished — so the one play most likely to be
-                // a full, deliberate listen is the one recorded as abandoned.
-                PlaybackTracker.onPlaybackFinished(lastPositionSeconds)
-                lastPositionSeconds = 0
-                // The last track finished with nothing after it, so no
-                // transition will ever close it out. Scrobble it now.
-                val lastSong = listenBrainzSong
-                if (lastSong != null && listenBrainzStartMs > 0L) {
-                    val lastStart = listenBrainzStartMs
-                    val lastDuration = listenBrainzDurationMs
-                        ?: exoPlayer.duration.takeIf { it > 0 }
-                    submitListenBrainzFinished(lastSong, lastStart, lastDuration)
-                }
-                listenBrainzSong = null
-                listenBrainzStartMs = 0L
-                listenBrainzDurationMs = null
+                history.onQueueEnded(exoPlayer)
                 // A missed/empty AutoPlay response can let the last queued
                 // track finish before anything is appended. There will be no
                 // item transition to run the ordinary refill path, so give the
@@ -1399,9 +1349,9 @@ class PlaybackService : MediaLibraryService() {
         applySettings(exoPlayer)
         applySettings(sparePlayer)
         observeSettings()
-        observeScrobbling()
+        history.observeScrobbling()
         observeDiscord()
-        watchSleepTimer()
+        history.watchSleepTimer()
         val restored = if (PartyPersonalQueueStash.hasStash()) {
             val stashed = PartyPersonalQueueStash.load()
             PartyPersonalQueueStash.clear()
@@ -1894,10 +1844,6 @@ class PlaybackService : MediaLibraryService() {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    private fun registerCurrentPlay() {
-        player?.currentMediaItem?.mediaId?.let(PlaybackTracker::onPlaying)
-    }
-
     /**
      * Everything that has to happen when a different song becomes the one
      * playing: history, scrobbles, ListenBrainz, the sleep timer, read-ahead
@@ -2052,41 +1998,7 @@ class PlaybackService : MediaLibraryService() {
             about = mediaItem?.mediaId,
         )
 
-        // currentPosition already belongs to the new item by now, so
-        // the outgoing track is closed out on the last sampled value.
-        PlaybackTracker.onTrackChanged(lastPositionSeconds)
-        lastPositionSeconds = 0
-
-        // Scrobbling: stop old song, start new song
-        scrobbleManager?.onSongStop()
-        // And the local record, which needs the transition even when the track
-        // id doesn't change: repeat-one plays the same song again, and without
-        // this the second play through is a continuation of the first and is
-        // never counted.
-        ListeningRecorder.onStopped()
-        val newSong = mediaItem?.toSong()
-        val durationMs = exoPlayer.duration.takeIf { it > 0 }
-        if (exoPlayer.isPlaying) {
-            scrobbleManager?.onSongStart(newSong, durationMs)
-        }
-
-        // ListenBrainz: submit finished for old song, playing_now for new song.
-        // The finished listen only counts when the track actually ended —
-        // an auto-advance, a repeat, or a crossfade at the very end. A
-        // manual skip (SEEK) means the song wasn't listened to, so it must
-        // not be scrobbled.
-        val ended = previousEnded
-        val prevSong = listenBrainzSong
-        val prevStart = listenBrainzStartMs
-        if (prevSong != null && ended && prevStart > 0L) {
-            submitListenBrainzFinished(prevSong, prevStart, listenBrainzDurationMs)
-        }
-        listenBrainzSong = newSong
-        listenBrainzStartMs = if (exoPlayer.isPlaying) System.currentTimeMillis() else 0L
-        listenBrainzDurationMs = durationMs
-        if (newSong != null && exoPlayer.isPlaying) {
-            submitListenBrainzPlayingNow(newSong, 0L, durationMs)
-        }
+        history.onTrackChanged(mediaItem, previousEnded, exoPlayer)
 
         // The renderer is still configured for the track that just ended at
         // this point. Clear its measurements before Discord takes its snapshot
@@ -2100,14 +2012,7 @@ class PlaybackService : MediaLibraryService() {
         // in between is Discord's own arithmetic.
         if (exoPlayer.isPlaying) pushDiscordPresence(exoPlayer)
 
-        // "Sleep after this song": the queue moving on by itself is the
-        // moment the track the user meant has finished. REPEAT counts
-        // too, or the timer would never fire with repeat-one on.
-        if (ended && SleepTimer.afterTrack.value) {
-            exoPlayer.pause()
-            SleepTimer.cancel()
-        }
-        if (exoPlayer.isPlaying) registerCurrentPlay()
+        history.afterTrackChanged(previousEnded, exoPlayer)
         savePlaybackState(exoPlayer)
         convertVideosAround(exoPlayer)
         prefetchAround(exoPlayer)
@@ -2905,18 +2810,7 @@ class PlaybackService : MediaLibraryService() {
                 // has been silent since the last crossfade.
                 val player = this@PlaybackService.player
                 if (player != null && player.isPlaying) {
-                    lastPositionSeconds = player.currentPosition / 1000
-                    player.currentMediaItem?.mediaId?.let {
-                        PlaybackTracker.onProgress(it, lastPositionSeconds)
-                    }
-                    // The device's own listening record — see [ListeningRecorder],
-                    // which counts wall-clock time between ticks rather than
-                    // reading the position. This loop is the only place in the app
-                    // that ticks exactly while audio is coming out, which is what
-                    // makes it the right place to count from.
-                    player.currentMediaItem?.toSong()?.let {
-                        ListeningRecorder.onSample(it, player.duration)
-                    }
+                    history.sample(player)
                     // Only two primitive preference values. Queue JSON is
                     // written from onTimelineChanged, never from this loop.
                     savePlaybackState(player)
@@ -2933,45 +2827,6 @@ class PlaybackService : MediaLibraryService() {
                     recovery.lookForBetterCopy(player)
                 }
                 delay(PROGRESS_SAMPLE_MS)
-            }
-        }
-    }
-
-    /**
-     * Pause when the sleep timer runs out.
-     *
-     * `collectLatest` is what makes re-setting the timer work: the pending wait
-     * is cancelled and restarted on the new deadline instead of both firing.
-     */
-    private fun watchSleepTimer() {
-        scope.launch {
-            SleepTimer.deadline.collectLatest { deadline ->
-                if (deadline == null) return@collectLatest
-                try {
-                    val remaining = deadline - SystemClock.elapsedRealtime()
-                    val fadeDurationMs = minOf(10_000L, remaining.coerceAtLeast(0L) / 2)
-                    val preFadeWaitMs = remaining - fadeDurationMs
-                    if (preFadeWaitMs > 0) {
-                        delay(preFadeWaitMs)
-                    }
-
-                    // Smooth volume fade-out curve over fadeDurationMs
-                    if (fadeDurationMs > 0) {
-                        val fadeSteps = 20
-                        val stepDelayMs = fadeDurationMs / fadeSteps
-                        for (i in (fadeSteps - 1) downTo 0) {
-                            val targetVol = (i.toFloat() / fadeSteps).coerceIn(0f, 1f)
-                            player?.volume = targetVol
-                            delay(stepDelayMs)
-                        }
-                    }
-
-                    player?.pause()
-                    SleepTimer.cancel()
-                } finally {
-                    // Always ensure volume is restored to full on completion or cancellation
-                    player?.volume = 1.0f
-                }
             }
         }
     }
@@ -3255,94 +3110,6 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    private fun observeScrobbling() {
-        // Keep the manager alive while its timing settings change, so updating
-        // a preference does not cancel the current track's scrobble timer.
-        scope.launch {
-            // Explicit <Any, _>: these flows have mixed element types, and letting
-            // the reified vararg combine() infer T lands on an intersection type.
-            combine<Any, ScrobblingSnapshot>(
-                AppSettings.lastfmEnabled,
-                AppSettings.lastfmScrobbleEnabled,
-                AppSettings.lastfmNowPlaying,
-                AppSettings.lastfmPrimaryArtistOnly,
-                AppSettings.lastfmSessionKey,
-                AppSettings.lastfmApiKey,
-                AppSettings.lastfmSecret,
-                AppSettings.lastfmEndpoint,
-                AppSettings.scrobbleMinDuration,
-                AppSettings.scrobbleDelayPercent,
-                AppSettings.scrobbleDelaySeconds,
-            ) { values ->
-                ScrobblingSnapshot(
-                    lastfmEnabled = values[0] as Boolean,
-                    scrobbleEnabled = values[1] as Boolean,
-                    nowPlaying = values[2] as Boolean,
-                    primaryArtistOnly = values[3] as Boolean,
-                    sessionKey = values[4] as String,
-                    apiKey = values[5] as String,
-                    secret = values[6] as String,
-                    endpoint = values[7] as String,
-                    minDuration = values[8] as Int,
-                    delayPercent = values[9] as Float,
-                    delaySeconds = values[10] as Int,
-                )
-            }.collectLatest { snapshot ->
-                val shouldEnable = AppSettings.scrobblingAvailable &&
-                    snapshot.lastfmEnabled &&
-                    snapshot.scrobbleEnabled &&
-                    snapshot.sessionKey.isNotBlank() &&
-                    snapshot.apiKey.isNotBlank() &&
-                    snapshot.secret.isNotBlank()
-
-                if (!shouldEnable) {
-                    scrobbleManager?.destroy()
-                    scrobbleManager = null
-                    return@collectLatest
-                }
-
-                LastFM.configure(
-                    endpoint = snapshot.endpoint.ifBlank { LastFM.DEFAULT_API_ENDPOINT },
-                    apiKey = snapshot.apiKey,
-                    secret = snapshot.secret,
-                    sessionKey = snapshot.sessionKey,
-                )
-                val manager = scrobbleManager ?: ScrobbleManager(scope).also {
-                    scrobbleManager = it
-                }
-                manager.minSongDuration = snapshot.minDuration
-                manager.scrobbleDelayPercent = snapshot.delayPercent
-                manager.scrobbleDelaySeconds = snapshot.delaySeconds
-                manager.useNowPlaying = snapshot.nowPlaying
-                manager.usePrimaryArtistOnly = snapshot.primaryArtistOnly
-
-                player?.let { exoPlayer ->
-                    if (exoPlayer.isPlaying) {
-                        manager.onPlayerStateChanged(
-                            isPlaying = true,
-                            song = exoPlayer.currentMediaItem?.toSong(),
-                            durationMs = exoPlayer.duration.takeIf { it > 0 },
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    private data class ScrobblingSnapshot(
-        val lastfmEnabled: Boolean,
-        val scrobbleEnabled: Boolean,
-        val nowPlaying: Boolean,
-        val primaryArtistOnly: Boolean,
-        val sessionKey: String,
-        val apiKey: String,
-        val secret: String,
-        val endpoint: String,
-        val minDuration: Int,
-        val delayPercent: Float,
-        val delaySeconds: Int,
-    )
-
     // ---- Discord Rich Presence -------------------------------------------------
 
     /**
@@ -3543,31 +3310,6 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    /**
-     * Submits a finished ListenBrainz listen, but only if the service is
-     * actually scrobbling — the settings are read at call time so the helper
-     * stays a no-op whenever ListenBrainz is switched off.
-     */
-    private fun submitListenBrainzFinished(song: Song, startMs: Long, durationMs: Long?) {
-        val lbEnabled = AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
-        val lbToken = AppSettings.listenBrainzToken.value
-        if (!lbEnabled || lbToken.isBlank()) return
-        val endMs = System.currentTimeMillis()
-        scope.launch {
-            ListenBrainzManager.submitFinished(lbToken, song, startMs, endMs, durationMs, AppSettings.listenBrainzPrimaryArtistOnly.value)
-        }
-    }
-
-    /** Sends a ListenBrainz "now playing" update for the current track. */
-    private fun submitListenBrainzPlayingNow(song: Song, positionMs: Long, durationMs: Long?) {
-        val lbEnabled = AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
-        val lbToken = AppSettings.listenBrainzToken.value
-        if (!lbEnabled || lbToken.isBlank()) return
-        scope.launch {
-            ListenBrainzManager.submitPlayingNow(lbToken, song, positionMs, durationMs, AppSettings.listenBrainzPrimaryArtistOnly.value)
-        }
-    }
-
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
         mediaSession
 
@@ -3622,39 +3364,7 @@ class PlaybackService : MediaLibraryService() {
         cancelPrefetch()
         trackAnalyzer.release()
         loudness.cancel()
-        // The YouTube Music history entry for whatever was playing, closed out
-        // on the same terms as the ListenBrainz submit below: a swipe-away never
-        // fires STATE_ENDED, and the tracker's own scope outlives this service,
-        // so the ping still goes out after the service scope is cancelled.
-        PlaybackTracker.onPlaybackFinished(
-            player?.currentPosition?.div(1000) ?: lastPositionSeconds,
-        )
-        // Also the last chance to close out the track that was playing — a
-        // swipe-away or stop never fires STATE_ENDED, so the session would
-        // otherwise end with an un-scrobbled song. This must not ride on the
-        // service scope: it is cancelled a few lines down, and the request
-        // should still reach ListenBrainz.
-        val lastSong = listenBrainzSong
-        if (lastSong != null && listenBrainzStartMs > 0L) {
-            val lbEnabled =
-                AppSettings.scrobblingAvailable && AppSettings.listenBrainzEnabled.value
-            val lbToken = AppSettings.listenBrainzToken.value
-            if (lbEnabled && lbToken.isNotBlank()) {
-                val lastStart = listenBrainzStartMs
-                val lastDuration = player?.duration?.takeIf { it > 0 }
-                CoroutineScope(Dispatchers.IO).launch {
-                    ListenBrainzManager.submitFinished(
-                        lbToken, lastSong, lastStart, System.currentTimeMillis(), lastDuration,
-                        AppSettings.listenBrainzPrimaryArtistOnly.value,
-                    )
-                }
-            }
-        }
-        scrobbleManager?.destroy()
-        scrobbleManager = null
-        // Last chance to get the current track's minutes onto disk: the scope is
-        // cancelled a few lines down and the sampler goes with it.
-        ListeningRecorder.onStopped()
+        history.release()
         // Discord, on the same terms as the ListenBrainz submit above: the
         // service scope is cancelled a few lines down, and a presence left up
         // would advertise a track that stopped when the process did — until
