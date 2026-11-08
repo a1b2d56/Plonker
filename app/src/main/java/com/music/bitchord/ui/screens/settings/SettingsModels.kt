@@ -1,7 +1,10 @@
 package com.music.bitchord.ui.screens.settings
 
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
+import android.provider.Settings
+import android.widget.Toast
 import android.media.audiofx.AudioEffect
 import android.os.Build
 import androidx.annotation.StringRes
@@ -148,17 +151,59 @@ internal fun AutomixPerformanceMode.localizedLabel(): String = stringResource(
 /**
  * Hands the device's own effect panel this app's audio session.
  *
- * Shared with [EqualizerScreen], which offers the same escape hatch a second
- * time next to the equaliser it might be an alternative to.
+ * Resolves standard Android AudioEffect panels (MusicFX), vendor Dolby Atmos panels
+ * (OnePlus, Oppo, Realme, Samsung, Xiaomi), or falls back to system sound settings.
  */
 fun openEqualizer(context: Context, sessionId: Int) {
-    val intent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
-        putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
-        putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
+    val pm = context.packageManager
+    val candidates = listOf(
+        // Standard Android AudioEffect panel
+        Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
+            if (sessionId != 0) {
+                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
+            }
+            putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
+            putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+        },
+        // OnePlus / Oppo / Realme (ColorOS / OxygenOS) Dolby Atmos panels
+        Intent("oplus.intent.action.settings.DOLBY_MAIN"),
+        Intent().setComponent(ComponentName("com.android.settings", "com.android.settings.DolbyMainActivity")),
+        Intent("oplus.intent.action.settings.SOUND_EFFECTS_MAIN"),
+        Intent().setComponent(ComponentName("com.android.settings", "com.android.settings.DolbyToSoundEffectsActivity")),
+        // Samsung SoundAlive / Dolby Atmos
+        Intent().setComponent(ComponentName("com.sec.android.app.soundalive", "com.sec.android.app.soundalive.activity.SoundAliveMainActivity")),
+        // Xiaomi / MIUI / HyperOS Audio Effects
+        Intent("com.miui.audioeffect.action.EFFECT_PANEL"),
+        Intent().setComponent(ComponentName("com.miui.audioeffect", "com.miui.audioeffect.AudioEffectTabActivity")),
+        // Generic Dolby Audio Effect
+        Intent("android.media.action.DOLBY_AUDIO_EFFECT"),
+        // System Sound Settings fallback
+        Intent(Settings.ACTION_SOUND_SETTINGS),
+    )
+
+    for (candidate in candidates) {
+        candidate.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            if (candidate.resolveActivity(pm) != null) {
+                context.startActivity(candidate)
+                return
+            }
+        } catch (_: Exception) {
+            // Try next candidate
+        }
     }
-    if (intent.resolveActivity(context.packageManager) != null) {
-        context.startActivity(intent)
+
+    // Direct launch fallback if resolveActivity was blocked by OEM privacy gates
+    for (candidate in candidates) {
+        try {
+            context.startActivity(candidate)
+            return
+        } catch (_: Exception) {
+            // Try next candidate
+        }
     }
+
+    Toast.makeText(context, R.string.dolby_atmos_open_failed, Toast.LENGTH_SHORT).show()
 }
 
 internal fun formatCacheSize(mb: Int): String {
