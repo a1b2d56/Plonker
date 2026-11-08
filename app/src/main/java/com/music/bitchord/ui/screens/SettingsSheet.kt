@@ -388,7 +388,6 @@ fun SettingsScreen(
         backupScope.launch {
             exportStatus = Backup.exportTo(context, target).fold(
                 onSuccess = { months ->
-                    context.getString(R.string.export_succeeded, context.countOfMonths(months))
                 },
                 onFailure = {
                     context.getString(R.string.export_failed, it.message ?: context.getString(R.string.unknown_error))
@@ -1444,8 +1443,8 @@ fun SettingsScreen(
 
 // ---- Re-exports for backwards compatibility ---------------------------------
 
-typealias SettingsCategory = com.music.bitchord.ui.screens.settings.SettingsCategory
-typealias SettingsChoiceKind = com.music.bitchord.ui.screens.settings.SettingsChoiceKind
+internal const val CACHE_WARNING_MB = 2048
+internal const val CACHE_UNLIMITED_STOP_MB = 10 * 1024 + 512
 
 internal val GroupShape = com.music.bitchord.ui.screens.settings.GroupShape
 internal val GROUP_INSET = com.music.bitchord.ui.screens.settings.GROUP_INSET
@@ -1453,6 +1452,9 @@ internal val ROW_INSET = com.music.bitchord.ui.screens.settings.ROW_INSET
 internal val ICON_SIZE = com.music.bitchord.ui.screens.settings.ICON_SIZE
 internal val ICON_GAP = com.music.bitchord.ui.screens.settings.ICON_GAP
 internal val TEXT_INSET = com.music.bitchord.ui.screens.settings.TEXT_INSET
+
+typealias SettingsCategory = com.music.bitchord.ui.screens.settings.SettingsCategory
+typealias SettingsChoiceKind = com.music.bitchord.ui.screens.settings.SettingsChoiceKind
 
 @Composable
 internal fun SettingsPageTitle(text: String) = com.music.bitchord.ui.screens.settings.SettingsPageTitle(text)
@@ -1485,7 +1487,84 @@ internal fun SettingsRow(
     icon, title, subtitle, subtitleContent, value, badge, enabled, iconPainter, iconContent, onClick, trailing
 )
 
+@Composable
+internal fun SettingsSubRow(
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    badge: String? = null,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+) = com.music.bitchord.ui.screens.settings.SettingsSubRow(
+    title, checked, onCheckedChange, badge, subtitle, enabled
+)
+
+@Composable
+internal fun Badge(text: String, modifier: Modifier = Modifier) =
+    com.music.bitchord.ui.screens.settings.Badge(text, modifier)
+
+@Composable
+internal fun Chevron() = com.music.bitchord.ui.screens.settings.Chevron()
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SliderRow(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    sliderValue: Float,
+    onSliderValue: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    subtitle: String? = null,
+    subtitleMinLines: Int = 1,
+) = com.music.bitchord.ui.screens.settings.SliderRow(
+    icon, title, value, sliderValue, onSliderValue, valueRange, steps, subtitle, subtitleMinLines
+)
+
+@Composable
+internal fun DestructiveRow(
+    label: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) = com.music.bitchord.ui.screens.settings.DestructiveRow(label, enabled, onClick)
+
+@Composable
+internal fun SegmentedControl(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) = com.music.bitchord.ui.screens.settings.SegmentedControl(options, selectedIndex, onSelect, modifier, enabled)
+
+@Composable
+internal fun <T> ChoiceGroup(
+    options: List<T>,
+    selected: T,
+    label: @Composable (T) -> String,
+    footer: String?,
+    detail: (@Composable (T) -> String)? = null,
+    enabled: (T) -> Boolean = { true },
+    onSelect: (T) -> Unit,
+) = com.music.bitchord.ui.screens.settings.ChoiceGroup(options, selected, label, footer, detail, enabled, onSelect)
+
+@Composable
+internal fun AccountCard(
+    signedIn: Boolean,
+    account: Account?,
+    onSignIn: () -> Unit,
+    onClick: (() -> Unit)? = null,
+    grouped: Boolean = false,
+) = com.music.bitchord.ui.screens.settings.AccountCard(signedIn, account, onSignIn, onClick, grouped)
+
+@Composable
+internal fun BypassedByBitPerfect(bypassed: Boolean, content: @Composable () -> Unit) =
+    com.music.bitchord.ui.screens.settings.BypassedByBitPerfect(bypassed, content)
+
 internal fun openEqualizer(context: Context, sessionId: Int) = com.music.bitchord.ui.screens.settings.openEqualizer(context, sessionId)
+internal fun formatCacheSize(mb: Int): String = com.music.bitchord.ui.screens.settings.formatCacheSize(mb)
+internal fun Context.countOfMonths(months: Int): String = com.music.bitchord.ui.screens.settings.countOfMonths(this, months)
 
 @Composable
 fun SettingsChoicePage(
