@@ -24,7 +24,7 @@ import com.music.bitchord.ui.icons.SfIcons
 import kotlin.math.roundToInt
 
 @Composable
-fun DownloadsSettingsGroup(
+internal fun DownloadsSettingsGroup(
     search: SettingsSearch,
     onOpenChoice: (SettingsChoiceKind) -> Unit,
 ) {
@@ -76,7 +76,7 @@ fun DownloadsSettingsGroup(
 }
 
 @Composable
-fun PlaybackSettingsGroup(
+internal fun PlaybackSettingsGroup(
     search: SettingsSearch,
     onOpenChoice: (SettingsChoiceKind) -> Unit,
     onEqualizer: () -> Unit,
@@ -88,7 +88,7 @@ fun PlaybackSettingsGroup(
     val bitPerfectMode by AppSettings.bitPerfectMode.collectAsStateWithLifecycle()
     val bitPerfectStatus by BitPerfectOutput.status.collectAsStateWithLifecycle()
     val bitPerfectReady by BitPerfectOutput.ready.collectAsStateWithLifecycle()
-    val dacVolume by BitPerfectOutput.volume.collectAsStateWithLifecycle()
+    val dacVolume by BitPerfectOutput.hardwareVolume.collectAsStateWithLifecycle()
     val usbAllowFixedVolume by AppSettings.usbAllowFixedVolume.collectAsStateWithLifecycle()
     val convertForLimitedDac by AppSettings.convertForLimitedDac.collectAsStateWithLifecycle()
     val loudnessNormalization by AppSettings.loudnessNormalization.collectAsStateWithLifecycle()
@@ -98,7 +98,7 @@ fun PlaybackSettingsGroup(
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
-    val playingFormat by NerdStats.format.collectAsStateWithLifecycle()
+    val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
     val playingDolbyAtmos = playingFormat?.isDolbyAtmos == true
 
     SearchableSettingsGroup(
