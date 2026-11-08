@@ -3,12 +3,7 @@ package com.music.bitchord.playback
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.AudioDeviceCallback
-import android.media.AudioDeviceInfo
-import android.media.AudioFormat
-import android.media.AudioManager
 import android.media.MediaMetadataRetriever
-import android.media.audiofx.AudioEffect
 import android.net.Uri
 import android.widget.Toast
 import android.os.Bundle
@@ -28,8 +23,6 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.core.net.toUri
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.audio.AudioProcessor
-import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.decoder.ffmpeg.FfmpegAudioRenderer
 import androidx.media3.decoder.ffmpeg.FfmpegLibrary
@@ -44,8 +37,6 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.DefaultAudioSink
-import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DataSpec
@@ -62,25 +53,16 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.guava.future
-import com.music.bitchord.playback.audio.DspChain
 import com.music.bitchord.playback.cast.CastController
 import com.music.bitchord.playback.cast.CastPlayback
 import com.music.bitchord.playback.cast.CastSink
 import com.music.bitchord.playback.cast.RemoteSpeaker
 import com.music.bitchord.playback.cast.Speakers
 import com.music.bitchord.playback.cast.CastStream
-import com.music.bitchord.playback.audio.PrecisionAudioSink
 import com.music.bitchord.playback.dsd.DsdExtractorsFactory
-import com.music.bitchord.playback.audio.DirectAudioProbe
-import com.music.bitchord.playback.audio.OutputNegotiator
-import com.music.bitchord.playback.audio.PcmEncoding
-import com.music.bitchord.playback.audio.SourceDescriptor
-import com.music.bitchord.playback.audio.bitperfect.BitPerfectAudioSink
 import com.music.bitchord.playback.audio.bitperfect.BitPerfectOutput
-import com.music.bitchord.playback.audio.bitperfect.BitPerfectRoutingSink
 import com.music.bitchord.playback.audio.bitperfect.DacVolume
 import com.music.bitchord.playback.audio.bitperfect.usb.UsbDirectDevices
-import com.music.bitchord.playback.audio.bluetooth.BluetoothAudioTracker
 import com.music.bitchord.MainActivity
 import com.music.bitchord.data.listentogether.ListenTogether
 import com.music.bitchord.R
@@ -112,7 +94,6 @@ import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.BitPerfectMode
 import com.music.bitchord.data.settings.permits
-import com.music.bitchord.data.settings.EqualizerMode
 import com.music.bitchord.data.sources.SourceKind
 import com.music.bitchord.data.sources.SourceResolver
 import com.music.bitchord.data.sources.SourceStream
@@ -241,31 +222,6 @@ class PlaybackService : MediaLibraryService() {
     }
 
 
-    private val audioManager by lazy { getSystemService(AudioManager::class.java) }
-    private val bluetoothTracker by lazy { BluetoothAudioTracker(this) }
-    private var currentAudioInputFormat: Format? = null
-    private val outputDeviceCallback = object : AudioDeviceCallback() {
-        override fun onAudioDevicesAdded(addedDevices: Array<AudioDeviceInfo>) {
-            // Plugging something in moves the music to it. Always — a choice
-            // made an hour ago about the speaker is not a standing instruction
-            // to ignore the headphones now going in, and there is no row in the
-            // picker for "go back to following the system", so a stuck choice
-            // would be a picker that had quietly broken the obvious behaviour.
-            AudioRouting.forget()
-            requestOutputReconfiguration()
-        }
-        override fun onAudioDevicesRemoved(removedDevices: Array<AudioDeviceInfo>) {
-            // A chosen output that has been unplugged is no longer a choice.
-            // Left set, its id matches nothing — and ids are reused, so it
-            // would eventually match whatever device the framework hands that
-            // number to next. See [AudioRouting].
-            if (removedDevices.any { it.id == AudioRouting.selectedId.value }) {
-                AudioRouting.forget()
-            }
-            requestOutputReconfiguration()
-        }
-    }
-
     /**
      * The player the session is on. Swaps with [spare] at every crossfade — see
      * [adoptPlayer] — so anything reading it must read it *now* rather than
@@ -282,50 +238,7 @@ class PlaybackService : MediaLibraryService() {
 
     private var crossfade: CrossfadeController? = null
 
-    /**
-     * What the players currently in hand were built for.
-     *
-     * Read at construction rather than per buffer because it decides whether
-     * Media3 may open a float AudioTrack at all, which cannot be changed under
-     * a running renderer. Moving the setting therefore rebuilds both players.
-     */
-    private var configuredFloatOutput = false
-    private var outputReconfigureJob: Job? = null
 
-    /**
-     * One audio-processor set per player, because both carry per-sink state — a
-     * delay line, filter memory — that two sinks cannot share.
-     *
-     * The `A`/`B` pair is fixed to the players that own them; [activeFilter] and
-     * [spareFilter] are the *roles*, and they trade places at every handoff
-     * along with the players. Everything downstream talks in roles.
-     */
-    private val spatialAudioProcessorA = SpatialAudioProcessor()
-    private val spatialAudioProcessorB = SpatialAudioProcessor()
-    private val equalizerProcessorA = EqualizerProcessor()
-    private val equalizerProcessorB = EqualizerProcessor()
-    private val transitionFilterA = TransitionFilterProcessor()
-    private val transitionFilterB = TransitionFilterProcessor()
-
-    /**
-     * Loudness normalization, one per player like the other stages — see
-     * [LoudnessProcessor] for why it stopped being a single session effect —
-     * dispatched by [loudness], declared after [scope].
-     */
-
-    /** The platform audio session currently advertised to system audio tools. */
-    private var advertisedAudioEffectSessionId: Int = C.AUDIO_SESSION_ID_UNSET
-
-    /**
-     * Whether the format currently arriving at the active player's decoder
-     * is Dolby Atmos (E-AC-3 JOC). Widening a JOC stream would fight the
-     * object-based mix Dolby already spatializes, so the effect is forced
-     * off for as long as this is true — see [applySpatialAudioEnabled].
-     */
-    private var activeTrackIsDolbyAtmos = false
-
-    private var activeFilter: TransitionFilterProcessor = transitionFilterA
-    private var spareFilter: TransitionFilterProcessor = transitionFilterB
 
     /** Automix's DSP analyzer — see [com.music.bitchord.playback.smart.TrackAnalyzer]. */
     private val trackAnalyzer = com.music.bitchord.playback.smart.TrackAnalyzer(this, AudioCache)
@@ -400,9 +313,24 @@ class PlaybackService : MediaLibraryService() {
      * swap and rebuild already keeps right, so the two can never disagree
      * about which sink is which.
      */
+    /**
+     * The two players' DSP stages, where their output goes, and how — see
+     * [AudioRoutingAndDspPipeline].
+     */
+    private val pipeline = AudioRoutingAndDspPipeline(
+        context = this,
+        scope = scope,
+        players = { listOfNotNull(player, spare) },
+        transitioning = { crossfade?.isTransitioning() == true },
+        rebuildPlayers = { enableFloat -> rebuildPlayersForOutput(enableFloat) },
+    )
+    private var configuredFloatOutput by pipeline::configuredFloatOutput
+    private var currentAudioInputFormat by pipeline::currentAudioInputFormat
+    private var activeTrackIsDolbyAtmos by pipeline::activeTrackIsDolbyAtmos
+
     private val loudness = LoudnessDispatch(
         scope = scope,
-        aIsActive = { activeFilter === transitionFilterA },
+        aIsActive = { pipeline.aIsActive },
         player = { player },
     )
 
@@ -549,7 +477,7 @@ class PlaybackService : MediaLibraryService() {
     private val playbackListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             val activePlayer = this@PlaybackService.player ?: return
-            if (player === activePlayer) updateAudioEffectSession(activePlayer)
+            if (player === activePlayer) pipeline.updateAudioEffectSession(activePlayer)
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -870,10 +798,10 @@ class PlaybackService : MediaLibraryService() {
                 about = audioFormatFor,
             )
             activeTrackIsDolbyAtmos = NerdStats.isDolbyAtmosMime(format.sampleMimeType)
-            applySpatialAudioEnabled()
+            pipeline.applySpatialAudioEnabled()
             publishNerdStats()
             currentAudioInputFormat = format
-            applyOutputRoute()
+            pipeline.applyOutputRoute()
         }
 
         /**
@@ -1054,16 +982,16 @@ class PlaybackService : MediaLibraryService() {
                 }
         }
 
-        bluetoothTracker.start()
+        pipeline.bluetoothTracker.start()
         scope.launch {
             // A codec change (LDAC 24-bit ↔ SBC) can flip float output on or off,
             // which needs a sink rebuild, not just a route refresh. Any other real
             // change — codec name, sample rate — still refreshes the route, so the
             // readout follows it; only the update timestamp is ignored.
-            bluetoothTracker.telemetry
+            pipeline.bluetoothTracker.telemetry
                 .map { it.copy(lastUpdatedMs = 0L) }
                 .distinctUntilChanged()
-                .collect { requestOutputReconfiguration() }
+                .collect { pipeline.requestOutputReconfiguration() }
         }
         scope.launch {
             // Every resolve reads the ceiling afresh, but not everything that
@@ -1446,18 +1374,14 @@ class PlaybackService : MediaLibraryService() {
         // The watch, when it is the speaker, reads tracks through this same chain.
         WearBridge.attachStreams(AudioCache.playbackFactory(defaultDataSourceFactory))
 
-        configuredFloatOutput = shouldEnableFloatOutput()
+        configuredFloatOutput = pipeline.shouldEnableFloatOutput()
         val exoPlayer = buildPlayer(
-            spatialAudioProcessorA,
-            equalizerProcessorA,
-            transitionFilterA,
+            pipeline.a,
             loudness.a,
             ownsSession = true,
         )
         val sparePlayer = buildPlayer(
-            spatialAudioProcessorB,
-            equalizerProcessorB,
-            transitionFilterB,
+            pipeline.b,
             loudness.b,
             ownsSession = false,
         )
@@ -1468,8 +1392,8 @@ class PlaybackService : MediaLibraryService() {
         // to be audible. Without it a crossfade would audibly change EQ halfway
         // through, and again at every handoff.
         sparePlayer.audioSessionId = exoPlayer.audioSessionId
-        audioManager?.registerAudioDeviceCallback(outputDeviceCallback, null)
-        applyOutputRoute()
+        pipeline.watchOutputDevices()
+        pipeline.applyOutputRoute()
 
         AppSettings.audioSessionId.value = exoPlayer.audioSessionId
         applySettings(exoPlayer)
@@ -1624,24 +1548,24 @@ class PlaybackService : MediaLibraryService() {
             // have changed hands.
             filters = object : TransitionFilters {
                 override fun incoming(lowPassHz: Float, highPassHz: Float) =
-                    activeFilter.setCutoffs(lowPassHz, highPassHz)
+                    pipeline.activeFilter.setCutoffs(lowPassHz, highPassHz)
 
                 override fun outgoing(lowPassHz: Float, highPassHz: Float) =
-                    spareFilter.setCutoffs(lowPassHz, highPassHz)
+                    pipeline.spareFilter.setCutoffs(lowPassHz, highPassHz)
 
-                override fun incomingLeadMs(): Long = activeFilter.leadUs / 1000
+                override fun incomingLeadMs(): Long = pipeline.activeFilter.leadUs / 1000
 
-                override fun outgoingLeadMs(): Long = spareFilter.leadUs / 1000
+                override fun outgoingLeadMs(): Long = pipeline.spareFilter.leadUs / 1000
 
                 override fun incomingEcho(delaySeconds: Float, send: Float, dry: Float) =
-                    activeFilter.setEcho(delaySeconds, send, dry)
+                    pipeline.activeFilter.setEcho(delaySeconds, send, dry)
 
                 override fun outgoingEcho(delaySeconds: Float, send: Float, dry: Float) =
-                    spareFilter.setEcho(delaySeconds, send, dry)
+                    pipeline.spareFilter.setEcho(delaySeconds, send, dry)
 
                 override fun parkEchoes() {
-                    transitionFilterA.parkEcho()
-                    transitionFilterB.parkEcho()
+                    pipeline.a.filter.parkEcho()
+                    pipeline.b.filter.parkEcho()
                 }
             },
             analysisRunningFor = { item -> trackAnalyzer.isAnalysing(item.mediaId) },
@@ -1680,8 +1604,8 @@ class PlaybackService : MediaLibraryService() {
             // player and the port trade roles together at every handoff.
             loopPortOf = { target ->
                 when {
-                    target === player -> activeFilter.loop
-                    target === spare -> spareFilter.loop
+                    target === player -> pipeline.activeFilter.loop
+                    target === spare -> pipeline.spareFilter.loop
                     else -> null
                 }
             },
@@ -1831,9 +1755,7 @@ class PlaybackService : MediaLibraryService() {
         // first callback reads already describes the new arrangement.
         player = incoming
         spare = outgoing
-        val heldFilter = activeFilter
-        activeFilter = spareFilter
-        spareFilter = heldFilter
+        pipeline.swapFilterRoles()
         sessionListeners.attach(incoming)
         adoptFormatOf(incoming)
 
@@ -1883,13 +1805,11 @@ class PlaybackService : MediaLibraryService() {
      * re-resolving a stream URL for audio that is already local.
      */
     private fun buildPlayer(
-        spatial: SpatialAudioProcessor,
-        equalizer: EqualizerProcessor,
-        filter: TransitionFilterProcessor,
+        deck: AudioRoutingAndDspPipeline.Deck,
         loudness: LoudnessProcessor,
         ownsSession: Boolean,
     ): ExoPlayer = ExoPlayer.Builder(this)
-        .setRenderersFactory(silenceSkippingRenderers(spatial, equalizer, filter, loudness))
+        .setRenderersFactory(pipeline.renderersFor(deck, loudness))
         .setMediaSourceFactory(requireNotNull(mediaSourceFactory))
         .setLoadControl(farBufferingLoadControl())
         .setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ ownsSession)
@@ -1950,49 +1870,6 @@ class PlaybackService : MediaLibraryService() {
     private fun setSessionOwner(target: ExoPlayer, owns: Boolean) {
         target.setAudioAttributes(AUDIO_ATTRIBUTES, /* handleAudioFocus = */ owns)
         target.setHandleAudioBecomingNoisy(owns)
-    }
-
-    /**
-     * Publishes the standard music-session lifecycle used by system and
-     * third-party audio controllers. Keep the session open while playback is
-     * preparing as well as while it is audible, so an effect can attach before
-     * the first decoded buffer reaches the output device.
-     */
-    private fun updateAudioEffectSession(activePlayer: ExoPlayer) {
-        val sessionId = activePlayer.audioSessionId
-        val shouldAdvertise = activePlayer.playWhenReady &&
-            (activePlayer.playbackState == Player.STATE_BUFFERING ||
-                activePlayer.playbackState == Player.STATE_READY) &&
-            sessionId != C.AUDIO_SESSION_ID_UNSET && sessionId > 0
-
-        if (!shouldAdvertise) {
-            closeAudioEffectSession()
-            return
-        }
-        if (advertisedAudioEffectSessionId == sessionId) return
-
-        closeAudioEffectSession()
-        advertisedAudioEffectSessionId = sessionId
-        sendBroadcast(
-            Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
-                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
-                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-            },
-        )
-    }
-
-    private fun closeAudioEffectSession() {
-        val sessionId = advertisedAudioEffectSessionId
-        if (sessionId == C.AUDIO_SESSION_ID_UNSET) return
-
-        advertisedAudioEffectSessionId = C.AUDIO_SESSION_ID_UNSET
-        sendBroadcast(
-            Intent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, sessionId)
-                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
-            },
-        )
     }
 
     /**
@@ -2081,7 +1958,7 @@ class PlaybackService : MediaLibraryService() {
         // source resolution stands in until the decoder itself confirms or
         // corrects it — see [formatListener]'s onAudioInputFormatChanged.
         activeTrackIsDolbyAtmos = NerdStats.declaredFormat(mediaItem?.mediaId)?.isDolbyAtmos == true
-        applySpatialAudioEnabled()
+        pipeline.applySpatialAudioEnabled()
 
         // A genuinely different track, so the gain is re-read for it. A
         // quality upgrade never reaches here — it returns early in
@@ -2270,123 +2147,6 @@ class PlaybackService : MediaLibraryService() {
         BoundedContextPersistence.clear()
         publishWidgetState(playing = false)
         stopForeground(STOP_FOREGROUND_REMOVE)
-    }
-
-    /**
-     * Depth, rate and channel count for one stream, taken from the stream.
-     *
-     * Kept as a value rather than read field-by-field off [Format] because
-     * for some containers the fields are not all in the same place — see
-     * [measure].
-     */
-    private class Measured(
-        val sampleRateHz: Int?,
-        val channels: Int?,
-        val bitDepth: Int?,
-    ) {
-        /**
-         * What the samples cost per second once decoded, in kbps.
-         *
-         * `16-bit · 44.1 kHz · stereo` is 1411, `24-bit · 96 kHz · stereo` is
-         * 4608 — the figures Tidal, Qobuz and Apple Music all put next to a
-         * lossless track, and the only bitrate that means anything for one.
-         * A FLAC's *compressed* rate is a property of how compressible that
-         * particular recording was, so two copies of the same master at the
-         * same quality report different numbers and the comparison the reader
-         * is trying to make doesn't survive it.
-         *
-         * Null unless all three are known: two thirds of this product is not
-         * a bitrate.
-         */
-        val pcmBitrateKbps: Int?
-            get() {
-                val depth = bitDepth ?: return null
-                val rate = sampleRateHz ?: return null
-                val ch = channels ?: return null
-                return (depth.toLong() * rate * ch / 1000).toInt().takeIf { it > 0 }
-            }
-    }
-
-    /**
-     * What the renderer was handed, with the gaps its container left filled in
-     * from the stream's own header.
-     *
-     * A container is free not to state any of this, and one in use here
-     * doesn't: Tidal's FLAC arrives inside MP4, whose audio sample entry
-     * carries the sample rate as a 16.16 fixed-point field and is written
-     * zero, the escape the FLAC-in-ISOBMFF spec allows precisely because the
-     * real figure lives in the `dfLa` box below it. Media3 passes that box
-     * through as initialization data without folding it back into the
-     * `Format`, so `sampleRate` reached the stats line as 0 and `pcmEncoding`
-     * as unset — `audio/flac 0.0kHz ?-bit`, on a track that is plain
-     * 16-bit/44.1kHz and displayed as such everywhere else.
-     *
-     * Every figure here still comes from the bytes being decoded. This is not
-     * a fallback to what a source claimed; it is the same stream read at the
-     * one layer that always states it, because a FLAC frame cannot be decoded
-     * without it.
-     */
-    private fun Format.measure(): Measured {
-        val streamInfo = flacStreamInfo()
-        // The renderer's PCM encoding first: it is the one that would show a
-        // 24-bit master being truncated on the way to the sink, which is the
-        // whole reason the figure is on screen. STREAMINFO describes the file,
-        // so it can only answer what the file holds.
-        //
-        // Float is the exception, and has to be, because it is a carrier
-        // rather than a measurement. `MediaCodecAudioRenderer.getMediaFormat`
-        // asks the decoder for float output whenever the sink reports it can
-        // take one, so a plain 16-bit/44.1kHz file comes back through this
-        // path reading 32-bit exactly as readily as a master does — and then
-        // gets called Hi-Res Lossless, and wears the shine under the
-        // transport, on the strength of the container it happened to travel
-        // in. Nothing about a float buffer says how many bits were in the
-        // samples poured into it, so it is not asked.
-        val rendererDepth = if (pcmEncoding == C.ENCODING_PCM_FLOAT) null else bitDepthOf(pcmEncoding)
-        return Measured(
-            sampleRateHz = sampleRate.takeIf { it > 0 } ?: streamInfo?.sampleRateHz,
-            channels = channelCount.takeIf { it > 0 } ?: streamInfo?.channels,
-            bitDepth = rendererDepth ?: streamInfo?.bitDepth,
-        )
-    }
-
-    /** Sample rate, channel count and bit depth as a FLAC STREAMINFO block states them. */
-    private class FlacStreamInfo(val sampleRateHz: Int, val channels: Int, val bitDepth: Int)
-
-    /**
-     * The STREAMINFO block carried in this format's initialization data, for a
-     * FLAC stream that has one.
-     *
-     * The offset is found rather than assumed. Media3 hands the block over
-     * with a `fLaC` marker in front of it from both the MP4 and the raw path,
-     * but that is its business and not something worth depending on, so all
-     * three shapes — marker, bare block header, bare body — are recognised by
-     * looking for the header itself: a metadata block type of 0 (STREAMINFO)
-     * followed by a 24-bit length of 34.
-     */
-    private fun Format.flacStreamInfo(): FlacStreamInfo? {
-        if (sampleMimeType != MimeTypes.AUDIO_FLAC) return null
-        val data = initializationData.firstOrNull() ?: return null
-        fun byteAt(i: Int) = data[i].toInt() and 0xFF
-        fun headerAt(i: Int) = data.size > i + 3 &&
-            (byteAt(i) and 0x7F) == 0 &&
-            byteAt(i + 1) == 0 && byteAt(i + 2) == 0 && byteAt(i + 3) == STREAM_INFO_BYTES
-        val body = when {
-            data.size >= 4 && String(data, 0, 4, Charsets.US_ASCII) == "fLaC" ->
-                if (headerAt(4)) 8 else 4
-            headerAt(0) -> 4
-            else -> 0
-        }
-        if (data.size < body + STREAM_INFO_BYTES) return null
-        fun at(i: Int) = byteAt(body + i)
-        // STREAMINFO opens with two 16-bit block sizes and two 24-bit frame
-        // sizes — ten bytes — and then packs, without alignment, a 20-bit
-        // sample rate, a 3-bit channel count and a 5-bit sample depth, the
-        // last two both stored one less than they mean.
-        val sampleRate = (at(10) shl 12) or (at(11) shl 4) or (at(12) shr 4)
-        val channels = ((at(12) shr 1) and 0x07) + 1
-        val bitDepth = (((at(12) and 0x01) shl 4) or (at(13) shr 4)) + 1
-        return FlacStreamInfo(sampleRate, channels, bitDepth).takeIf { sampleRate > 0 }
     }
 
     /**
@@ -2738,28 +2498,6 @@ class PlaybackService : MediaLibraryService() {
         return restoreLastQueue(player)
     }
 
-
-    /**
-     * PCM sample depth the renderer settled on, in bits.
-     *
-     * This is the figure that decides whether a hi-res file is being played as
-     * one. A 24-bit FLAC whose renderer reports 16-bit PCM has been truncated
-     * somewhere between the decoder and the sink, and no other number on the
-     * stats line would show it — the sample rate and the codec both survive
-     * that unharmed.
-     *
-     * `ENCODING_INVALID` and `NO_VALUE` mean the renderer hasn't said, which is
-     * common for pass-through and for formats decoded straight to float, and
-     * is reported as unknown rather than as a failure.
-     */
-    private fun bitDepthOf(pcmEncoding: Int): Int? = when (pcmEncoding) {
-        C.ENCODING_PCM_8BIT -> 8
-        C.ENCODING_PCM_16BIT, C.ENCODING_PCM_16BIT_BIG_ENDIAN -> 16
-        C.ENCODING_PCM_24BIT, C.ENCODING_PCM_24BIT_BIG_ENDIAN -> 24
-        C.ENCODING_PCM_32BIT, C.ENCODING_PCM_32BIT_BIG_ENDIAN -> 32
-        C.ENCODING_PCM_FLOAT -> 32
-        else -> null
-    }
 
     /**
      * Tell the home-screen widgets what is playing.
@@ -3293,120 +3031,6 @@ class PlaybackService : MediaLibraryService() {
         .build()
 
     /**
-     * Renderers whose audio sink only skips silence worth skipping.
-     *
-     * Media3's stock threshold is 100ms, which eats the breaths, rests and
-     * pre-chorus beats *inside* a song — the setting reads as "make the music
-     * sound rushed" rather than "trim dead air". A second-long floor leaves
-     * musical pauses alone and still collapses the run-in and run-out of a
-     * track. Everything else about the chain stays default, so
-     * `skipSilenceEnabled` keeps driving it as before.
-     */
-    private fun silenceSkippingRenderers(
-        spatial: SpatialAudioProcessor,
-        equalizer: EqualizerProcessor,
-        transition: TransitionFilterProcessor,
-        loudness: LoudnessProcessor,
-    ) = object : FfmpegFallbackRenderersFactory(this) {
-        init {
-            // Do not force PCM_FLOAT onto an OEM speaker mixer merely because
-            // the preference asks for it. The selected route must advertise
-            // the format; otherwise Media3 uses its stable PCM16 path.
-            //
-            // Which way this cuts is worth stating, because it reads backwards:
-            // float is what *preserves* a hi-res source rather than what
-            // embellishes it, since it is the only AudioTrack encoding Media3
-            // will open that carries a 24-bit sample intact.
-            setEnableAudioFloatOutput(configuredFloatOutput)
-            // c2.sec.flac.decoder produces one extra 232.2ms timestamp
-            // advance per decoded buffer when Media3 requests float PCM.
-            // Decode FLAC through the platform software codec on affected Samsung devices.
-            setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-                val selector = if (mimeType == MimeTypes.AUDIO_FLAC) {
-                    MediaCodecSelector.PREFER_SOFTWARE
-                } else {
-                    MediaCodecSelector.DEFAULT
-                }
-                val candidates = selector.getDecoderInfos(
-                    mimeType,
-                    requiresSecureDecoder,
-                    requiresTunnelingDecoder,
-                )
-                if (mimeType == MimeTypes.AUDIO_FLAC) {
-                    candidates.filterNot { AudioOutputPolicy.isUnsafeFloatFlacDecoder(it.name) }
-                } else {
-                    candidates
-                }
-            }
-        }
-
-        override fun buildAudioSink(
-            context: Context,
-            enableFloatOutput: Boolean,
-            enableAudioTrackPlaybackParams: Boolean,
-        ): AudioSink {
-            val defaultSink = DefaultAudioSink.Builder(context)
-                .setEnableFloatOutput(enableFloatOutput)
-                // Speed handled by the AudioTrack itself on a float-capable
-                // route, rather than by Sonic. `DefaultAudioSink.configure`
-                // appends `audioProcessorChain.getAudioProcessors()` — which is
-                // where Sonic lives — only on its 16-bit branch; the float
-                // branch gets the format converter and nothing else. With the
-                // stock flag, changing speed on a float route therefore left
-                // the audio playing at 1x while `getMediaDuration` went on
-                // scaling, so the position clock drifted away from the sound.
-                // AudioTrack's own playback params work on either branch.
-                //
-                // Silence skipping is in that same dropped chain and has no
-                // such escape hatch; the equaliser screen says so, and the
-                // equaliser itself is unaffected because it runs upstream in
-                // [PrecisionAudioSink], not here.
-                .setEnableAudioTrackPlaybackParams(
-                    enableAudioTrackPlaybackParams || enableFloatOutput,
-                )
-                .setAudioProcessorChain(
-                    DefaultAudioSink.DefaultAudioProcessorChain(
-                        emptyArray<AudioProcessor>(),
-                        SilenceSkippingAudioProcessor(
-                            MIN_SILENCE_US,
-                            SilenceSkippingAudioProcessor.DEFAULT_SILENCE_RETENTION_RATIO,
-                            SilenceSkippingAudioProcessor.DEFAULT_MAX_SILENCE_TO_KEEP_DURATION_US,
-                            SilenceSkippingAudioProcessor.DEFAULT_MIN_VOLUME_TO_KEEP_PERCENTAGE,
-                            SilenceSkippingAudioProcessor.DEFAULT_SILENCE_THRESHOLD_LEVEL,
-                        ),
-                        SonicAudioProcessor(),
-                    ),
-                )
-                .build()
-
-            // Transition filtering last of the three: widening is a
-            // property of the track, and a bass swap that ran before it
-            // would have its own low end fed back in by the crossfeed —
-            // or, once the equaliser is in the chain, by whatever the
-            // listener's low band was set to. The equaliser sits between
-            // them for the same reason: it belongs to the listener and
-            // the whole session, while the transition filter belongs to
-            // one handoff and has to have the last word on it.
-            val dspChain = DspChain(spatial, equalizer, transition, loudness)
-            val precision = PrecisionAudioSink(
-                delegate = defaultSink,
-                dspChain = dspChain,
-                enableFloatOutput = enableFloatOutput,
-                preferredOutputEncodingProvider = { format -> resolvePreferredOutputEncoding(format) },
-                // Which of the two sinks the listener can hear, told by the
-                // role its transition filter currently holds — [activeFilter]
-                // and [spareFilter] trade places at every handoff. Only the
-                // audible one writes telemetry, so the idle player's reset
-                // cannot publish "not exact" over the playing track's verdict.
-                isAudible = { transition === activeFilter },
-            )
-            // In front of everything above: a track the bit-perfect output can
-            // carry skips the DSP chain and Media3's sink altogether.
-            return BitPerfectRoutingSink(precision, BitPerfectAudioSink(BitPerfectOutput.forContext(context)))
-        }
-    }
-
-    /**
      * Push current settings onto a player. Called for both: whichever one is
      * idle right now is the one the next transition will start a song on, so it
      * cannot be left on stale settings.
@@ -3421,190 +3045,6 @@ class PlaybackService : MediaLibraryService() {
         // stale enabled state consume the first tap meant to enable Shuffle.
         QueueShuffle.setEnabled(AppSettings.shuffleEnabled.value)
         player.repeatMode = AppSettings.repeatMode.value
-    }
-
-    /**
-     * What the pipeline last reported, for when the live [Format] carries no
-     * usable rate or channel count of its own. Guessing 48 kHz here is what made
-     * a 176.4 kHz stream negotiate itself down, so the real last-known value is
-     * worth reaching for before giving up.
-     */
-    private fun lastReportedSampleRateHz(): Int? {
-        val status = AudioOutputStatus.current.value
-        return NerdStats.current.value?.sampleRateHz?.takeIf { it > 0 }
-            ?: status.actualSampleRateHz?.takeIf { it > 0 }
-            ?: status.negotiationResult?.output?.sampleRateHz?.takeIf { it > 0 }
-    }
-
-    private fun lastReportedChannelCount(): Int? {
-        val status = AudioOutputStatus.current.value
-        return NerdStats.current.value?.channels?.takeIf { it > 0 }
-            ?: status.negotiationResult?.output?.channelCount?.takeIf { it > 0 }
-    }
-
-    /**
-     * Applies the user's USB-DAC preference through the public Android routing
-     * API. This does not bypass the system USB driver: it intentionally lets
-     * Android negotiate only formats the connected DAC actually advertises.
-     */
-    private fun applyOutputRoute() {
-        val manager = audioManager ?: return
-        val usb = preferredUsbDevice()
-        val chosen = AudioRouting.infoFor(manager, AudioRouting.selectedId.value)
-        val preferred = chosen ?: usb.takeIf { AppSettings.preferUsbDac.value }
-        eachPlayer { it.setPreferredAudioDevice(preferred) }
-
-        val activeDevice = resolveActiveOutputDevice()
-        val routeKind = resolveActiveRouteKind(activeDevice)
-
-        val format = currentAudioInputFormat
-        val measured by lazy(LazyThreadSafetyMode.NONE) { format?.measure() }
-        val sampleRate = format?.sampleRate?.takeIf { it > 0 }
-            ?: measured?.sampleRateHz?.takeIf { it > 0 }
-            ?: lastReportedSampleRateHz()
-        val channels = format?.channelCount?.takeIf { it > 0 }
-            ?: measured?.channels?.takeIf { it > 0 }
-            ?: lastReportedChannelCount()
-            ?: 2
-        val directSupport = if (sampleRate != null) {
-            DirectAudioProbe.probeDirectSupport(
-                audioManager = manager,
-                sampleRateHz = sampleRate,
-                channelCount = channels,
-                activeDevice = activeDevice,
-            )
-        } else {
-            DirectAudioProbe.DirectSupport.NONE
-        }
-        val btTelemetry = if (routeKind == AudioRouting.Kind.BLUETOOTH) bluetoothTracker.telemetry.value else null
-
-        AudioOutputStatus.publish(
-            manager = manager,
-            requestedPcmMode = AppSettings.outputPcmMode.value,
-            preferred = activeDevice,
-            floatEnabled = shouldEnableFloatOutput(),
-            routeKind = routeKind,
-            directSupport = directSupport,
-            bluetoothTelemetry = btTelemetry,
-            systemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
-        )
-
-        if (format != null) {
-            resolvePreferredOutputEncoding(format)
-        }
-    }
-
-    private fun resolvePreferredOutputEncoding(format: Format): PcmEncoding? {
-        val manager = audioManager ?: return null
-        val activeDevice = resolveActiveOutputDevice()
-        val routeKind = resolveActiveRouteKind(activeDevice)
-
-        if (routeKind == AudioRouting.Kind.PHONE) {
-            return PcmEncoding.PCM_16BIT
-        }
-
-        val inputFormat = currentAudioInputFormat ?: format
-        val measuredFormat = format.measure()
-        val measuredInput by lazy(LazyThreadSafetyMode.NONE) {
-            if (inputFormat === format) measuredFormat else inputFormat.measure()
-        }
-
-        // No rate from the stream and none ever reported means nothing is known
-        // yet: negotiating against a guessed rate would publish that guess as
-        // fact. Leave the encoding to the sink's own fallback instead.
-        val sampleRate = format.sampleRate.takeIf { it > 0 }
-            ?: inputFormat.sampleRate.takeIf { it > 0 }
-            ?: measuredFormat.sampleRateHz?.takeIf { it > 0 }
-            ?: measuredInput.sampleRateHz?.takeIf { it > 0 }
-            ?: lastReportedSampleRateHz()
-            ?: return null
-
-        val channels = format.channelCount.takeIf { it > 0 }
-            ?: inputFormat.channelCount.takeIf { it > 0 }
-            ?: measuredFormat.channels?.takeIf { it > 0 }
-            ?: measuredInput.channels?.takeIf { it > 0 }
-            ?: lastReportedChannelCount()
-            ?: 2
-        val bitDepth = measuredFormat.bitDepth
-            ?: measuredInput.bitDepth
-            ?: NerdStats.current.value?.bitDepth ?: when (inputFormat.pcmEncoding) {
-            C.ENCODING_PCM_32BIT -> 32
-            C.ENCODING_PCM_24BIT -> 24
-            C.ENCODING_PCM_FLOAT -> 32
-            else -> when (format.pcmEncoding) {
-                C.ENCODING_PCM_32BIT -> 32
-                C.ENCODING_PCM_24BIT -> 24
-                C.ENCODING_PCM_FLOAT -> 32
-                else -> 16
-            }
-        }
-
-        val sourceEncoding = if (inputFormat.sampleMimeType != null && inputFormat.sampleMimeType != "audio/raw") {
-            inputFormat.sampleMimeType!!
-        } else {
-            format.sampleMimeType ?: "audio/raw"
-        }
-
-        val source = SourceDescriptor(
-            encoding = sourceEncoding,
-            sampleRateHz = sampleRate,
-            channelCount = channels,
-            bitDepth = bitDepth,
-        )
-
-        val directSupport = DirectAudioProbe.probeDirectSupport(
-            audioManager = manager,
-            sampleRateHz = sampleRate,
-            channelCount = channels,
-            activeDevice = activeDevice,
-        )
-        val btTelemetry = if (routeKind == AudioRouting.Kind.BLUETOOTH) bluetoothTracker.telemetry.value else null
-
-        val advertisedEncodings = activeDevice?.encodings?.toList() ?: emptyList()
-        val advertisedSampleRates = activeDevice?.sampleRates?.toList() ?: emptyList()
-
-        val negotiation = OutputNegotiator.negotiate(
-            source = source,
-            decoderName = AudioOutputStatus.current.value.decoderName,
-            sampleRateHz = sampleRate,
-            channelCount = channels,
-            routeKind = routeKind,
-            deviceName = activeDevice?.productName?.toString()?.ifBlank { null } ?: "System default",
-            advertisedEncodings = advertisedEncodings,
-            advertisedSampleRates = advertisedSampleRates,
-            requestedMode = AppSettings.outputPcmMode.value,
-            directSupport = directSupport,
-            bluetoothTelemetry = btTelemetry,
-            delegateSupportsFloat = shouldEnableFloatOutput(),
-            // Never, on any route. `DefaultAudioSink.configure` inserts either
-            // `ToFloatPcmAudioProcessor` or `ToInt16PcmAudioProcessor` for every
-            // linear-PCM input encoding, so there is no packed-24-bit AudioTrack
-            // to be had through it however loudly the device advertises one.
-            // Claiming otherwise here selected a 24-bit path that Media3 then
-            // silently re-converted, costing an extra quantization and leaving
-            // this readout naming a bit depth that was never written.
-            delegateSupportsPcm24 = false,
-            knownSystemMixerRateHz = if (routeKind == AudioRouting.Kind.USB) 48000 else null,
-        )
-
-        AudioOutputStatus.publishNegotiation(negotiation)
-
-        return negotiation.output.encoding
-    }
-
-    private fun requestOutputReconfiguration(rebuild: Boolean = false) {
-        outputReconfigureJob?.cancel()
-        outputReconfigureJob = scope.launch {
-            // Replacing two renderers during a blend would cut one half of it.
-            // Wait for the short transition to settle, then swap the engine.
-            while (crossfade?.isTransitioning() == true) delay(50)
-            val requestedFloat = shouldEnableFloatOutput()
-            if (requestedFloat == configuredFloatOutput && !rebuild) {
-                applyOutputRoute()
-            } else {
-                rebuildPlayersForOutput(requestedFloat)
-            }
-        }
     }
 
     /**
@@ -3628,19 +3068,14 @@ class PlaybackService : MediaLibraryService() {
         sessionListeners.detach()
 
         configuredFloatOutput = enableFloat
-        activeFilter = transitionFilterA
-        spareFilter = transitionFilterB
+        pipeline.resetFilterRoles()
         val newActive = buildPlayer(
-            spatialAudioProcessorA,
-            equalizerProcessorA,
-            transitionFilterA,
+            pipeline.a,
             loudness.a,
             ownsSession = true,
         )
         val newSpare = buildPlayer(
-            spatialAudioProcessorB,
-            equalizerProcessorB,
-            transitionFilterB,
+            pipeline.b,
             loudness.b,
             ownsSession = false,
         )
@@ -3652,8 +3087,8 @@ class PlaybackService : MediaLibraryService() {
         applySettings(newSpare)
         newActive.repeatMode = repeatMode
         newActive.shuffleModeEnabled = shuffleMode
-        applyEqualizer()
-        applySpatialAudioEnabled()
+        pipeline.applyEqualizer()
+        pipeline.applySpatialAudioEnabled()
         if (items.isNotEmpty()) {
             newActive.setMediaItems(items, index.coerceIn(items.indices), position)
             // By hand, because the listener is attached below this: the
@@ -3668,7 +3103,7 @@ class PlaybackService : MediaLibraryService() {
         crossfade = newCrossfade
         newCrossfade.start()
         mediaSession?.player = newSessionPlayer(newActive, newCrossfade)
-        applyOutputRoute()
+        pipeline.applyOutputRoute()
         if (items.isNotEmpty()) newActive.prepare()
         newActive.playWhenReady = playWhenReady
 
@@ -3679,55 +3114,6 @@ class PlaybackService : MediaLibraryService() {
             "live output switch: ${if (enableFloat) "PCM_FLOAT" else "PCM_16BIT"}",
             about = newActive.currentMediaItem?.mediaId,
         )
-    }
-
-    private fun preferredUsbDevice(): AudioDeviceInfo? = audioManager
-        ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        ?.firstOrNull { device ->
-            device.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
-                device.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
-                device.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
-        }
-
-    private fun resolveActiveOutputDevice(): AudioDeviceInfo? {
-        val manager = audioManager ?: return null
-        val infos = runCatching { manager.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }.getOrNull() ?: return null
-        val chosen = AudioRouting.infoFor(manager, AudioRouting.selectedId.value)
-        val preferred = chosen ?: preferredUsbDevice().takeIf { AppSettings.preferUsbDac.value }
-        return preferred ?: AudioRouting.activeOf(infos, null)
-    }
-
-    private fun resolveActiveRouteKind(device: AudioDeviceInfo?): AudioRouting.Kind {
-        if (device == null) return AudioRouting.Kind.PHONE
-        return AudioRouting.kindOf(device.type) ?: AudioRouting.Kind.PHONE
-    }
-
-    private fun shouldEnableFloatOutput(): Boolean {
-        val activeDevice = resolveActiveOutputDevice()
-        val routeKind = resolveActiveRouteKind(activeDevice)
-        val advertisesFloat = activeDevice?.encodings?.contains(AudioFormat.ENCODING_PCM_FLOAT) == true
-        val directFloatSupported = audioManager?.let { mgr ->
-            DirectAudioProbe.probeDirectSupport(mgr, 48000, 2, activeDevice).supportsFloat
-        } ?: false
-        // Worth knowing which way this cuts for a hi-res stream: with float
-        // off, Media3 downconverts *every* input encoding to 16-bit, because
-        // float and 16-bit are the only two linear-PCM tracks its sink can
-        // open. Float is what carries a 24-bit sample to the hardware intact,
-        // so "32-bit float" in Output precision is the setting that preserves
-        // a hi-res source, not the one that embellishes it.
-        return AudioOutputPolicy.shouldUseFloatOutput(
-            requestedMode = AppSettings.outputPcmMode.value,
-            routeKind = routeKind,
-            advertisesPcmFloat = advertisesFloat || directFloatSupported,
-            bluetoothCodecBitDepth = bluetoothCodecBitDepth(routeKind),
-        )
-    }
-
-    /** The negotiated A2DP bit depth, only when Android actually reported it. */
-    private fun bluetoothCodecBitDepth(routeKind: AudioRouting.Kind): Int? {
-        if (routeKind != AudioRouting.Kind.BLUETOOTH) return null
-        val telemetry = bluetoothTracker.telemetry.value
-        return telemetry.bitDepth.takeIf { telemetry.isConnected && telemetry.isAuthoritative }
     }
 
     /** Runs [body] against both players, in whichever roles they currently hold. */
@@ -3753,13 +3139,13 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         scope.launch {
-            AppSettings.preferUsbDac.drop(1).collect { requestOutputReconfiguration() }
+            AppSettings.preferUsbDac.drop(1).collect { pipeline.requestOutputReconfiguration() }
         }
         scope.launch {
-            AudioRouting.selectedId.drop(1).collect { requestOutputReconfiguration() }
+            AudioRouting.selectedId.drop(1).collect { pipeline.requestOutputReconfiguration() }
         }
         scope.launch {
-            AppSettings.outputPcmMode.drop(1).collect { requestOutputReconfiguration() }
+            AppSettings.outputPcmMode.drop(1).collect { pipeline.requestOutputReconfiguration() }
         }
         // Direct USB needs Android's permission to the DAC, asked for when the
         // mode is chosen and again whenever a DAC is attached; an answer, an
@@ -3779,7 +3165,7 @@ class PlaybackService : MediaLibraryService() {
             scope.launch {
                 if (AppSettings.bitPerfectMode.value == BitPerfectMode.USB_DIRECT) {
                     UsbDirectDevices.requestPermission(this@PlaybackService)
-                    requestOutputReconfiguration(rebuild = true)
+                    pipeline.requestOutputReconfiguration(rebuild = true)
                 }
             }
         }
@@ -3792,19 +3178,19 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         scope.launch {
-            AppSettings.bitPerfectMode.drop(1).collect { requestOutputReconfiguration(rebuild = true) }
+            AppSettings.bitPerfectMode.drop(1).collect { pipeline.requestOutputReconfiguration(rebuild = true) }
         }
         scope.launch {
             AppSettings.usbAllowFixedVolume.drop(1).collect {
                 if (AppSettings.bitPerfectMode.value == BitPerfectMode.USB_DIRECT) {
-                    requestOutputReconfiguration(rebuild = true)
+                    pipeline.requestOutputReconfiguration(rebuild = true)
                 }
             }
         }
         scope.launch {
             AppSettings.convertForLimitedDac.drop(1).collect {
                 if (AppSettings.bitPerfectMode.value != BitPerfectMode.OFF) {
-                    requestOutputReconfiguration(rebuild = true)
+                    pipeline.requestOutputReconfiguration(rebuild = true)
                 }
             }
         }
@@ -3832,7 +3218,7 @@ class PlaybackService : MediaLibraryService() {
             }
         }
         scope.launch {
-            AppSettings.spatialAudio.collect { applySpatialAudioEnabled() }
+            AppSettings.spatialAudio.collect { pipeline.applySpatialAudioEnabled() }
         }
         scope.launch {
             AppSettings.loudnessNormalization.collect {
@@ -3865,49 +3251,8 @@ class PlaybackService : MediaLibraryService() {
                 AppSettings.equalizerFocused,
                 AppSettings.equalizerBalance,
                 AppSettings.equalizerBands,
-            ) { }.collect { applyEqualizer() }
+            ) { }.collect { pipeline.applyEqualizer() }
         }
-    }
-
-    /**
-     * Renders the equaliser settings into a curve and hands it to both
-     * processors.
-     *
-     * Both, and not just the audible one, for the reason [applySettings] gives:
-     * the idle player is the one the next transition starts a song on, and a
-     * blend whose two halves were equalised differently would sweep the curve in
-     * over the crossfade.
-     *
-     * The curve is built here rather than in the processor because working out
-     * the make-up attenuation walks the whole response ([EqCurve]), and the
-     * audio thread is the one place that must not do that.
-     */
-    private fun applyEqualizer() {
-        val enabled = AppSettings.equalizerEnabled.value
-        val curve = when (AppSettings.equalizerMode.value) {
-            EqualizerMode.DYNAMIC -> toneCurve(
-                x = AppSettings.equalizerToneX.value,
-                y = AppSettings.equalizerToneY.value,
-                focused = AppSettings.equalizerFocused.value,
-            )
-            EqualizerMode.MANUAL -> manualCurve(AppSettings.equalizerBands.value)
-        }
-        val balance = AppSettings.equalizerBalance.value
-        equalizerProcessorA.setTuning(enabled, curve, balance)
-        equalizerProcessorB.setTuning(enabled, curve, balance)
-    }
-
-    /**
-     * The effective spatial-audio state: the user's toggle, unless the
-     * active player's decoder is currently on a Dolby Atmos (E-AC-3 JOC)
-     * stream, in which case it's forced off. [activeTrackIsDolbyAtmos] only
-     * ever describes the active player — see [formatListener] — so both
-     * processors are kept in lockstep rather than tracking a role swap.
-     */
-    private fun applySpatialAudioEnabled() {
-        val enabled = AppSettings.spatialAudio.value && !activeTrackIsDolbyAtmos
-        spatialAudioProcessorA.enabled = enabled
-        spatialAudioProcessorB.enabled = enabled
     }
 
     private fun observeScrobbling() {
@@ -4258,9 +3603,7 @@ class PlaybackService : MediaLibraryService() {
         // stop, and the next one picks the session up where it was.
         CastController.detach(castPlayback)
         castPlayback.release()
-        closeAudioEffectSession()
-        bluetoothTracker.stop()
-        audioManager?.unregisterAudioDeviceCallback(outputDeviceCallback)
+        pipeline.release()
         partySync?.stop()
         partySync = null
         player?.let {
@@ -5232,9 +4575,6 @@ class PlaybackService : MediaLibraryService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        /** Length of a FLAC STREAMINFO block, which the format fixes at 34 bytes. */
-        const val STREAM_INFO_BYTES = 34
-
         const val CHANNEL_ID = "plonker_playback"
         const val SESSION_ID = "PlonkerPlayback"
 
@@ -5267,9 +4607,6 @@ class PlaybackService : MediaLibraryService() {
 
         /** Upper bound per range; [PlayerClient.rangeBytesFor] narrows it per client. */
         const val STREAM_CHUNK_BYTES = 1L * 1024 * 1024
-
-        /** Shortest gap "skip silence" is allowed to touch. */
-        const val MIN_SILENCE_US = 1_000_000L
 
         /** How long the loop mix waits for a song's synced lyrics before planning on the vocal mask. */
         const val LOOP_MIX_LYRICS_TIMEOUT_MS = 10_000L
