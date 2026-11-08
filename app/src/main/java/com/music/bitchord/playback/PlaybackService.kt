@@ -62,9 +62,6 @@ import com.music.bitchord.data.listentogether.ListenTogether
 import com.music.bitchord.R
 import com.music.bitchord.data.OfflinePlaylists
 import com.music.bitchord.data.YtMusicRepository
-import com.music.bitchord.data.lyrics.EmbeddedLyrics
-import com.music.bitchord.data.lyrics.LyricLine
-import com.music.bitchord.data.lyrics.LyricsRepository
 import com.music.bitchord.data.sources.SourceRegistry
 import com.music.bitchord.download.Downloads
 import java.util.concurrent.ConcurrentHashMap
@@ -337,6 +334,14 @@ class PlaybackService : MediaLibraryService() {
     /** What's playing, published to the listener's Discord profile — see [DiscordPresence]. */
     private val discord = DiscordPresence(context = this, scope = scope, player = { player })
 
+    /** The lyric line under the notification's title — see [ServiceLyrics]. */
+    private val lyrics = ServiceLyrics(
+        context = this,
+        scope = scope,
+        player = { player },
+        loopPositionMs = { crossfade?.loopPositionMs() },
+    )
+
     private val autoplay: AutoplaySupply = AutoplaySupply(
         scope = scope,
         player = { player },
@@ -405,11 +410,6 @@ class PlaybackService : MediaLibraryService() {
      */
     private var lastRepeatMode = Player.REPEAT_MODE_OFF
 
-    private var serviceLyricsJob: Job? = null
-    private var serviceLyrics: List<LyricLine>? = null
-    private var lastPublishedSubtitle: String? = null
-    private var lyricsTickerJob: Job? = null
-
     /**
      * Everything the service books against the player it is currently on.
      *
@@ -469,10 +469,10 @@ class PlaybackService : MediaLibraryService() {
             // on advancing through a song that has stopped — and finishes it.
             if (isPlaying) {
                 discord.push(exoPlayer)
-                startLyricsTicker()
+                lyrics.startTicker()
             } else {
                 discord.clear()
-                stopLyricsTicker()
+                lyrics.stopTicker()
             }
         }
 
@@ -516,7 +516,7 @@ class PlaybackService : MediaLibraryService() {
             if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                 lastSeekAt = SystemClock.elapsedRealtime()
                 if (exoPlayer.isPlaying) discord.push(exoPlayer)
-                updateLyricSubtitle()
+                lyrics.update()
                 // The watch extrapolates its progress ring from the last
                 // position it was given, the same way Discord does.
                 WearBridge.republish(this@PlaybackService, exoPlayer)
@@ -573,8 +573,8 @@ class PlaybackService : MediaLibraryService() {
                 partySync?.onLocalIntent()
             }
             autoplay.reload()
-            loadLyricsForCurrentTrack()
-            if (exoPlayer.isPlaying) startLyricsTicker()
+            lyrics.load()
+            if (exoPlayer.isPlaying) lyrics.startTicker()
             refreshCustomLayouts()
         }
 
@@ -1395,7 +1395,7 @@ class PlaybackService : MediaLibraryService() {
         deferPlayToParty = { partySync?.shouldDeferPlay() == true },
         lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
         cast = speakers,
-    ) { lastPublishedSubtitle }
+    ) { lyrics.lastPublishedSubtitle }
 
     /**
      * The stream a Cast receiver can open for [item], or null when there is none
@@ -1518,33 +1518,10 @@ class PlaybackService : MediaLibraryService() {
                     trackAnalyzer.loopRegion(item.mediaId, uri, durationMs / 1000.0, from, to, rate)
                 }
             },
-            syncedLines = ::loopMixLyrics,
+            syncedLines = lyrics::loopMixLyrics,
             loudnessGain = loudness::gainFor,
             onMixPositionJump = { wrapped -> (mediaSession?.player as? SessionPlayer)?.announceMixPosition(wrapped) },
         )
-
-    /**
-     * A track's synced lyrics for the loop mix, which lets a loop be vouched
-     * instrumental by when its lines are sung rather than by the vocal model.
-     * Only with synced lyrics switched on, and never for longer than
-     * [LOOP_MIX_LYRICS_TIMEOUT_MS]: the mask stands in for whatever doesn't come.
-     */
-    private suspend fun loopMixLyrics(item: MediaItem, durationMs: Long): List<LyricLine>? {
-        if (!AppSettings.syncedLyrics.value) return null
-        val song = item.toSong()
-        return kotlinx.coroutines.withTimeoutOrNull(LOOP_MIX_LYRICS_TIMEOUT_MS) {
-            song.localUri?.let { EmbeddedLyrics.forUri(this@PlaybackService, it) }
-                ?: LyricsRepository.lyrics(
-                    videoId = song.videoId,
-                    title = song.title,
-                    artist = song.artist,
-                    durationMs = durationMs,
-                    album = song.albumName,
-                    sources = AppSettings.lyricsSources.value,
-                    order = AppSettings.lyricsSourceOrder.value,
-                )?.lines
-        }
-    }
 
     /**
      * Whether Like is offered for [item] — the player's own rule, so no surface
@@ -1982,8 +1959,8 @@ class PlaybackService : MediaLibraryService() {
         // Covers crossfades too: a blended advance never reaches
         // onMediaItemTransition, and [adoptPlayer] calls this handler by hand.
         publishWidgetState()
-        loadLyricsForCurrentTrack()
-        if (exoPlayer.isPlaying) startLyricsTicker()
+        lyrics.load()
+        if (exoPlayer.isPlaying) lyrics.startTicker()
     }
 
     /**
@@ -1993,7 +1970,7 @@ class PlaybackService : MediaLibraryService() {
         SleepTimer.cancel()
         cancelPrefetch()
         discord.clear()
-        stopLyricsTicker()
+        lyrics.stopTicker()
         ListeningRecorder.onStopped()
         bounded.forget()
         eachPlayer { p ->
@@ -3020,7 +2997,7 @@ class PlaybackService : MediaLibraryService() {
             ) { synced, sources, order, prio ->
                 synced to sources
             }.distinctUntilChanged().collect {
-                loadLyricsForCurrentTrack()
+                lyrics.load()
             }
         }
         scope.launch {
@@ -3106,11 +3083,7 @@ class PlaybackService : MediaLibraryService() {
         // swipe-away, so a widget left on the home screen would sit there with a
         // pause glyph on a service that no longer exists.
         publishWidgetState(playing = false)
-        lyricsTickerJob?.cancel()
-        lyricsTickerJob = null
-        serviceLyricsJob?.cancel()
-        serviceLyricsJob = null
-        serviceLyrics = null
+        lyrics.release()
         cancelPrefetch()
         trackAnalyzer.release()
         loudness.cancel()
@@ -3135,101 +3108,6 @@ class PlaybackService : MediaLibraryService() {
         localBitrateCache.clear()
         measuredBitrateCache.clear()
         super.onDestroy()
-    }
-
-    private fun loadLyricsForCurrentTrack() {
-        val currentSong = player?.currentMediaItem?.toSong() ?: run {
-            serviceLyrics = null
-            stopLyricsTicker()
-            return
-        }
-
-        if (!AppSettings.syncedLyrics.value) {
-            serviceLyrics = null
-            stopLyricsTicker()
-            return
-        }
-
-        val trackDurationMs = (player?.duration ?: 0L).takeIf { it > 0 } ?: 0L
-
-        serviceLyricsJob?.cancel()
-        serviceLyricsJob = scope.launch(Dispatchers.IO) {
-            val localUri = currentSong.localUri
-            var lines: List<LyricLine>? = null
-            if (localUri != null) {
-                lines = EmbeddedLyrics.forUri(this@PlaybackService, localUri)
-            }
-            if (lines == null) {
-                val found = LyricsRepository.lyrics(
-                    videoId = currentSong.videoId,
-                    title = currentSong.title,
-                    artist = currentSong.artist,
-                    durationMs = trackDurationMs,
-                    album = currentSong.albumName,
-                    sources = AppSettings.lyricsSources.value,
-                    order = AppSettings.lyricsSourceOrder.value,
-                    prioritizeSyllableSync = AppSettings.prioritizeSyllableSync.value,
-                )
-                lines = found?.lines
-            }
-            withContext(Dispatchers.Main) {
-                serviceLyrics = lines
-                if (player?.isPlaying == true) {
-                    updateLyricSubtitle()
-                }
-            }
-        }
-    }
-
-    private fun startLyricsTicker() {
-        if (lyricsTickerJob?.isActive == true) return
-        lyricsTickerJob = scope.launch(Dispatchers.Main) {
-            while (isActive) {
-                updateLyricSubtitle()
-                delay(500L)
-            }
-        }
-    }
-
-    private fun stopLyricsTicker() {
-        lyricsTickerJob?.cancel()
-        lyricsTickerJob = null
-        updateLyricSubtitle()
-    }
-
-    private fun updateLyricSubtitle() {
-        val exoPlayer = player ?: return
-        val currentSong = exoPlayer.currentMediaItem?.toSong() ?: return
-        val lines = serviceLyrics
-        val pos = crossfade?.loopPositionMs() ?: exoPlayer.currentPosition
-        val subtitleText = if (lines != null && lines.isNotEmpty() && AppSettings.syncedLyrics.value) {
-            val idx = lines.indexOfLast { it.timeMs <= pos }
-            val currentLine = lines.getOrNull(idx)
-            if (currentLine != null && !currentLine.isGap && currentLine.text.isNotBlank()) {
-                "♪ ${currentLine.text}"
-            } else {
-                currentSong.artist
-            }
-        } else {
-            currentSong.artist
-        }
-
-        if (subtitleText != lastPublishedSubtitle) {
-            lastPublishedSubtitle = subtitleText
-            // buildUpon() off the metadata that's already playing, not a fresh
-            // Builder() — a synced lyric line can advance every second or two,
-            // and re-stating setArtworkUri() on every tick made media3 treat
-            // the cover as newly changed that often, racing its own artwork
-            // decode/cache against the legacy MediaSession broadcast and
-            // crashing with "cannot use a recycled source in createBitmap".
-            // Carrying the existing artwork field forward keeps that field
-            // untouched while still firing onMediaMetadataChanged for the
-            // subtitle itself.
-            exoPlayer.playlistMetadata = exoPlayer.mediaMetadata
-                .buildUpon()
-                .setSubtitle(subtitleText)
-                .build()
-        }
     }
 
     /**
@@ -3441,9 +3319,6 @@ class PlaybackService : MediaLibraryService() {
 
         /** Upper bound per range; [PlayerClient.rangeBytesFor] narrows it per client. */
         const val STREAM_CHUNK_BYTES = 1L * 1024 * 1024
-
-        /** How long the loop mix waits for a song's synced lyrics before planning on the vocal mask. */
-        const val LOOP_MIX_LYRICS_TIMEOUT_MS = 10_000L
 
         /** Past any song, so the byte ceiling is what stops loading. */
         const val FAR_BUFFER_MS = 15 * 60 * 1000
