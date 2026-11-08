@@ -1,6 +1,7 @@
 package com.music.bitchord.ui.screens
 
 import com.music.bitchord.ui.screens.settings.*
+import com.music.bitchord.ui.screens.settings.countOfMonths as settingsCountOfMonths
 
 import com.music.bitchord.ui.components.IosMotion
 import androidx.compose.animation.animateContentSize
@@ -388,6 +389,7 @@ fun SettingsScreen(
         backupScope.launch {
             exportStatus = Backup.exportTo(context, target).fold(
                 onSuccess = { months ->
+                    context.getString(R.string.export_succeeded, context.countOfMonths(months))
                 },
                 onFailure = {
                     context.getString(R.string.export_failed, it.message ?: context.getString(R.string.unknown_error))
@@ -1443,8 +1445,8 @@ fun SettingsScreen(
 
 // ---- Re-exports for backwards compatibility ---------------------------------
 
-internal const val CACHE_WARNING_MB = 2048
-internal const val CACHE_UNLIMITED_STOP_MB = 10 * 1024 + 512
+internal const val CACHE_WARNING_MB = com.music.bitchord.ui.screens.settings.CACHE_WARNING_MB
+internal const val CACHE_UNLIMITED_STOP_MB = com.music.bitchord.ui.screens.settings.CACHE_UNLIMITED_STOP_MB
 
 internal val GroupShape = com.music.bitchord.ui.screens.settings.GroupShape
 internal val GROUP_INSET = com.music.bitchord.ui.screens.settings.GROUP_INSET
@@ -1564,7 +1566,7 @@ internal fun BypassedByBitPerfect(bypassed: Boolean, content: @Composable () -> 
 
 internal fun openEqualizer(context: Context, sessionId: Int) = com.music.bitchord.ui.screens.settings.openEqualizer(context, sessionId)
 internal fun formatCacheSize(mb: Int): String = com.music.bitchord.ui.screens.settings.formatCacheSize(mb)
-internal fun Context.countOfMonths(months: Int): String = com.music.bitchord.ui.screens.settings.countOfMonths(this, months)
+internal fun Context.countOfMonths(months: Int): String = this.settingsCountOfMonths(months)
 
 @Composable
 fun SettingsChoicePage(

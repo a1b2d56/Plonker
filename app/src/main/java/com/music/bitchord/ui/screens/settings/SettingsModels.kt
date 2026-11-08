@@ -64,6 +64,9 @@ enum class SettingsChoiceKind(@param:StringRes val title: Int) {
 }
 
 /** "3 months of listening" — the unit a backup is actually measured in. */
+internal const val CACHE_WARNING_MB = 2048
+internal const val CACHE_UNLIMITED_STOP_MB = 10 * 1024 + 512
+
 internal fun Context.countOfMonths(months: Int): String = if (months == 0) {
     getString(R.string.no_listening_history)
 } else {
