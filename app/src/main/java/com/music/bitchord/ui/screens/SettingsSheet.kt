@@ -614,306 +614,17 @@ fun SettingsScreen(
         // does this minute cost"; these answer "what am I keeping, and when may
         // it be fetched" — and those two questions only make sense read
         // together, which is what puts them side by side here.
-        if (shows(SettingsCategory.DOWNLOADS)) SearchableSettingsGroup(search, header = stringResource(R.string.downloads)) {
-            val downloadQualityTitle = stringResource(R.string.download_quality)
-            row(downloadQualityTitle, "offline", "lossless") {
-                SettingsRow(
-                    icon = SfIcons.Download,
-                    title = downloadQualityTitle,
-                    subtitle = stringResource(R.string.download_quality_subtitle, downloadQuality.perTrack),
-                    value = downloadQuality.localizedLabel(),
-                    onClick = { onOpenChoice(SettingsChoiceKind.DOWNLOAD_QUALITY) },
-                )
-            }
-            // Reads as part of Download quality above it, not as a setting
-            // of its own — same treatment as Play animated cover over
-            // cellular gets under Animated cover art.
-            val downloadWifiOnlyTitle = stringResource(R.string.download_wifi_only)
-            row(downloadWifiOnlyTitle, "wi-fi", "cellular", divided = false) {
-                SettingsSubRow(
-                    title = downloadWifiOnlyTitle,
-                    checked = wifiOnlyDownloads,
-                    onCheckedChange = AppSettings::setWifiOnlyDownloads,
-                    badge = stringResource(R.string.blocking).takeIf { wifiOnlyDownloads && metered == true },
-                )
-            }
-            val exportDownloadsTitle = stringResource(R.string.export_compatible_downloads)
-            row(exportDownloadsTitle, "music folder") {
-                SettingsSubRow(
-                    title = exportDownloadsTitle,
-                    checked = exportDownloads,
-                    onCheckedChange = AppSettings::setExportDownloads,
-                    subtitle = "Music/Plonker".takeIf { exportDownloads },
-                )
-            }
-            val syncPlaylistsTitle = stringResource(R.string.sync_downloaded_playlists)
-            row(syncPlaylistsTitle, "playlist", "new songs", "background", "automatic") {
-                SettingsSubRow(
-                    title = syncPlaylistsTitle,
-                    checked = syncDownloadedPlaylists,
-                    onCheckedChange = AppSettings::setSyncDownloadedPlaylists,
-                    subtitle = stringResource(R.string.sync_downloaded_playlists_subtitle),
-                )
-            }
+        if (shows(SettingsCategory.DOWNLOADS)) {
+            DownloadsSettingsGroup(search = search, onOpenChoice = onOpenChoice)
         }
 
-        if (shows(SettingsCategory.PLAYBACK)) SearchableSettingsGroup(
-            search,
-            header = stringResource(R.string.playback),
-            footer = stringResource(R.string.bit_perfect_bypassed_footer).takeIf { bitPerfectReady },
-        ) {
-            val outputPrecisionTitle = stringResource(R.string.output_precision)
-            row(outputPrecisionTitle, "pcm", "bit depth", "sample rate", "dac") {
-                SettingsRow(
-                    icon = SfIcons.GraphicEq,
-                    title = outputPrecisionTitle,
-                    subtitle = buildString {
-                        append(outputStatus.sink)
-                        append(" · ")
-                        append(outputStatus.deviceName)
-                        (outputStatus.actualSampleRateHz ?: outputStatus.sampleRatesHz.firstOrNull())
-                            ?.let { append(" · ${it / 1000.0} kHz") }
-                        append(" · ")
-                        append(AudioOutputStatus.encodingLabel(outputStatus))
-                    },
-                )
-                SegmentedControl(
-                    options = OutputPcmMode.entries.map(OutputPcmMode::label),
-                    selectedIndex = OutputPcmMode.entries.indexOf(outputPcmMode),
-                    onSelect = { AppSettings.setOutputPcmMode(OutputPcmMode.entries[it]) },
-                    modifier = Modifier.padding(start = TEXT_INSET, end = ROW_INSET, bottom = 14.dp),
-                )
-            }
-            val preferUsbDacTitle = stringResource(R.string.prefer_usb_dac)
-            row(preferUsbDacTitle, "headphone", "output") {
-                SettingsSubRow(
-                    title = preferUsbDacTitle,
-                    checked = preferUsbDac,
-                    onCheckedChange = AppSettings::setPreferUsbDac,
-                    badge = stringResource(R.string.connected).takeIf { outputStatus.isUsb },
-                )
-            }
-            val bitPerfectTitle = stringResource(R.string.bit_perfect_output)
-            row(bitPerfectTitle, "usb", "dac", "exclusive", "hi-res", "bitperfect") {
-                // The mode and the device it names can both be long, so they
-                // go under the title rather than beside it, where they left
-                // the title and status no room.
-                SettingsRow(
-                    icon = SfIcons.Usb,
-                    title = bitPerfectTitle,
-                    subtitleContent = {
-                        Column {
-                            Text(
-                                text = bitPerfectSubtitle(bitPerfectMode, bitPerfectStatus),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = bitPerfectMode.localizedLabel(),
-                                modifier = Modifier.padding(top = 2.dp),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    },
-                    onClick = { onOpenChoice(SettingsChoiceKind.BIT_PERFECT) },
-                )
-            }
-            // The DAC's own attenuator: the only volume direct USB has, since
-            // nothing upstream may scale a sample. It and the row after it
-            // belong to Bit-perfect output, so neither is divided from it.
-            dacVolume?.let { volume ->
-                val dacVolumeTitle = stringResource(R.string.dac_volume)
-                row(dacVolumeTitle, "volume", "usb", "dac", divided = false) {
-                    SliderRow(
-                        icon = SfIcons.VolumeUp,
-                        title = dacVolumeTitle,
-                        subtitle = stringResource(R.string.dac_volume_subtitle),
-                        value = "%.1f dB".format(volume.currentDb),
-                        sliderValue = volume.currentDb.toFloat(),
-                        onSliderValue = { BitPerfectOutput.setHardwareVolume(it.toDouble()) },
-                        valueRange = volume.minDb.toFloat()..volume.maxDb.toFloat(),
-                        steps = 0,
-                    )
-                }
-            }
-            if (bitPerfectMode == BitPerfectMode.USB_DIRECT) {
-                val fixedVolumeTitle = stringResource(R.string.usb_allow_fixed_volume)
-                row(fixedVolumeTitle, "volume", "usb", "dac", divided = false) {
-                    SettingsSubRow(
-                        title = fixedVolumeTitle,
-                        subtitle = stringResource(R.string.usb_allow_fixed_volume_subtitle),
-                        checked = usbAllowFixedVolume,
-                        onCheckedChange = { on ->
-                            if (on) onConfirmFixedVolume() else AppSettings.setUsbAllowFixedVolume(false)
-                        },
-                    )
-                }
-            }
-            if (bitPerfectMode != BitPerfectMode.OFF && bitPerfectMode.isSupported) {
-                val convertTitle = stringResource(R.string.convert_for_limited_dac)
-                row(convertTitle, "convert", "resample", "usb", "dac", "bitperfect", divided = false) {
-                    SettingsSubRow(
-                        title = convertTitle,
-                        subtitle = stringResource(R.string.convert_for_limited_dac_subtitle),
-                        checked = convertForLimitedDac,
-                        onCheckedChange = AppSettings::setConvertForLimitedDac,
-                    )
-                }
-            }
-            val loudnessTitle = stringResource(R.string.loudness_normalization)
-            row(loudnessTitle, "loudness", "volume", "normalize", "replaygain", "lufs") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SettingsRow(
-                        icon = SfIcons.VolumeUp,
-                        title = loudnessTitle,
-                        subtitle = stringResource(R.string.loudness_normalization_subtitle),
-                        trailing = {
-                            IosSwitch(
-                                checked = loudnessNormalization,
-                                onCheckedChange = AppSettings::setLoudnessNormalization,
-                            )
-                        },
-                        onClick = { AppSettings.setLoudnessNormalization(!loudnessNormalization) },
-                    )
-                }
-            }
-            val loudnessSpeakerTitle = stringResource(R.string.loudness_off_on_speaker)
-            row(loudnessSpeakerTitle, "loudness", "speaker", "normalize") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SettingsSubRow(
-                        title = loudnessSpeakerTitle,
-                        checked = loudnessOffOnSpeaker,
-                        onCheckedChange = AppSettings::setLoudnessOffOnSpeaker,
-                    )
-                }
-            }
-            // Automix decides its own length from each pair of tracks —
-            // tempo, key, structure — so it replaces the manual slider rather
-            // than needing it set to anything first.
-            if (!smartFade) {
-                val crossfadeTitle = stringResource(R.string.crossfade)
-                row(crossfadeTitle, "fade", "gapless") {
-                    BypassedByBitPerfect(bitPerfectReady) {
-                        SliderRow(
-                            icon = SfIcons.Waves,
-                            title = crossfadeTitle,
-                            subtitle = stringResource(R.string.crossfade_subtitle),
-                            value = if (crossfade == 0) stringResource(R.string.off) else "${crossfade}s",
-                            sliderValue = crossfade.toFloat(),
-                            onSliderValue = { AppSettings.setCrossfadeSeconds(it.roundToInt()) },
-                            valueRange = 0f..12f,
-                            steps = 11,
-                        )
-                    }
-                }
-            }
-            val automixTitle = stringResource(R.string.automix)
-            row(automixTitle, "crossfade", "smart fade", "mix") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SettingsRow(
-                        icon = SfIcons.AutoAwesome,
-                        title = automixTitle,
-                        subtitle = if (smartFade) {
-                            stringResource(R.string.automix_enabled_subtitle)
-                        } else {
-                            stringResource(R.string.automix_disabled_subtitle)
-                        },
-                        trailing = {
-                            IosSwitch(
-                                checked = smartFade,
-                                onCheckedChange = AppSettings::setSmartFadeEnabled,
-                            )
-                        },
-                        onClick = { AppSettings.setSmartFadeEnabled(!smartFade) },
-                    )
-                }
-            }
-            val automixPerformanceTitle = stringResource(R.string.automix_performance)
-            row(automixPerformanceTitle, "cpu", "battery") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SettingsRow(
-                        icon = SfIcons.Tune,
-                        title = automixPerformanceTitle,
-                        subtitle = stringResource(R.string.automix_performance_subtitle),
-                        value = automixPerformance.localizedLabel(),
-                        onClick = { onOpenChoice(SettingsChoiceKind.AUTOMIX_PERFORMANCE) },
-                    )
-                }
-            }
-            val skipSilenceTitle = stringResource(R.string.skip_silence)
-            row(skipSilenceTitle, "silence") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SettingsRow(
-                        icon = SfIcons.VolumeOff,
-                        title = skipSilenceTitle,
-                        // Silence skipping is Media3's own processor, and
-                        // `DefaultAudioSink.configure` appends that processor list
-                        // only on its 16-bit branch — the float branch gets the
-                        // format converter and nothing else. So on a float track
-                        // this switch really does nothing, and the row says so
-                        // rather than letting someone toggle it and wonder. The
-                        // equaliser is unaffected: it runs upstream of that sink.
-                        subtitle = if (outputStatus.actualEncoding == AudioFormat.ENCODING_PCM_FLOAT) {
-                            stringResource(R.string.skip_silence_float_subtitle)
-                        } else {
-                            stringResource(R.string.skip_silence_subtitle)
-                        },
-                        trailing = {
-                            IosSwitch(
-                                checked = skipSilence,
-                                onCheckedChange = AppSettings::setSkipSilence,
-                            )
-                        },
-                        onClick = { AppSettings.setSkipSilence(!skipSilence) },
-                    )
-                }
-            }
-            val spatialAudioTitle = stringResource(R.string.spatial_audio)
-            row(spatialAudioTitle, "surround", "3d") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SettingsRow(
-                        icon = SfIcons.SurroundSound,
-                        title = spatialAudioTitle,
-                        // Widening a JOC stream would fight the object-based mix
-                        // Dolby has already spatialized, so the service holds this
-                        // off for the duration of an Atmos track — see
-                        // `PlaybackService.applySpatialAudioEnabled`. Said on the
-                        // row because the switch stays where the listener left it,
-                        // and a switch reading "on" over an effect that is not
-                        // running is the same silent lie the equaliser screen used
-                        // to tell.
-                        subtitle = if (playingDolbyAtmos) {
-                            stringResource(R.string.spatial_audio_atmos_subtitle)
-                        } else {
-                            stringResource(R.string.spatial_audio_subtitle)
-                        },
-                        trailing = {
-                            IosSwitch(
-                                checked = spatialAudio,
-                                onCheckedChange = AppSettings::setSpatialAudio,
-                            )
-                        },
-                        onClick = { AppSettings.setSpatialAudio(!spatialAudio) },
-                    )
-                }
-            }
-            // The system panel is not listed here as well. A device with a
-            // Dolby or Dirac panel has something BitChord cannot reproduce and
-            // keeps its row — but one level in, at the foot of the equaliser
-            // screen, rather than as a second equaliser entry alongside ours.
-            val equalizerTitle = stringResource(R.string.equalizer)
-            row(equalizerTitle, "eq", "bass", "treble") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SettingsRow(
-                        icon = SfIcons.Tune,
-                        title = equalizerTitle,
-                        subtitle = stringResource(R.string.equalizer_subtitle),
-                        onClick = onEqualizer,
-                    )
-                }
-            }
+        if (shows(SettingsCategory.PLAYBACK)) {
+            PlaybackSettingsGroup(
+                search = search,
+                onOpenChoice = onOpenChoice,
+                onEqualizer = onEqualizer,
+                onConfirmFixedVolume = onConfirmFixedVolume,
+            )
         }
 
         if (shows(SettingsCategory.CONTENT_PREFERENCES)) SearchableSettingsGroup(search, header = stringResource(R.string.content_preferences)) {
@@ -2070,6 +1781,46 @@ fun SettingsScreen(
 
 typealias SettingsCategory = com.music.bitchord.ui.screens.settings.SettingsCategory
 typealias SettingsChoiceKind = com.music.bitchord.ui.screens.settings.SettingsChoiceKind
+
+internal val GroupShape = com.music.bitchord.ui.screens.settings.GroupShape
+internal val GROUP_INSET = com.music.bitchord.ui.screens.settings.GROUP_INSET
+internal val ROW_INSET = com.music.bitchord.ui.screens.settings.ROW_INSET
+internal val ICON_SIZE = com.music.bitchord.ui.screens.settings.ICON_SIZE
+internal val ICON_GAP = com.music.bitchord.ui.screens.settings.ICON_GAP
+internal val TEXT_INSET = com.music.bitchord.ui.screens.settings.TEXT_INSET
+
+@Composable
+internal fun SettingsPageTitle(text: String) = com.music.bitchord.ui.screens.settings.SettingsPageTitle(text)
+
+@Composable
+internal fun SettingsGroup(
+    header: String? = null,
+    footer: String? = null,
+    topSpacing: Dp = 26.dp,
+    content: @Composable () -> Unit,
+) = com.music.bitchord.ui.screens.settings.SettingsGroup(header, footer, topSpacing, content)
+
+@Composable
+internal fun RowDivider() = com.music.bitchord.ui.screens.settings.RowDivider()
+
+@Composable
+internal fun SettingsRow(
+    icon: ImageVector? = null,
+    title: String,
+    subtitle: String? = null,
+    subtitleContent: (@Composable () -> Unit)? = null,
+    value: String? = null,
+    badge: String? = null,
+    enabled: Boolean = true,
+    iconPainter: Painter? = null,
+    iconContent: (@Composable () -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) = com.music.bitchord.ui.screens.settings.SettingsRow(
+    icon, title, subtitle, subtitleContent, value, badge, enabled, iconPainter, iconContent, onClick, trailing
+)
+
+internal fun openEqualizer(context: Context, sessionId: Int) = com.music.bitchord.ui.screens.settings.openEqualizer(context, sessionId)
 
 @Composable
 fun SettingsChoicePage(
