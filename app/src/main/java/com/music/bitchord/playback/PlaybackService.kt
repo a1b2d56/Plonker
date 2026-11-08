@@ -73,8 +73,6 @@ import com.music.bitchord.auth.SignedIn
 import com.music.bitchord.data.LikeState
 import com.music.bitchord.data.NerdStats
 import com.music.bitchord.data.TrackLog
-import com.music.bitchord.data.discord.DiscordRPC
-import com.music.bitchord.data.discord.discordAudioQualityLine
 import com.music.bitchord.data.stats.ListeningRecorder
 import com.music.bitchord.data.innertube.StreamResolver
 import com.music.bitchord.data.model.LikeStatus
@@ -95,7 +93,6 @@ import com.music.bitchord.wear.WearBridge
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -115,7 +112,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlinx.coroutines.TimeoutCancellationException
 import java.util.Locale
-
 
 /** Session command used by both the player UI and the media notification. */
 const val ACTION_TOGGLE_AUTOPLAY = "com.music.bitchord.action.TOGGLE_AUTOPLAY"
@@ -160,8 +156,6 @@ const val ACTION_UPGRADE_QUALITY = "com.music.bitchord.action.UPGRADE_QUALITY"
 /** Session command used to dismiss and stop playback from the UI, gestures, or widgets. */
 const val ACTION_DISMISS_PLAYBACK = "com.music.bitchord.action.DISMISS_PLAYBACK"
 
-
-
 /**
  * Session command marking the span of a queue drag in the UI — see
  * [PartySync.beginQueueDrag]. Dragging a queue row sends a [Player.moveMediaItem]
@@ -174,8 +168,6 @@ const val EXTRA_QUEUE_DRAG_ACTIVE = "bitchord.queueDrag.active"
 
 /** A full first page for an explicitly requested station. */
 private const val INITIAL_STATION_TRACKS = 24
-
-
 
 /**
  * Background playback via Media3. A [MediaLibraryService] gives us the media
@@ -209,7 +201,6 @@ class PlaybackService : MediaLibraryService() {
         )
     }
 
-
     /**
      * The player the session is on. Swaps with [spare] at every crossfade — see
      * [adoptPlayer] — so anything reading it must read it *now* rather than
@@ -225,8 +216,6 @@ class PlaybackService : MediaLibraryService() {
     private var spare: ExoPlayer? = null
 
     private var crossfade: CrossfadeController? = null
-
-
 
     /** Automix's DSP analyzer — see [com.music.bitchord.playback.smart.TrackAnalyzer]. */
     private val trackAnalyzer = com.music.bitchord.playback.smart.TrackAnalyzer(this, AudioCache)
@@ -256,33 +245,6 @@ class PlaybackService : MediaLibraryService() {
      * which is the safe direction for a queue.
      */
     private var audibleMediaId: String? = null
-
-
-
-    /**
-     * The gateway connection publishing what's playing to Discord, or null when
-     * the feature is off or no account is connected. See [DiscordRPC].
-     */
-    private var discordRpc: DiscordRPC? = null
-
-    /**
-     * The in-flight presence push. Held so the next one can cancel it: the
-     * pushes hit the network — the artwork has to be mirrored onto Discord's CDN
-     * before the activity can name it — and a skipped-through queue would
-     * otherwise land its presences in whatever order the requests happened to
-     * finish in, leaving the profile on a track the listener passed seconds ago.
-     */
-    private var discordUpdateJob: Job? = null
-
-    /**
-     * Whether a presence has been published and not yet taken down.
-     *
-     * Tracked because [KizzyRPC.close] — which is what clears the card — opens a
-     * gateway connection first if one isn't already up. Clearing unconditionally
-     * would therefore dial Discord for the sole purpose of sending it nothing,
-     * every time playback paused without a presence ever having been set.
-     */
-    private var discordPresenceUp = false
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -372,6 +334,9 @@ class PlaybackService : MediaLibraryService() {
     /** What the listener's plays leave behind, and the sleep timer — see [PlaybackHistoryAndSleepTimer]. */
     private val history = PlaybackHistoryAndSleepTimer(scope = scope, player = { player })
 
+    /** What's playing, published to the listener's Discord profile — see [DiscordPresence]. */
+    private val discord = DiscordPresence(context = this, scope = scope, player = { player })
+
     private val autoplay: AutoplaySupply = AutoplaySupply(
         scope = scope,
         player = { player },
@@ -424,7 +389,6 @@ class PlaybackService : MediaLibraryService() {
      */
     private var partySync: PartySync? = null
 
-
     private var favoriteActionJob: Job? = null
     private var stationActionJob: Job? = null
     /** Rate limit for listener-requested retries; automatic upgrades do not touch it. */
@@ -434,14 +398,12 @@ class PlaybackService : MediaLibraryService() {
     /** Index in the live queue represented by entry zero of the persisted window. */
     private var persistedQueueStart = 0
 
-
     /**
      * The last repeat mode seen, so [onRepeatModeChanged] can tell which
      * direction the change went in: the callback reports where the player has
      * arrived, and leaving repeat-all is the half that has to restore.
      */
     private var lastRepeatMode = Player.REPEAT_MODE_OFF
-
 
     private var serviceLyricsJob: Job? = null
     private var serviceLyrics: List<LyricLine>? = null
@@ -506,10 +468,10 @@ class PlaybackService : MediaLibraryService() {
             // timestamps it was given, so a presence left up while paused goes
             // on advancing through a song that has stopped — and finishes it.
             if (isPlaying) {
-                pushDiscordPresence(exoPlayer)
+                discord.push(exoPlayer)
                 startLyricsTicker()
             } else {
-                clearDiscordPresence()
+                discord.clear()
                 stopLyricsTicker()
             }
         }
@@ -553,7 +515,7 @@ class PlaybackService : MediaLibraryService() {
             val exoPlayer = player ?: return
             if (reason == Player.DISCONTINUITY_REASON_SEEK) {
                 lastSeekAt = SystemClock.elapsedRealtime()
-                if (exoPlayer.isPlaying) pushDiscordPresence(exoPlayer)
+                if (exoPlayer.isPlaying) discord.push(exoPlayer)
                 updateLyricSubtitle()
                 // The watch extrapolates its progress ring from the last
                 // position it was given, the same way Discord does.
@@ -1342,7 +1304,7 @@ class PlaybackService : MediaLibraryService() {
         applySettings(sparePlayer)
         observeSettings()
         history.observeScrobbling()
-        observeDiscord()
+        discord.observe()
         history.watchSleepTimer()
         val restored = if (PartyPersonalQueueStash.hasStash()) {
             val stashed = PartyPersonalQueueStash.load()
@@ -1714,7 +1676,6 @@ class PlaybackService : MediaLibraryService() {
         refreshCustomLayouts()
     }
 
-
     private fun toggleFavoriteFromNotification(videoId: String) {
         favoriteActionJob?.cancel()
         val previous = LikeState.overrides.value[videoId] ?: LikeStatus.INDIFFERENT
@@ -2002,7 +1963,7 @@ class PlaybackService : MediaLibraryService() {
         // Discord: the whole of "live updating" for a card whose bar Discord
         // draws itself. Only a track change needs a new presence; the countdown
         // in between is Discord's own arithmetic.
-        if (exoPlayer.isPlaying) pushDiscordPresence(exoPlayer)
+        if (exoPlayer.isPlaying) discord.push(exoPlayer)
 
         history.afterTrackChanged(previousEnded, exoPlayer)
         savePlaybackState(exoPlayer)
@@ -2031,7 +1992,7 @@ class PlaybackService : MediaLibraryService() {
     private fun dismissPlaybackInternal() {
         SleepTimer.cancel()
         cancelPrefetch()
-        clearDiscordPresence()
+        discord.clear()
         stopLyricsTicker()
         ListeningRecorder.onStopped()
         bounded.forget()
@@ -2351,7 +2312,6 @@ class PlaybackService : MediaLibraryService() {
         bounded.saveBoundedContextSnapshot(player, immediately = true)
     }
 
-
     /** Drop every service-side reference that could resurrect the former queue. */
     private fun beginRadioQueue() {
         crossfade?.onSkipRequested()
@@ -2394,7 +2354,6 @@ class PlaybackService : MediaLibraryService() {
         if (persisted != null) BoundedContextPersistence.clearImmediately()
         return restoreLastQueue(player)
     }
-
 
     /**
      * Tell the home-screen widgets what is playing.
@@ -3102,206 +3061,6 @@ class PlaybackService : MediaLibraryService() {
         }
     }
 
-    // ---- Discord Rich Presence -------------------------------------------------
-
-    /**
-     * Keeps the gateway connection in step with the settings that decide whether
-     * there should be one, and re-pushes the presence when the settings that
-     * decide what it *says* change.
-     *
-     * Two collectors rather than one because the two do different work. The
-     * account and the master switch can only be honoured by building or tearing
-     * down a connection; everything else is a field in a payload that can be
-     * re-sent over the connection already open. Combining them would reconnect
-     * the socket every time the user typed a character into a button label.
-     */
-    private fun observeDiscord() {
-        scope.launch {
-            combine(
-                AppSettings.discordToken,
-                AppSettings.discordRpcEnabled,
-            ) { token, enabled -> token.takeIf { enabled && it.isNotBlank() } }
-                .distinctUntilChanged()
-                .collectLatest { token ->
-                    // Torn down before anything is built, so switching accounts
-                    // can't leave the old one's socket up publishing under a
-                    // profile the user has just disconnected.
-                    discordUpdateJob?.cancel()
-                    discordRpc?.let { rpc ->
-                        val wasUp = discordPresenceUp
-                        discordPresenceUp = false
-                        // On IO, not on this collector's main thread: the
-                        // teardown closes a socket, and closing one gracefully
-                        // — which is what flushes the presence-clear queued on
-                        // the line above — blocks until the frame is away.
-                        //
-                        // Bounded, and that is the point rather than a
-                        // precaution. This runs on the way to *replacing*
-                        // [discordRpc], so for as long as it takes the field is
-                        // null and the feature is off: a teardown that hung —
-                        // which one waiting on an unreachable socket did — read
-                        // to the user as a switch that had stopped working
-                        // altogether until the app was restarted.
-                        withContext(Dispatchers.IO + NonCancellable) {
-                            withTimeoutOrNull(DISCORD_TEARDOWN_TIMEOUT_MS) {
-                                if (wasUp) runCatching { rpc.close() }
-                            }
-                            runCatching { rpc.closeRPC() }
-                        }
-                    }
-                    discordRpc = null
-
-                    if (token == null) return@collectLatest
-                    discordRpc = DiscordRPC(this@PlaybackService, token)
-                    // A presence that only appeared at the next track change
-                    // would make turning the switch on look like it had done
-                    // nothing for the length of a song.
-                    player?.takeIf { it.isPlaying }?.let(::pushDiscordPresence)
-                }
-        }
-
-        // The card's own contents, plus the playback rate — which is not
-        // cosmetic here: the timestamps are wall-clock instants with the rate
-        // divided out, so a change to it invalidates a presence already up.
-        scope.launch {
-            // Explicit <Any, _> for the same reason as [observeScrobbling]:
-            // mixed element types, and the reified vararg combine() otherwise
-            // infers an intersection type. Compared as a list rather than a
-            // joined string so two different settings can't stringify alike.
-            combine<Any, List<Any>>(
-                AppSettings.discordUseDetails,
-                AppSettings.discordStatus,
-                AppSettings.discordActivityType,
-                AppSettings.discordActivityName,
-                AppSettings.discordButton1Text,
-                AppSettings.discordButton1Visible,
-                AppSettings.discordButton2Text,
-                AppSettings.discordButton2Visible,
-                AppSettings.playbackSpeed,
-            ) { it.toList() }
-                .distinctUntilChanged()
-                // Dropped so the collector's first emission — which arrives at
-                // startup, before anything is playing — isn't treated as a
-                // change the user made.
-                .drop(1)
-                .collect {
-                    player?.takeIf { p -> p.isPlaying }?.let(::pushDiscordPresence)
-                }
-        }
-
-        // The first track push usually happens before Media3 has configured
-        // its decoder, so measured quality arrives just afterwards. Re-send
-        // only when the rendered premium line changes; the periodic stats
-        // sampler creates fresh snapshots, but must not generate a Discord
-        // network update every time when their visible values are identical.
-        scope.launch {
-            combine(
-                NerdStats.current,
-                AppSettings.discordShowAudioQuality,
-            ) { stats, enabled ->
-                discordAudioQualityLine(stats).takeIf { enabled }
-            }
-                .distinctUntilChanged()
-                .drop(1)
-                .collect {
-                    player?.takeIf { p -> p.isPlaying }?.let(::pushDiscordPresence)
-                }
-        }
-
-        // A network coming back, which is the other half of surviving a spell in
-        // the background: the gateway heals itself, but its retry backoff climbs
-        // to a minute, and a listener who walked back into Wi-Fi shouldn't watch
-        // a blank profile for that long. Nudging it here collapses the wait.
-        //
-        // [AppSettings.meteredConnection] is null only while there is no active
-        // network, so null -> non-null is exactly "we are online again". A
-        // metered/unmetered flip is worth acting on too: the socket does not
-        // survive a transport handover, and the old one may not have noticed yet.
-        scope.launch {
-            AppSettings.meteredConnection
-                .drop(1)
-                .collect { metered ->
-                    if (metered == null) return@collect
-                    val rpc = discordRpc ?: return@collect
-                    withContext(Dispatchers.IO) { runCatching { rpc.wakeUp() } }
-                    // Re-pushed rather than left to the gateway's own replay,
-                    // because a handover can strand the socket in a state where
-                    // it believes it is still connected: the push is what makes
-                    // it prove otherwise.
-                    if (discordPresenceUp) {
-                        player?.takeIf { p -> p.isPlaying }?.let(::pushDiscordPresence)
-                    }
-                }
-        }
-    }
-
-    /**
-     * Publishes the track [exoPlayer] is on as the user's Discord presence.
-     *
-     * A no-op with no connection, which is the ordinary case — most people will
-     * never connect an account, and this is called from the middle of every
-     * track change.
-     */
-    private fun pushDiscordPresence(exoPlayer: ExoPlayer) {
-        val rpc = discordRpc ?: return
-        val song = exoPlayer.currentMediaItem?.toSong() ?: return
-        // Read on the main thread, before the push is handed to IO: by the time
-        // a coroutine gets to run, the queue may have moved on, and ExoPlayer's
-        // state is only legal to read from the thread it was built on.
-        val positionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
-        val durationMs = exoPlayer.duration.takeIf { it > 0 } ?: 0L
-        // The listener's own rate, not the player's instantaneous one.
-        //
-        // This is called from the middle of a track change, which is exactly
-        // when [CrossfadeController] has a beatmatch stretch stacked on the
-        // incoming player — so the player reads back 1.06x for the couple of
-        // seconds the blend lasts. Discord only hears about a track when it
-        // changes, so that transient rate got stamped into the title as
-        // "Song [1.06x]" and stayed there for the rest of the song, over a
-        // track that had already been put back on the listener's own tempo.
-        // The setting is what the track plays at for all but the handoff, so
-        // it is both the honest tag and the right divisor for the countdown.
-        val speed = AppSettings.playbackSpeed.value
-        val audioQuality = discordAudioQualityLine(NerdStats.current.value)
-            .takeIf { AppSettings.discordShowAudioQuality.value }
-
-        discordUpdateJob?.cancel()
-        discordPresenceUp = true
-        discordUpdateJob = scope.launch(Dispatchers.IO) {
-            rpc.updateSong(
-                song = song,
-                currentPlaybackTimeMillis = positionMs,
-                durationMillis = durationMs,
-                playbackSpeed = speed,
-                useDetails = AppSettings.discordUseDetails.value,
-                status = AppSettings.discordStatus.value,
-                button1Text = AppSettings.discordButton1Text.value,
-                button1Visible = AppSettings.discordButton1Visible.value,
-                button2Text = AppSettings.discordButton2Text.value,
-                button2Visible = AppSettings.discordButton2Visible.value,
-                activityType = AppSettings.discordActivityType.value,
-                activityName = AppSettings.discordActivityName.value,
-                audioQuality = audioQuality,
-            ).onFailure {
-                TrackLog.d("BitChord", "Discord presence failed: ${it.message}", about = song.videoId)
-            }
-        }
-    }
-
-    /**
-     * Takes the presence down but leaves the socket up, so resuming doesn't pay
-     * for a reconnect. Discord clears the card on an activity-less presence.
-     */
-    private fun clearDiscordPresence() {
-        val rpc = discordRpc ?: return
-        if (!discordPresenceUp) return
-        discordPresenceUp = false
-        discordUpdateJob?.cancel()
-        discordUpdateJob = scope.launch(Dispatchers.IO) {
-            runCatching { rpc.close() }
-        }
-    }
-
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
         mediaSession
 
@@ -3327,7 +3086,6 @@ class PlaybackService : MediaLibraryService() {
             stopSelf()
         }
     }
-
 
     override fun onDestroy() {
         WearBridge.attachStreams(null)
@@ -3357,21 +3115,7 @@ class PlaybackService : MediaLibraryService() {
         trackAnalyzer.release()
         loudness.cancel()
         history.release()
-        // Discord, on the same terms as the ListenBrainz submit above: the
-        // service scope is cancelled a few lines down, and a presence left up
-        // would advertise a track that stopped when the process did — until
-        // Discord noticed the socket had gone, which can take minutes.
-        discordRpc?.let { rpc ->
-            discordRpc = null
-            val wasUp = discordPresenceUp
-            discordPresenceUp = false
-            CoroutineScope(Dispatchers.IO).launch {
-                withTimeoutOrNull(DISCORD_TEARDOWN_TIMEOUT_MS) {
-                    if (wasUp) runCatching { rpc.close() }
-                }
-                runCatching { rpc.closeRPC() }
-            }
-        }
+        discord.release()
         scope.cancel()
         QueueShuffle.isCrossfadeTransitioning = null
         crossfade?.release()
@@ -3694,17 +3438,6 @@ class PlaybackService : MediaLibraryService() {
 
         /** Floor on the speed the window divides by, so a near-zero speed cannot stretch it to forever. */
         const val MIN_WINDOW_SPEED = 0.25f
-
-        /**
-         * How long a Discord teardown may spend clearing the presence before the
-         * socket is closed out from under it.
-         *
-         * Closing the gateway ends the session, which clears the card on
-         * Discord's side anyway — the explicit clear only makes it immediate. So
-         * this is a bound on politeness, not on correctness, and it is short
-         * because whatever is tearing down is waiting on it.
-         */
-        const val DISCORD_TEARDOWN_TIMEOUT_MS = 3_000L
 
         /** Upper bound per range; [PlayerClient.rangeBytesFor] narrows it per client. */
         const val STREAM_CHUNK_BYTES = 1L * 1024 * 1024
