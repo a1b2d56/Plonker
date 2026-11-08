@@ -1,5 +1,6 @@
-package com.music.bitchord.ui.player
+package com.music.bitchord.ui.player.sheets
 
+import com.music.bitchord.ui.player.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
