@@ -99,6 +99,7 @@
     <string name="next_from">ถัดไปจาก: %1$s</string>
     <string name="next_in_queue">ถัดไปในคิว</string>
     <string name="no_lyrics_for_track">ไม่มีเนื้อเพลงสำหรับแทร็กนี้</string>
+    <string name="jump_to_current_line">ไปยังบรรทัดปัจจุบัน</string>
     <string name="no_lyrics_found">ไม่พบเนื้อเพลง</string>
     <string name="now_playing">กำลังเล่น</string>
     <string name="open_lyrics">Lyrics</string>

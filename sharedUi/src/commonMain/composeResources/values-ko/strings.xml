@@ -101,6 +101,7 @@
     <string name="next_from">다음 출처: %1$s</string>
     <string name="next_in_queue">대기열의 다음 곡</string>
     <string name="no_lyrics_for_track">이 음악의 가사가 없습니다</string>
+    <string name="jump_to_current_line">현재 가사로 이동</string>
     <string name="no_lyrics_found">가사를 찾을 수 없음</string>
     <string name="now_playing">지금 재생 중</string>
     <string name="previously_played">이전에 재생됨</string>

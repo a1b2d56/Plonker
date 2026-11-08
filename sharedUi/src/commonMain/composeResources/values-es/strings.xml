@@ -99,6 +99,7 @@
     <string name="next_from">A continuación de: %1$s</string>
     <string name="next_in_queue">Siguiente en la cola</string>
     <string name="no_lyrics_for_track">No hay letra para esta canción</string>
+    <string name="jump_to_current_line">Ir a la línea actual</string>
     <string name="no_lyrics_found">No se encontró la letra</string>
     <string name="now_playing">Reproduciendo</string>
     <string name="open_lyrics">Lyrics</string>

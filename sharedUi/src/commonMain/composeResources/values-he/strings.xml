@@ -99,6 +99,7 @@
     <string name="next_from">הבא מתוך: %1$s</string>
     <string name="next_in_queue">הבא בתור</string>
     <string name="no_lyrics_for_track">אין מילים לרצועה זו</string>
+    <string name="jump_to_current_line">מעבר לשורה הנוכחית</string>
     <string name="no_lyrics_found">לא נמצאו מילים</string>
     <string name="now_playing">מתנגן כעת</string>
     <string name="open_lyrics">Lyrics</string>

@@ -99,6 +99,7 @@
     <string name="next_from">Далее из: %1$s</string>
     <string name="next_in_queue">Следующая в очереди</string>
     <string name="no_lyrics_for_track">Для этого трека нет текста</string>
+    <string name="jump_to_current_line">К текущей строке</string>
     <string name="no_lyrics_found">Текст не найден</string>
     <string name="now_playing">Сейчас играет</string>
     <string name="open_lyrics">Lyrics</string>

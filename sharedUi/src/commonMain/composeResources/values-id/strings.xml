@@ -99,6 +99,7 @@
     <string name="next_from">Berikutnya dari: %1$s</string>
     <string name="next_in_queue">Berikutnya di antrean</string>
     <string name="no_lyrics_for_track">Tidak ada lirik untuk trek ini</string>
+    <string name="jump_to_current_line">Ke baris saat ini</string>
     <string name="no_lyrics_found">Lirik tidak ditemukan</string>
     <string name="now_playing">Sedang diputar</string>
     <string name="open_lyrics">Lyrics</string>
