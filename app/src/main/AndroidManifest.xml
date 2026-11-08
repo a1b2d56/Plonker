@@ -60,6 +60,28 @@
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
 
+    <queries>
+        <intent>
+            <action android:name="android.media.action.DISPLAY_AUDIO_EFFECT_CONTROL_PANEL" />
+        </intent>
+        <intent>
+            <action android:name="oplus.intent.action.settings.DOLBY_MAIN" />
+        </intent>
+        <intent>
+            <action android:name="oplus.intent.action.settings.SOUND_EFFECTS_MAIN" />
+        </intent>
+        <intent>
+            <action android:name="com.miui.audioeffect.action.EFFECT_PANEL" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.DOLBY_AUDIO_EFFECT" />
+        </intent>
+        <package android:name="com.android.settings" />
+        <package android:name="com.android.musicfx" />
+        <package android:name="com.sec.android.app.soundalive" />
+        <package android:name="com.miui.audioeffect" />
+    </queries>
+
     <application
         android:name=".BitChordApplication"
         android:allowBackup="true"
