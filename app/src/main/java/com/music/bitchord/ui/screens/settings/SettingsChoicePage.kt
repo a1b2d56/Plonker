@@ -21,7 +21,6 @@ import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.AutomixPerformanceMode
 import com.music.bitchord.data.settings.BitPerfectMode
 import com.music.bitchord.data.settings.DownloadQuality
-import com.music.bitchord.data.settings.isSupported
 import java.util.Locale
 
 /**
