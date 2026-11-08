@@ -80,14 +80,14 @@ fun IosSlider(
     // during a drag and nothing draws from them.
     val span = valueRange.endInclusive - valueRange.start
     fun fractionOf(v: Float) = if (span > 0f) (v - valueRange.start) / span else 0f
-    fun detentOf(v: Float) = if (steps > 0) {
+    fun detentOf(v: Float, held: Int = 0) = if (steps > 0) {
         SliderDetents.step(fractionOf(v), steps)
     } else {
-        SliderDetents.edge(fractionOf(v))
+        SliderDetents.edge(fractionOf(v), held)
     }
     val lastDetent = remember(valueRange, steps) { intArrayOf(detentOf(value)) }
     val handleValueChange: (Float) -> Unit = { newValue ->
-        val detent = detentOf(newValue)
+        val detent = detentOf(newValue, held = lastDetent[0])
         if (detent != lastDetent[0]) {
             if (steps > 0 || detent != 0) haptics.play(Haptic.Tick)
             lastDetent[0] = detent
