@@ -1,5 +1,6 @@
-package com.music.bitchord.ui.player
+package com.music.bitchord.ui.player.sheets
 
+import com.music.bitchord.ui.player.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring

@@ -1,5 +1,9 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.player.sheets.AudioOutputSheet
+import com.music.bitchord.ui.player.sheets.LyricsOffsetSheet
+import com.music.bitchord.ui.player.sheets.LyricsProviderSheet
+import com.music.bitchord.ui.player.sheets.ListenTogetherMembersSheet
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
