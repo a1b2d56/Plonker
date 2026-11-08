@@ -179,12 +179,14 @@ fun ThinSlider(
                         }
                         if (pointer.positionChanged()) {
                             val fraction = (pointer.position.x / size.width).coerceIn(0f, 1f)
-                            // A light tick as the drag reaches either end, like
+                            // A firm tap as the drag reaches either end, like
                             // iOS's volume bar; nothing in between, where a tick
                             // per step would turn a scrub into a rattle. The
                             // caller gives the release its own beat.
-                            val nowAt = SliderDetents.edge(fraction)
-                            if (nowAt != edge && nowAt != 0) haptics.play(Haptic.Tick)
+                            val nowAt = SliderDetents.edge(fraction, held = edge)
+                            // Tap rather than Tick: reaching an end is a collision,
+                            // and Tick's single light beat went unfelt.
+                            if (nowAt != edge && nowAt != 0) haptics.play(Haptic.Tap)
                             edge = nowAt
                             currentOnValueChange(fraction)
                             pointer.consume()
@@ -295,10 +297,28 @@ private const val SHEEN_BAND_FRACTION = 0.34f
 
 /** Where a slider's value sits, for the haptic ticks the sliders play while dragged. */
 object SliderDetents {
-    /** -1 at the start of the bar, 1 at its end, 0 anywhere between. */
-    fun edge(fraction: Float): Int = when {
-        fraction <= 0f -> -1
-        fraction >= 1f -> 1
+    /**
+     * How close to an end counts as reaching it. A finger dragged hard into
+     * the end of the bar mostly lands a few pixels short, at 0.992 or 0.008,
+     * so an exact 0 or 1 was almost never reported and the end went unfelt.
+     */
+    const val EDGE_ENTER = 0.015f
+
+    /** How far back out a drag has to come before the end counts as left. */
+    const val EDGE_LEAVE = 0.03f
+
+    /**
+     * -1 at the start of the bar, 1 at its end, 0 anywhere between.
+     *
+     * [held] is the answer for the previous position. An end is entered within
+     * [EDGE_ENTER] of it but only left past [EDGE_LEAVE], so a finger resting
+     * on the threshold doesn't flicker in and out of the end and buzz each time.
+     */
+    fun edge(fraction: Float, held: Int = 0): Int = when {
+        fraction <= EDGE_ENTER -> -1
+        fraction >= 1f - EDGE_ENTER -> 1
+        held == -1 && fraction < EDGE_LEAVE -> -1
+        held == 1 && fraction > 1f - EDGE_LEAVE -> 1
         else -> 0
     }
 

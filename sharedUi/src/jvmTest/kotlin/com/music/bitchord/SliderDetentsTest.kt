@@ -13,10 +13,29 @@ class SliderDetentsTest {
         assertEquals(1, SliderDetents.edge(1.3f))
     }
 
+    @Test fun aDragThatStopsJustShortOfAnEndStillReachesIt() {
+        // Where a finger dragged into the end of the bar actually lands.
+        assertEquals(-1, SliderDetents.edge(0.008f))
+        assertEquals(1, SliderDetents.edge(0.992f))
+        assertEquals(-1, SliderDetents.edge(SliderDetents.EDGE_ENTER))
+        assertEquals(1, SliderDetents.edge(1f - SliderDetents.EDGE_ENTER))
+    }
+
     @Test fun everywhereBetweenIsOnePlace() {
-        assertEquals(0, SliderDetents.edge(0.001f))
+        assertEquals(0, SliderDetents.edge(0.02f))
         assertEquals(0, SliderDetents.edge(0.5f))
-        assertEquals(0, SliderDetents.edge(0.999f))
+        assertEquals(0, SliderDetents.edge(0.98f))
+    }
+
+    @Test fun anEndIsHeldUntilTheDragComesBackOutOfIt() {
+        // Resting on the threshold: inside it stays at the end, so no second buzz.
+        assertEquals(1, SliderDetents.edge(0.982f, held = 1))
+        assertEquals(-1, SliderDetents.edge(0.02f, held = -1))
+        // Back past the release distance it has left.
+        assertEquals(0, SliderDetents.edge(0.96f, held = 1))
+        assertEquals(0, SliderDetents.edge(0.04f, held = -1))
+        // The hold only ever keeps an end, never invents the other one.
+        assertEquals(0, SliderDetents.edge(0.982f, held = -1))
     }
 
     @Test fun aSnappedValueCountsAsItsStepEvenAHairUnder() {
