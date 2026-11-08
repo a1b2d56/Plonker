@@ -35,18 +35,9 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DataSpec
 import androidx.media3.session.DefaultMediaNotificationProvider
-import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
-import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaSession
-import androidx.media3.session.SessionCommand
-import androidx.media3.session.SessionError
-import androidx.media3.session.SessionResult
-import com.google.common.collect.ImmutableList
-import com.google.common.util.concurrent.Futures
-import com.google.common.util.concurrent.ListenableFuture
-import kotlinx.coroutines.guava.future
 import com.music.bitchord.playback.cast.CastController
 import com.music.bitchord.playback.cast.CastPlayback
 import com.music.bitchord.playback.cast.Speakers
@@ -1373,7 +1364,13 @@ class PlaybackService : MediaLibraryService() {
         mediaSession = MediaLibrarySession.Builder(
             this,
             newSessionPlayer(exoPlayer, controller),
-            MediaLibraryCallback(),
+            SessionCallback(
+                scope = scope,
+                library = library,
+                buttons = buttons,
+                player = { player },
+                perform = ::performSessionCommand,
+            ),
         )
             .setId(SESSION_ID)
             .setSessionActivity(sessionActivity())
@@ -2496,176 +2493,60 @@ class PlaybackService : MediaLibraryService() {
     }
 
     /**
-     * Handles browsing and content resolution for Android Auto and other MediaBrowser clients.
+     * Carries out one of the app's own session commands — the notification's
+     * and Android Auto's buttons, the widget, the watch and the app itself all
+     * send them. False for one this service doesn't know.
      */
-    private inner class MediaLibraryCallback : MediaLibrarySession.Callback {
-
-        override fun onConnect(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-        ): MediaSession.ConnectionResult {
-            val sessionCommands = SessionCommands.available()
-            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-                .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
-                .setAvailableSessionCommands(sessionCommands)
-                .build()
-        }
-
-        override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
-            buttons.onConnected(session, controller)
-        }
-
-        override fun onDisconnected(session: MediaSession, controller: MediaSession.ControllerInfo) {
-            buttons.onDisconnected(controller)
-        }
-
-        override fun onCustomCommand(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            customCommand: SessionCommand,
-            args: Bundle,
-        ): ListenableFuture<SessionResult> {
-            when (customCommand.customAction) {
-                ACTION_START_BOUNDED_CONTEXT -> bounded.startBoundedContext(args)
-                ACTION_CLEAR_BOUNDED_CONTEXT -> bounded.clearBoundedContext()
-                ACTION_TOGGLE_AUTOPLAY -> autoplay.toggleFromNotification()
-                ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
-                ACTION_START_STATION -> startStationFromSession()
-                ACTION_REVERT_TO_ORIGINAL -> versionSync.revertCurrentToOriginal()
-                ACTION_SWAP_TO_VERSION -> versionSync.swapCurrentToVersion(args)
-                ACTION_BEGIN_RADIO_QUEUE -> beginRadioQueue()
-                ACTION_COMMIT_RADIO_QUEUE -> player?.let(::saveQueueSnapshotImmediately)
-                ACTION_UPGRADE_QUALITY -> recovery.upgradeQualityNow()
-                ACTION_DISMISS_PLAYBACK -> dismissPlaybackInternal()
-                ACTION_SWAP_VERSION -> {
-                    val bundle = args.getBundle(EXTRA_SWAP_MEDIA_ITEM)
-                    if (bundle != null) {
-                        val targetSong = songFromBundle(bundle)
-                        // The listener's own choice outranks the music-only setting.
-                        if (targetSong.isVideo) {
-                            MusicOnlyPlayback.keep(targetSong.videoId)
-                        } else {
-                            session.player.currentMediaItem?.mediaId?.let(MusicOnlyPlayback::letGo)
-                        }
-                        versionSync.smoothSwapCurrentTrackVersion(targetSong.toMediaItem())
-                    }
-                }
-                ACTION_QUEUE_DRAG -> {
-                    if (args.getBoolean(EXTRA_QUEUE_DRAG_ACTIVE, false)) {
-                        partySync?.beginQueueDrag()
+    private fun performSessionCommand(session: MediaSession, action: String, args: Bundle): Boolean {
+    when (action) {
+            ACTION_START_BOUNDED_CONTEXT -> bounded.startBoundedContext(args)
+            ACTION_CLEAR_BOUNDED_CONTEXT -> bounded.clearBoundedContext()
+            ACTION_TOGGLE_AUTOPLAY -> autoplay.toggleFromNotification()
+            ACTION_TOGGLE_SHUFFLE -> toggleShuffleFromSession()
+            ACTION_START_STATION -> startStationFromSession()
+            ACTION_REVERT_TO_ORIGINAL -> versionSync.revertCurrentToOriginal()
+            ACTION_SWAP_TO_VERSION -> versionSync.swapCurrentToVersion(args)
+            ACTION_BEGIN_RADIO_QUEUE -> beginRadioQueue()
+            ACTION_COMMIT_RADIO_QUEUE -> player?.let(::saveQueueSnapshotImmediately)
+            ACTION_UPGRADE_QUALITY -> recovery.upgradeQualityNow()
+            ACTION_DISMISS_PLAYBACK -> dismissPlaybackInternal()
+            ACTION_SWAP_VERSION -> {
+                val bundle = args.getBundle(EXTRA_SWAP_MEDIA_ITEM)
+                if (bundle != null) {
+                    val targetSong = songFromBundle(bundle)
+                    // The listener's own choice outranks the music-only setting.
+                    if (targetSong.isVideo) {
+                        MusicOnlyPlayback.keep(targetSong.videoId)
                     } else {
-                        partySync?.endQueueDrag()
+                        session.player.currentMediaItem?.mediaId?.let(MusicOnlyPlayback::letGo)
+                    }
+                    versionSync.smoothSwapCurrentTrackVersion(targetSong.toMediaItem())
+                }
+            }
+            ACTION_QUEUE_DRAG -> {
+                if (args.getBoolean(EXTRA_QUEUE_DRAG_ACTIVE, false)) {
+                    partySync?.beginQueueDrag()
+                } else {
+                    partySync?.endQueueDrag()
+                }
+            }
+            // A widget or watch drawn before the track changed can still
+            // send this for one the player offers no Like on.
+            ACTION_TOGGLE_FAVORITE -> session.player.currentMediaItem
+                ?.takeIf(::canLike)
+                ?.let { item ->
+                    val song = item.toSong()
+                    if (song.localUri != null) {
+                        // On the device and nowhere else: nothing to
+                        // reconcile, and the button follows [OfflinePlaylists.liked].
+                        OfflinePlaylists.toggleLike(song)
+                    } else {
+                        toggleFavoriteFromNotification(item.mediaId)
                     }
                 }
-                // A widget or watch drawn before the track changed can still
-                // send this for one the player offers no Like on.
-                ACTION_TOGGLE_FAVORITE -> session.player.currentMediaItem
-                    ?.takeIf(::canLike)
-                    ?.let { item ->
-                        val song = item.toSong()
-                        if (song.localUri != null) {
-                            // On the device and nowhere else: nothing to
-                            // reconcile, and the button follows [OfflinePlaylists.liked].
-                            OfflinePlaylists.toggleLike(song)
-                        } else {
-                            toggleFavoriteFromNotification(item.mediaId)
-                        }
-                    }
-                else -> return Futures.immediateFuture(
-                    SessionResult(SessionError.ERROR_NOT_SUPPORTED),
-                )
-            }
-            // The actual YouTube rating is asynchronous. The command itself has been accepted;
-            // the notification is refreshed when the network write completes.
-            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            else -> return false
         }
-
-        // The browse tree, its search and the item lookups are [library]'s;
-        // see [LibraryBrowser].
-        override fun onGetLibraryRoot(
-            session: MediaLibrarySession,
-            browser: MediaSession.ControllerInfo,
-            params: LibraryParams?,
-        ): ListenableFuture<LibraryResult<MediaItem>> = library.onGetLibraryRoot(params)
-
-        override fun onGetChildren(
-            session: MediaLibrarySession,
-            browser: MediaSession.ControllerInfo,
-            parentId: String,
-            page: Int,
-            pageSize: Int,
-            params: LibraryParams?,
-        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
-            library.onGetChildren(session, browser, parentId, page, pageSize, params)
-
-        override fun onGetItem(
-            session: MediaLibrarySession,
-            browser: MediaSession.ControllerInfo,
-            mediaId: String,
-        ): ListenableFuture<LibraryResult<MediaItem>> = library.onGetItem(mediaId)
-
-        override fun onPlaybackResumption(
-            mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo,
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
-            // 1. If player currently holds items in its queue, resume from it
-            val activePlayer = player
-            if (activePlayer != null && activePlayer.mediaItemCount > 0) {
-                val currentItems = (0 until activePlayer.mediaItemCount).map { activePlayer.getMediaItemAt(it) }
-                val startIndex = activePlayer.currentMediaItemIndex.coerceIn(0, currentItems.size - 1)
-                val startPositionMs = activePlayer.currentPosition.coerceAtLeast(0L)
-                return@future MediaSession.MediaItemsWithStartPosition(
-                    ImmutableList.copyOf(currentItems),
-                    startIndex,
-                    startPositionMs,
-                )
-            }
-
-            // 2. Nothing queued: what the library can offer a headset's play
-            // button — see [LibraryBrowser.resumptionFallback].
-            library.resumptionFallback()
-        }
-
-        override fun onSearch(
-            session: MediaLibrarySession,
-            browser: MediaSession.ControllerInfo,
-            query: String,
-            params: LibraryParams?,
-        ): ListenableFuture<LibraryResult<Void>> = library.onSearch(session, browser, query, params)
-
-        override fun onGetSearchResult(
-            session: MediaLibrarySession,
-            browser: MediaSession.ControllerInfo,
-            query: String,
-            page: Int,
-            pageSize: Int,
-            params: LibraryParams?,
-        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> =
-            library.onGetSearchResult(query, page, pageSize, params)
-
-        override fun onSetMediaItems(
-            mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            mediaItems: List<MediaItem>,
-            startIndex: Int,
-            startPositionMs: Long,
-        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
-            val resolved = library.resolveMediaItems(mediaItems)
-            val validIndex = startIndex.coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
-            MediaSession.MediaItemsWithStartPosition(
-                ImmutableList.copyOf(resolved),
-                validIndex,
-                startPositionMs.coerceAtLeast(0L),
-            )
-        }
-
-        override fun onAddMediaItems(
-            mediaSession: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            mediaItems: List<MediaItem>,
-        ): ListenableFuture<List<MediaItem>> = scope.future(Dispatchers.IO) {
-            library.resolveMediaItems(mediaItems)
-        }
+        return true
     }
 
     private companion object {
