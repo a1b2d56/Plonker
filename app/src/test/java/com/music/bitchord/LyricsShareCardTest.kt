@@ -1,7 +1,7 @@
 package com.music.bitchord
 
-import com.music.bitchord.ui.player.SHARE_CARD_CHAR_BUDGET
-import com.music.bitchord.ui.player.fitsOnCard
+import com.music.bitchord.ui.player.lyrics.SHARE_CARD_CHAR_BUDGET
+import com.music.bitchord.ui.player.lyrics.fitsOnCard
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

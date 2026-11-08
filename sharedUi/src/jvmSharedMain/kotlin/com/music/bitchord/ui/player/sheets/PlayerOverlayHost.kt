@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.player.sheets
 
+import com.music.bitchord.ui.player.lyrics.LyricsShareRequest
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
