@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -174,6 +175,7 @@ fun SongActionsMenu(
      */
     audioVersionMissing: Boolean = false,
     onShare: (() -> Unit)? = null,
+    onSaveArtwork: (() -> Unit)? = null,
     /**
      * Copies what the app logged while starting this track. Null everywhere
      * except the player, where "this track" means something.
@@ -386,6 +388,16 @@ fun SongActionsMenu(
         }
         ActionRow(SfIcons.Info, stringResource(R.string.song_info), accent = palette.accent) {
             showingSongInfo = true
+        }
+        if (song.thumbnailUrl != null) {
+            onSaveArtwork?.let {
+                ActionRow(
+                    icon = androidx.compose.material.icons.Icons.Rounded.Image,
+                    label = stringResource(R.string.save_cover_art),
+                    accent = palette.accent,
+                    onClick = it,
+                )
+            }
         }
 
         // The player's own: about the track playing right now rather than
