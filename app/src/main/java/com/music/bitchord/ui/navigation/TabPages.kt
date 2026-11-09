@@ -1,6 +1,10 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.music.bitchord.ui.navigation
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyListState
@@ -110,6 +114,7 @@ fun HomeTab(
     val hideRecents by AppSettings.hideRecents.collectAsStateWithLifecycle()
     val hideTopPicks by AppSettings.hideTopPicks.collectAsStateWithLifecycle()
     val hideHomeMoods by AppSettings.hideHomeMoods.collectAsStateWithLifecycle()
+    var signInBannerDismissed by rememberSaveable { mutableStateOf(false) }
     with(alerts) { with(overlays) { with(actions) {
         HomeScreen(
             state = visibleHomeState,
@@ -121,6 +126,8 @@ fun HomeTab(
             onFestiveLogoClick = openDiwali,
             signedIn = signedIn,
             onSignIn = { webSession = WebSessionMode.SIGN_IN },
+            signInBannerDismissed = signInBannerDismissed,
+            onDismissSignInBanner = { signInBannerDismissed = true },
             onItemClick = { item, shelfTitle ->
                 val song = shelfSong(item)
                 // Hoisted because ShelfItem lives in :shared, and

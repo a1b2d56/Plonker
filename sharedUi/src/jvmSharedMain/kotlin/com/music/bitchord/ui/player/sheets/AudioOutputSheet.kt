@@ -1,6 +1,7 @@
 package com.music.bitchord.ui.player.sheets
 
 import com.music.bitchord.ui.player.*
+import com.music.bitchord.ui.icons.BitChordIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -88,6 +89,8 @@ internal fun AudioOutputSheet(
     onDismiss: () -> Unit,
     onOpenPipeline: () -> Unit,
     onOpenCast: () -> Unit,
+    onListenTogether: (() -> Unit)? = null,
+    onOpenListenTogetherMembers: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val outputs = rememberAudioOutputs()
@@ -126,6 +129,18 @@ internal fun AudioOutputSheet(
                 WatchRow(watch = watch, onClick = { PlayerPlatform.host.selectWatchOutput() })
             }
             if (cast.supported) CastRow(cast = cast, onClick = onOpenCast)
+            onListenTogether?.let { openParty ->
+                val party = rememberPartyBadge()
+                PartyRow(
+                    inParty = party.inParty,
+                    members = party.members,
+                    onClick = if (party.inParty && onOpenListenTogetherMembers != null) {
+                        onOpenListenTogetherMembers
+                    } else {
+                        openParty
+                    },
+                )
+            }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -236,7 +251,7 @@ private fun CastRow(cast: CastUi, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = if (casting) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
+                imageVector = BitChordIcons.PlayerAirPlay,
                 contentDescription = null,
                 tint = Color.White.copy(alpha = if (casting) 1f else 0.7f),
                 modifier = Modifier.size(21.dp),
@@ -504,3 +519,66 @@ private fun iconFor(device: AudioOutputDevice): ImageVector = when (device.kind)
 /** How many times the level is re-read after a route change, and how far apart. */
 private const val VOLUME_REREADS = 4
 private const val VOLUME_REREAD_GAP_MS = 250L
+
+@Composable
+private fun PartyRow(inParty: Boolean, members: Int, onClick: () -> Unit) {
+    val haptics = rememberHaptics()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(ROW_SHAPE)
+            .background(Color.White.copy(alpha = if (inParty) 0.10f else 0.05f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+            ) {
+                haptics.play(Haptic.Select)
+                onClick()
+            }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = if (inParty) 0.16f else 0.08f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Headphones,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = if (inParty) 1f else 0.7f),
+                modifier = Modifier.size(21.dp),
+            )
+        }
+        Spacer(Modifier.width(13.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(Res.string.listen_together),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = if (inParty) FontWeight.SemiBold else FontWeight.Normal,
+                ),
+                color = Color.White.copy(alpha = if (inParty) 1f else 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (inParty) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = stringResource(Res.string.listen_together_open_count, members),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White.copy(alpha = 0.55f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.35f),
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}

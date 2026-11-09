@@ -1350,4 +1350,6 @@
         <item quantity="one">Added %1$d track to %2$d playlists</item>
         <item quantity="other">Added %1$d tracks to %2$d playlists</item>
     </plurals>
+    <string name="liquid_glass_haptics" translatable="false">Liquid glass haptics</string>
+    <string name="liquid_glass_haptics_subtitle" translatable="false">Haptic buzz on glass nav, toggles, sliders and menus</string>
 </resources>
