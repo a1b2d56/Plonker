@@ -1285,7 +1285,14 @@ object AppSettings {
         val manager = context.getSystemService(ConnectivityManager::class.java) ?: return
         val refresh = {
             meteredConnection.value = runCatching {
-                if (manager.activeNetwork == null) null else manager.isActiveNetworkMetered
+                val network = manager.activeNetwork ?: return@runCatching null
+                val caps = manager.getNetworkCapabilities(network) ?: return@runCatching null
+                if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+                    !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                ) {
+                    return@runCatching null
+                }
+                manager.isActiveNetworkMetered
             }.getOrNull()
         }
         refresh()

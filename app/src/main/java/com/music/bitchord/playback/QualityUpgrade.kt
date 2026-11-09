@@ -514,7 +514,7 @@ object QualityUpgrade {
             SourceResolver.upgradeFor(
                 waiting.target.copy(durationSec = effectiveDurationSec),
                 playing = waiting.playing,
-                servedBy = waiting.servedBy,
+                servedBy = waiting.servedBy?.takeIf { waiting.playing?.isLossless == true },
             ).also {
                 found = it
                 if (it != null && needsLosslessFollowUp(it.format)) {
