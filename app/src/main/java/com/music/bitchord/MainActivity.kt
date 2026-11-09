@@ -677,7 +677,9 @@ private fun BitChordApp(
     // Which track the playlist picker is adding, or null when it's closed.
     // Separate from [songActions] so the menu can close behind it — the picker
     // is the next step, not a second sheet stacked on the first.
-    var playlistTarget by remember { mutableStateOf<Song?>(null) }
+    var playlistTarget by remember { mutableStateOf<List<Song>?>(null) }
+    var playlistTargetTitle by remember { mutableStateOf<String?>(null) }
+    var playlistTargetArtwork by remember { mutableStateOf<String?>(null) }
     // The picker opened from the Library tab, where there is no track and
     // creating the playlist is the whole errand.
     var creatingPlaylist by remember { mutableStateOf(false) }
@@ -2414,7 +2416,11 @@ private fun BitChordApp(
         onBrowseLongPress = onBrowseLongPress,
         openDiwali = { showDiwali = true },
         searchFocusHandled = { searchFocusRequested = false },
-        pickPlaylistFor = { song -> playlistTarget = song },
+        pickPlaylistFor = { song ->
+            playlistTarget = listOf(song)
+            playlistTargetTitle = null
+            playlistTargetArtwork = null
+        },
         createPlaylist = { creatingPlaylist = true },
         importSpotifyPlaylist = { showSpotifyImportDialog = true },
         openReplayAt = { page ->
@@ -3133,7 +3139,9 @@ private fun BitChordApp(
                     offlinePlaylistTarget = song
                 } else {
                     viewModel.loadPlaylists()
-                    playlistTarget = song
+                    playlistTarget = listOf(song)
+                    playlistTargetTitle = null
+                    playlistTargetArtwork = null
                 }
             }
             override fun openLyricsOffset() { showLyricsOffset = true }
@@ -3262,23 +3270,24 @@ private fun BitChordApp(
         // playlists with a way to make another. `creatingPlaylist` opens it
         // straight onto the form, which is what the Library tile means.
         if (playlistTarget != null || creatingPlaylist) {
-            val target = playlistTarget
+            val target = playlistTarget.orEmpty()
             val dismiss = {
                 playlistTarget = null
+                playlistTargetTitle = null
+                playlistTargetArtwork = null
                 creatingPlaylist = false
             }
             PlaylistPickerSheet(
                 playlists = playlists,
                 loading = playlistsLoading,
-                song = target,
-                startCreating = target == null,
+                tracks = target,
+                collectionTitle = playlistTargetTitle,
+                collectionThumbnailUrl = playlistTargetArtwork,
+                startCreating = target.isEmpty(),
                 onDismiss = dismiss,
                 onAdd = { picked ->
-                    target?.let { song ->
-                        viewModel.addToPlaylists(picked, song) { added, alreadyThere, failed ->
-                            // One line for the whole batch, saying the outcome
-                            // that matters most: what went in, else that it was
-                            // all there already, else that it didn't work.
+                    when (target.size) {
+                        1 -> viewModel.addToPlaylists(picked, target.first()) { added, alreadyThere, failed ->
                             showQueueNotice(
                                 when {
                                     added > 1 -> context.resources.getQuantityString(
@@ -3291,10 +3300,29 @@ private fun BitChordApp(
                                 },
                             )
                         }
+                        else -> viewModel.addSongsToPlaylists(picked, target) { added, tracks, _, failed ->
+                            showQueueNotice(
+                                when {
+                                    added > 0 && tracks > 0 -> context.resources.getQuantityString(
+                                        R.plurals.added_tracks_to_playlists_notice, tracks, tracks, added,
+                                    )
+                                    failed > 0 -> context.getString(R.string.failed)
+                                    else -> context.getString(R.string.song_already_in_playlist)
+                                },
+                            )
+                        }
                     }
                 },
                 onCreate = { title, privacy ->
-                    viewModel.createPlaylist(title, privacy, target)
+                    when (target.size) {
+                        1 -> viewModel.createPlaylist(title, privacy, target.first())
+                        else -> viewModel.createPlaylistWithVideoIds(
+                            title,
+                            privacy,
+                            target.mapNotNull { it.videoId },
+                            target,
+                        )
+                    }
                 },
             )
         }
@@ -3396,6 +3424,12 @@ private fun BitChordApp(
                 addToQueue = addSongsToQueue,
                 play = play,
                 startDownload = startDownload,
+                addToPlaylist = { songs, target ->
+                    viewModel.loadPlaylists()
+                    playlistTarget = songs
+                    playlistTargetTitle = target.title
+                    playlistTargetArtwork = target.thumbnailUrl
+                },
                 reorder = { p ->
                     // Rearranged on the playlist's own page: open it first
                     // when the menu was raised from anywhere else.

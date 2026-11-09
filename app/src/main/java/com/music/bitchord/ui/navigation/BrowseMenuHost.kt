@@ -70,6 +70,7 @@ class BrowseMenuActions(
     val addToQueue: (List<Song>) -> Unit,
     val play: (List<Song>, Int) -> Unit,
     val startDownload: (List<Song>, DownloadTarget?) -> Unit,
+    val addToPlaylist: (List<Song>, BrowseTarget) -> Unit,
     /** Opens the reorder list on [UserPlaylist]'s page. */
     val reorder: (UserPlaylist) -> Unit,
 )
@@ -268,6 +269,12 @@ private fun BrowseMenuBody(
         // fetching to be on it, so a local page is the exception. What the
         // target carries that the tracks don't is the release's own name
         // and cover, which is exactly what the record wants.
+        onAddToPlaylist = act { songs ->
+            actions.addToPlaylist(songs, target)
+        }.takeIf {
+            signedIn && remote &&
+                (target.type == BrowseType.ALBUM || target.type == BrowseType.PLAYLIST)
+        },
         onDownloadAll = act { songs ->
             actions.startDownload(
                 songs,
