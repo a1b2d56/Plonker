@@ -1,5 +1,10 @@
 package com.music.bitchord.ui.components
 
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.rounded.Close
+
 import androidx.compose.ui.layout.ContentScale
 import com.music.bitchord.ui.LocalPullToRefreshEnabled
 import com.music.bitchord.ui.AppUiHost
@@ -857,7 +862,9 @@ fun SignInBanner(
      * under a scroll, or under the player where nobody sees it.
      */
     motion: Boolean = true,
+    onDismiss: (() -> Unit)? = null,
 ) {
+    var showDismissDialog by remember { mutableStateOf(false) }
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.98f else 1f, spring(stiffness = 900f), label = "signInScale")
@@ -883,6 +890,24 @@ fun SignInBanner(
             blurRadius = 36.dp,
             colorFadeMillis = MESH_CYCLE_MILLIS,
         )
+        if (onDismiss != null) {
+            IconButton(
+                onClick = { showDismissDialog = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.25f)),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = stringResource(Res.string.dismiss),
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
         Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 18.dp)) {
             Text(
                 text = stringResource(Res.string.sign_in_youtube_music),
@@ -913,6 +938,29 @@ fun SignInBanner(
                 )
             }
         }
+    }
+
+    if (showDismissDialog && onDismiss != null) {
+        AlertDialog(
+            onDismissRequest = { showDismissDialog = false },
+            title = { Text(stringResource(Res.string.sign_in_dismiss_title)) },
+            text = { Text(stringResource(Res.string.sign_in_dismiss_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDismissDialog = false
+                        onDismiss()
+                    },
+                ) {
+                    Text(stringResource(Res.string.dismiss))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDismissDialog = false }) {
+                    Text(stringResource(Res.string.cancel))
+                }
+            },
+        )
     }
 }
 

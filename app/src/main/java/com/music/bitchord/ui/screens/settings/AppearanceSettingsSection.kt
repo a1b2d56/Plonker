@@ -52,6 +52,7 @@ internal fun AppearanceSettingsGroup(
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
     val glassPerformance by AppSettings.glassPerformance.collectAsStateWithLifecycle()
     val progressiveBlur by AppSettings.progressiveBlur.collectAsStateWithLifecycle()
+    val liquidGlassHaptics by AppSettings.liquidGlassHaptics.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
     val fullBleedDetailArtwork by AppSettings.fullBleedDetailArtwork.collectAsStateWithLifecycle()
@@ -195,6 +196,14 @@ internal fun AppearanceSettingsGroup(
                         title = progressiveBlurTitle,
                         checked = progressiveBlur,
                         onCheckedChange = AppSettings::setProgressiveBlur,
+                    )
+                }
+                val liquidGlassHapticsTitle = stringResource(R.string.liquid_glass_haptics)
+                row(liquidGlassHapticsTitle, "haptics", "vibration", "glass", "touch", divided = false) {
+                    SettingsSubRow(
+                        title = liquidGlassHapticsTitle,
+                        checked = liquidGlassHaptics,
+                        onCheckedChange = AppSettings::setLiquidGlassHaptics,
                     )
                 }
             }

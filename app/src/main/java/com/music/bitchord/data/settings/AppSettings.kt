@@ -534,6 +534,9 @@ object AppSettings {
      */
     val progressiveBlur = MutableStateFlow(false)
 
+    /** Haptic buzz on liquid-glass interactions (nav, toggles, sliders, menus). */
+    val liquidGlassHaptics = MutableStateFlow(true)
+
     /** Blurs unfocused lyric lines, keeping the active line sharp. */
     val lyricsBlur = MutableStateFlow(true)
 
@@ -1069,6 +1072,7 @@ object AppSettings {
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, false)
         glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
         progressiveBlur.value = prefs.getBoolean(KEY_PROGRESSIVE_BLUR, false)
+        liquidGlassHaptics.value = prefs.getBoolean(KEY_LIQUID_GLASS_HAPTICS, true)
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
         lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
@@ -1601,6 +1605,11 @@ object AppSettings {
     fun setProgressiveBlur(value: Boolean) {
         progressiveBlur.value = value
         prefs.edit().putBoolean(KEY_PROGRESSIVE_BLUR, value).apply()
+    }
+
+    fun setLiquidGlassHaptics(value: Boolean) {
+        liquidGlassHaptics.value = value
+        prefs.edit().putBoolean(KEY_LIQUID_GLASS_HAPTICS, value).apply()
     }
 
     fun setHighPerformanceMode(value: Boolean) {
@@ -2386,6 +2395,7 @@ object AppSettings {
     private const val KEY_LIQUID_GLASS = "liquid_glass"
     private const val KEY_GLASS_PERFORMANCE = "glass_performance"
     private const val KEY_PROGRESSIVE_BLUR = "progressive_blur"
+    private const val KEY_LIQUID_GLASS_HAPTICS = "liquid_glass_haptics"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"

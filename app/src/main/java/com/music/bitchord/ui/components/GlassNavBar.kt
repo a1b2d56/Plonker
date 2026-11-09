@@ -123,6 +123,7 @@ fun GlassNavBar(
     val selectedColor = contentColor
     val unselectedColor = contentColor.copy(alpha = 0.65f)
     val haptics = rememberHaptics()
+    val liquidHaptics = rememberLiquidGlassHaptics()
 
     // The tab content lambdas below are captured once per contentKey and held
     // until it changes, so a click handler that reached back to this call's
@@ -244,7 +245,10 @@ fun GlassNavBar(
             val isSelected = index == selectedIndex
             val tint = if (isSelected) selectedColor else unselectedColor
             val onClick = {
-                if (!isSelected) haptics.play(Haptic.Select)
+                if (!isSelected) {
+                    haptics.play(Haptic.Select)
+                    liquidHaptics()
+                }
                 currentOnTabSelected(index)
             }
             if (index == standaloneIndex) {

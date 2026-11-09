@@ -3429,7 +3429,7 @@ fun NowPlayingScreen(
                             if (signedIn || song.localUri != null) {
                                 val liked = likeStatus == LikeStatus.LIKE
                                 CircleGlyph(
-                                    icon = if (liked) BitChordIcons.StarFilled else BitChordIcons.Star,
+                                    icon = if (liked) BitChordIcons.PlayerStarFilled else BitChordIcons.PlayerStar,
                                     contentDescription = stringResource(
                                         if (liked) Res.string.remove_from_liked else Res.string.like,
                                     ),
@@ -3457,7 +3457,7 @@ fun NowPlayingScreen(
                                     showRevertCue -> Icons.AutoMirrored.Rounded.Undo
                                     lyricsShareGlyphVisible && lyricPicker.picking -> Icons.Rounded.Close
                                     lyricsShareGlyphVisible -> Icons.Rounded.IosShare
-                                    else -> Icons.Rounded.MoreHoriz
+                                    else -> BitChordIcons.PlayerEllipsis
                                 },
                                 contentDescription = stringResource(
                                     when {

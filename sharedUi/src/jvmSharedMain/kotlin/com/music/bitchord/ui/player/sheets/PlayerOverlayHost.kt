@@ -68,6 +68,14 @@ internal fun PlayerOverlayHost(
             onDismiss = { overlays.audioOutput = false },
             onOpenPipeline = { overlays.audioPipeline = true },
             onOpenCast = { overlays.cast = true },
+            onListenTogether = {
+                overlays.audioOutput = false
+                onManageListenTogether()
+            },
+            onOpenListenTogetherMembers = {
+                overlays.audioOutput = false
+                overlays.listenTogetherMembers = true
+            },
         )
     }
     if (overlays.lyricsProviders) {

@@ -161,6 +161,8 @@ fun HomeScreen(
     onMoodsShowAll: () -> Unit = {},
     /** Whether the Top Picks and mood artwork may animate — see [LocalArtworkMotion]. */
     artworkMotion: Boolean = true,
+    signInBannerDismissed: Boolean = false,
+    onDismissSignInBanner: (() -> Unit)? = null,
 ) {
     // Top Picks' pictures and motion wait for the feed — see LocalArtworkImages.
     val feedReady = state !is UiState.Loading
@@ -195,7 +197,7 @@ fun HomeScreen(
             if (title != null) {
                 item { HomeTitle(title, festiveLogo = festiveLogo, onFestiveLogoClick = onFestiveLogoClick) }
             }
-            if (!signedIn && onSignIn != null) {
+            if (!signedIn && onSignIn != null && !signInBannerDismissed) {
                 item {
                     // Read in this item, so a scroll starting or ending
                     // recomposes the banner alone.
@@ -203,6 +205,7 @@ fun HomeScreen(
                         onSignIn = onSignIn,
                         modifier = Modifier.padding(bottom = 8.dp),
                         motion = LocalArtworkMotion.current && !listState.isScrollInProgress,
+                        onDismiss = onDismissSignInBanner,
                     )
                 }
             }

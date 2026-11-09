@@ -16,6 +16,9 @@
     <string name="autoplay_queue_description">Similar music, selected to play next</string>
     <string name="bit_depth">%1$d-bit</string>
     <string name="cancel">Cancel</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="sign_in_dismiss_title">Hide sign-in prompt?</string>
+    <string name="sign_in_dismiss_message">Without signing in to YouTube Music you won't be able to like songs, and FLOW (the video in the Radio tab) stays unavailable. You can sign in again anytime from Settings.</string>
     <string name="cast">Cast</string>
     <string name="cast_casting">Casting</string>
     <string name="cast_connecting">Connecting…</string>
@@ -279,4 +282,6 @@
     <string name="mix_view_seconds">%1$d sec</string>
     <string name="mix_view_bpm">%1$d bpm</string>
     <string name="automix_overview_unavailable">No Automix transition coming up</string>
+    <string name="library_search_hint">Search this</string>
+    <string name="library_empty_segment">Nothing here yet</string>
 </resources>
