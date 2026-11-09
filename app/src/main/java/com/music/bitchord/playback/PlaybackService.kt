@@ -30,6 +30,8 @@ import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.datasource.DataSpec
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaLibraryService
@@ -759,6 +761,44 @@ class PlaybackService : MediaLibraryService() {
                 "AudioTrack ${audioTrackConfig.sampleRate}Hz encoding=${audioTrackConfig.encoding}",
                 about = eventTime.mediaId(),
             )
+        }
+
+        /**
+         * The true-bitrate feed: every completed media load adds its bytes
+         * — and the stretch of the track's timeline those bytes decode to —
+         * to [nerdStats], attributed to the track whose window the
+         * load belongs to. Manifest, DRM and initialization loads are not
+         * the audio and are left out.
+         */
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) {
+            if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA &&
+                mediaLoadData.dataType != C.DATA_TYPE_MEDIA_PROGRESSIVE_LIVE
+            ) {
+                return
+            }
+            nerdStats.onBytesLoaded(
+                mediaId = eventTime.mediaId(),
+                bytes = loadEventInfo.bytesLoaded,
+                mediaStartMs = mediaLoadData.mediaStartTimeMs,
+                mediaEndMs = mediaLoadData.mediaEndTimeMs,
+            )
+        }
+
+        /**
+         * A seek lands here, and so does every other position jump: the
+         * meter must not count the jumped-over stretch as played time.
+         */
+        override fun onPositionDiscontinuity(
+            eventTime: AnalyticsListener.EventTime,
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            nerdStats.onDiscontinuity(eventTime.mediaId())
         }
 
     }
@@ -1761,6 +1801,13 @@ class PlaybackService : MediaLibraryService() {
                 val player = this@PlaybackService.player
                 if (player != null && player.isPlaying) {
                     history.sample(player)
+                    player.currentMediaItem?.mediaId?.let { id ->
+                        nerdStats.onPlayTick(
+                            mediaId = id,
+                            positionMs = player.currentPosition,
+                            elapsedRealtimeMs = SystemClock.elapsedRealtime(),
+                        )
+                    }
                     // Only two primitive preference values. Queue JSON is
                     // written from onTimelineChanged, never from this loop.
                     savePlaybackState(player)

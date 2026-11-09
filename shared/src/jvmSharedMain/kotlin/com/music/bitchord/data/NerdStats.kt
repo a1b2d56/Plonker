@@ -154,6 +154,12 @@ object NerdStats {
          */
         val isLowQuality: Boolean
             get() = !isLossless && (bitrateKbps ?: 0) in 1..LOW_QUALITY_MAX_KBPS
+
+        /**
+         * The bitrate to display to the user: measured or container bitrate,
+         * or the PCM data rate for lossless streams if the encoded rate is not yet known.
+         */
+        fun displayBitrateKbps(): Int? = bitrateKbps ?: pcmDataRateKbps
     }
 
     /**
