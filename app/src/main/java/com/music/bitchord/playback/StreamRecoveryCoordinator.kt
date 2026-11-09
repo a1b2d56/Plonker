@@ -375,6 +375,22 @@ internal class StreamRecoveryCoordinator(
         // clears a DASH/HLS MIME left on an upgraded item, which otherwise makes
         // Media3 parse YouTube's WebM bytes as a manifest forever.
         if (fallbackFailedAlternativeToYouTube(item, uri, position, error)) return
+        // Offline, and there is no file behind this track: every rung of the
+        // ladder below is a network lookup that cannot answer. Skip past it cleanly
+        // without exhausting consecutive retry budgets.
+        if (AppSettings.meteredConnection.value == null && mediaId !in Downloads.saved.value) {
+            TrackLog.d(
+                "BitChord",
+                "$mediaId has no downloaded copy while offline; moving down the queue",
+                about = mediaId,
+            )
+            scope.launch(TrackLog.about(mediaId)) {
+                withContext(Dispatchers.Main) {
+                    skipPastUnplayable(mediaId, "offline — not downloaded")
+                }
+            }
+            return
+        }
         // Giving up on the *retry*, not on everything below it.
         //
         // A track that has exhausted its attempts is not finished with.
