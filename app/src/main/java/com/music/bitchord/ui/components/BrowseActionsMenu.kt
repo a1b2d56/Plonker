@@ -112,6 +112,7 @@ fun BrowseActionsMenu(
     /** Null where the menu was opened from the page it would navigate to. */
     onOpen: (() -> Unit)? = null,
     onDownloadAll: (() -> Unit)? = null,
+    onAddToPlaylist: (() -> Unit)? = null,
     /**
      * Shares the release's own YouTube Music link — the album/playlist
      * counterpart to a track's own Share tile in [SongActionsMenu]. Null for
@@ -184,6 +185,13 @@ fun BrowseActionsMenu(
                 stringResource(R.string.add_to_queue),
                 onClick = onAddToQueue,
             )
+            onAddToPlaylist?.let {
+                ActionRow(
+                    SfIcons.AddToPlaylist,
+                    stringResource(R.string.add_to_playlist),
+                    onClick = it,
+                )
+            }
             onDownloadAll?.let { download ->
                 // Saying which of the three it is, rather than offering the same row
                 // whatever the state — this is where a release is asked for now that

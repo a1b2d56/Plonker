@@ -1022,6 +1022,56 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Adds every track of a release — an album, a playlist — to the playlists
+     * the picker ticked.
+     */
+    fun addSongsToPlaylists(
+        playlists: List<UserPlaylist>,
+        songs: List<Song>,
+        onResult: (playlistsAdded: Int, tracksAdded: Int, alreadyThere: Int, failed: Int) -> Unit =
+            { _, _, _, _ -> },
+    ) {
+        if (!requireSignIn() || playlists.isEmpty() || songs.isEmpty()) return
+        viewModelScope.launch {
+            val outcomes = playlists.map { addReleaseTo(it, songs) }
+            onResult(
+                outcomes.count { it.first == AddOutcome.ADDED },
+                outcomes.sumOf { it.second },
+                outcomes.count { it.first == AddOutcome.ALREADY_THERE },
+                outcomes.count { it.first == AddOutcome.FAILED },
+            )
+        }
+    }
+
+    private suspend fun addReleaseTo(playlist: UserPlaylist, songs: List<Song>): Pair<AddOutcome, Int> {
+        val openSongs = (_detailStack.value.firstOrNull { it.browseId == playlist.browseId }
+            ?.songs as? UiState.Success)?.data
+        val known = openSongs
+            ?: YtMusicRepository.allSongs(playlist.browseId).getOrNull()
+        val existing = known?.mapNotNull { it.videoId }?.toSet()
+        val ids = songs.mapNotNull { it.videoId }
+            .filter { id -> existing == null || id !in existing }
+            .distinct()
+        if (ids.isEmpty()) return AddOutcome.ALREADY_THERE to 0
+        var failed = false
+        val addedIds = mutableListOf<String>()
+        ids.chunked(50).forEach { batch ->
+            val result = YtMusicRepository.addToPlaylist(playlist.playlistId, batch)
+            if (result.isFailure) {
+                failed = true
+            } else {
+                addedIds += batch
+            }
+        }
+        libraryStale = true
+        appendToOpenPlaylist(
+            playlist.browseId,
+            songs.filter { it.videoId in addedIds.toSet() },
+        )
+        return (if (failed) AddOutcome.FAILED else AddOutcome.ADDED) to addedIds.size
+    }
+
     private enum class AddOutcome { ADDED, ALREADY_THERE, FAILED }
 
     private suspend fun addOne(playlist: UserPlaylist, song: Song): AddOutcome {
@@ -1244,7 +1294,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * flight is newer than this and will land with the addition already in it.
      */
     private fun appendToOpenPlaylist(browseId: String, song: Song, setVideoId: String?) {
-        val added = song.copy(setVideoId = setVideoId)
+        appendToOpenPlaylist(browseId, listOf(song.copy(setVideoId = setVideoId)))
+    }
+
+    private fun appendToOpenPlaylist(browseId: String, added: List<Song>) {
+        if (added.isEmpty()) return
         _detailStack.value = _detailStack.value.map { page ->
             if (page.browseId != browseId) return@map page
             val songs = when (val state = page.songs) {
@@ -1252,15 +1306,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 is UiState.Error -> if (state.message == text(R.string.no_tracks_here)) emptyList() else return@map page
                 UiState.Loading -> return@map page
             }
-            // Already there — a track added twice is two real entries on
-            // YouTube's side, but a duplicate row from a double tap is not
-            // something the user asked for.
-            if (songs.any { it.videoId == song.videoId }) return@map page
+            val fresh = added.filter { song -> songs.none { it.videoId == song.videoId } }
+            if (fresh.isEmpty()) return@map page
             page.copy(
                 songs = UiState.Success(
-                    songs + added.copy(
-                        thumbnailUrl = added.thumbnailUrl ?: page.thumbnailUrl,
-                    ),
+                    songs + fresh.map { song ->
+                        song.copy(thumbnailUrl = song.thumbnailUrl ?: page.thumbnailUrl)
+                    },
                 ),
             )
         }

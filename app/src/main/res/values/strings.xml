@@ -1342,4 +1342,12 @@
     <string name="save_cover_art" translatable="false">Save cover art</string>
     <string name="cover_saved" translatable="false">Saved %1$s</string>
     <string name="cover_save_failed" translatable="false">Couldn\'t save cover art</string>
+    <plurals name="add_tracks_to_playlists_count" translatable="false">
+        <item quantity="one">Add %1$d track to %2$d playlists</item>
+        <item quantity="other">Add %1$d tracks to %2$d playlists</item>
+    </plurals>
+    <plurals name="added_tracks_to_playlists_notice" translatable="false">
+        <item quantity="one">Added %1$d track to %2$d playlists</item>
+        <item quantity="other">Added %1$d tracks to %2$d playlists</item>
+    </plurals>
 </resources>
