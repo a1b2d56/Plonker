@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.components.isRtlText
+
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.geometry.Size
 import com.music.bitchord.ui.player.lyrics.LyricsJumpPill
@@ -2240,7 +2242,7 @@ internal fun LyricsPanel(
                     )
                     }
                 } else {
-                    val alignEnd = duet && line.alignment == LyricAlignment.End
+                    val alignEnd = if (duet) line.alignment == LyricAlignment.End else isRtlText(line.text)
                     val style = if (isSynced) {
                         MaterialTheme.typography.headlineLarge.copy(
                             fontSize = 34.sp,
