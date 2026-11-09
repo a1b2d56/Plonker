@@ -324,6 +324,27 @@ fun SongMenuBody(heldSong: Song, env: SongMenuEnv, viewModel: MainViewModel) {
         // drops it for a local file via `isOffline`, this catches
         // the rest.
         onShare = share.takeIf { song.videoId.isNotBlank() },
+        onSaveArtwork = {
+            env.close()
+            env.coroutineScope.launch {
+                com.music.bitchord.data.artwork.ArtworkDownload.save(context, song).fold(
+                    onSuccess = { name ->
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.cover_saved, name),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                    onFailure = {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.cover_save_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                )
+            }
+        },
         onCopyLog = if (fromPlayer) {
             {
                 env.close()
