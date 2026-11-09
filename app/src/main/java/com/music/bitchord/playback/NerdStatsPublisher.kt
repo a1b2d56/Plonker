@@ -1,6 +1,8 @@
 package com.music.bitchord.playback
 
 import android.content.Context
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import androidx.media3.common.C
@@ -11,6 +13,9 @@ import com.music.bitchord.data.NerdStats
 import com.music.bitchord.data.TelemetryProvenance
 import com.music.bitchord.data.sources.SourceRegistry
 import com.music.bitchord.download.Downloads
+import com.music.bitchord.playback.audio.ContainerBitrate
+import com.music.bitchord.playback.audio.LocalBitrateReading
+import com.music.bitchord.playback.audio.MeasuredBitrateMeter
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,8 +38,23 @@ internal class NerdStatsPublisher(
     private val scope: CoroutineScope,
     private val player: () -> ExoPlayer?,
 ) {
-    /** Local files' bitrates, read once from their own metadata. */
-    private val localBitrateCache = ConcurrentHashMap<String, Int>()
+    /** Local files' bitrates, read once from their own metadata or MediaExtractor. */
+    private val localBitrateCache = ConcurrentHashMap<String, LocalBitrateReading>()
+
+    /** The live-measured bitrate meter for audio streams. */
+    val measuredBitrate = MeasuredBitrateMeter()
+
+    fun onBytesLoaded(mediaId: String?, bytes: Long, mediaStartMs: Long, mediaEndMs: Long) {
+        measuredBitrate.onBytesLoaded(mediaId, bytes, mediaStartMs, mediaEndMs)
+    }
+
+    fun onPlayTick(mediaId: String?, positionMs: Long, elapsedRealtimeMs: Long) {
+        measuredBitrate.onPlayTick(mediaId, positionMs, elapsedRealtimeMs)
+    }
+
+    fun onDiscontinuity(mediaId: String?) {
+        measuredBitrate.onDiscontinuity(mediaId)
+    }
 
     /** [measuredStreamKbps]'s answers, keyed by rendition URI, and the ones still being read. */
     private val measuredBitrateCache = ConcurrentHashMap<String, Int>()
@@ -164,34 +184,9 @@ internal class NerdStatsPublisher(
 
         val uri = resolveLocalUri(mediaId, mediaItem) ?: return
         scope.launch(Dispatchers.IO) {
-            val kbps = runCatching {
-                val retriever = MediaMetadataRetriever()
-                var bps: Long? = null
-                var durMs: Long? = null
-                try {
-                    retriever.setDataSource(context, uri)
-                    bps = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)?.toLongOrNull()
-                    durMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-                } finally {
-                    retriever.release()
-                }
-
-                if (bps != null && bps > 0) {
-                    ((bps + 500L) / 1000L).toInt()
-                } else if (durMs != null && durMs > 0) {
-                    val sizeBytes = when (uri.scheme) {
-                        "file" -> uri.path?.let { java.io.File(it).length() }
-                        "content" -> context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize }
-                        else -> null
-                    }
-                    if (sizeBytes != null && sizeBytes > 0) {
-                        ((sizeBytes * 8000L) / durMs / 1000L).toInt().takeIf { it > 0 }
-                    } else null
-                } else null
-            }.getOrNull()
-
-            if (kbps != null && kbps > 0) {
-                localBitrateCache[mediaId] = kbps
+            val reading = runCatching { extractLocalBitrate(uri) }.getOrNull()
+            if (reading != null && reading.kbps > 0) {
+                localBitrateCache[mediaId] = reading
                 withContext(Dispatchers.Main) {
                     if (player()?.currentMediaItem?.mediaId == mediaId) {
                         publish()
@@ -199,6 +194,77 @@ internal class NerdStatsPublisher(
                 }
             }
         }
+    }
+
+    private fun extractLocalBitrate(uri: Uri): LocalBitrateReading? {
+        val extractor = MediaExtractor()
+        try {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                extractor.setDataSource(descriptor.fileDescriptor)
+                var durationMs: Long? = null
+                val sizeBytes: Long? = descriptor.statSize.takeIf { it > 0 }
+                for (i in 0 until extractor.trackCount) {
+                    val track = extractor.getTrackFormat(i)
+                    val mime = track.getString(MediaFormat.KEY_MIME) ?: continue
+                    if (!mime.startsWith("audio/")) continue
+                    if (durationMs == null && track.containsKey(MediaFormat.KEY_DURATION)) {
+                        durationMs = track.getLong(MediaFormat.KEY_DURATION) / 1_000L
+                    }
+                    val bitrateBps = if (track.containsKey(MediaFormat.KEY_BIT_RATE)) {
+                        track.getInteger(MediaFormat.KEY_BIT_RATE).toLong()
+                    } else {
+                        0L
+                    }
+                    if (bitrateBps > 0) {
+                        val sampleRate = if (track.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                            track.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        } else null
+                        val channels = if (track.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                            track.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                        } else null
+                        val bitDepth = if (track.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                            pcmBitDepthOf(track.getInteger(MediaFormat.KEY_PCM_ENCODING))
+                        } else null
+                        if (ContainerBitrate.isPlausibleEncodedBitrate(bitrateBps, sampleRate, channels, bitDepth)) {
+                            return LocalBitrateReading(
+                                kbps = ((bitrateBps + 500L) / 1_000L).toInt(),
+                                provenance = TelemetryProvenance.MEASURED,
+                            )
+                        }
+                    }
+                    break
+                }
+                val duration = durationMs ?: retrieverDurationMs(uri)
+                if (sizeBytes != null && duration != null) {
+                    ContainerBitrate.averageKbpsFromSizeAndDuration(sizeBytes, duration)?.let {
+                        return LocalBitrateReading(it, TelemetryProvenance.DERIVED)
+                    }
+                }
+            }
+        } finally {
+            runCatching { extractor.release() }
+        }
+        return null
+    }
+
+    private fun retrieverDurationMs(uri: Uri): Long? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, uri)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+        } catch (_: Throwable) {
+            null
+        } finally {
+            runCatching { retriever.release() }
+        }
+    }
+
+    private fun pcmBitDepthOf(encoding: Int): Int? = when (encoding) {
+        android.media.AudioFormat.ENCODING_PCM_16BIT -> 16
+        android.media.AudioFormat.ENCODING_PCM_FLOAT -> 32
+        21 /* ENCODING_PCM_24BIT_PACKED */ -> 24
+        22 /* ENCODING_PCM_32BIT */ -> 32
+        else -> null
     }
 
     /**
@@ -240,13 +306,18 @@ internal class NerdStatsPublisher(
         val isRawPcm = NerdStats.isRawPcm(format?.sampleMimeType)
         val pcmDataRate = measured?.pcmBitrateKbps
 
+        val liveMeasuredKbps = mediaId?.let { measuredBitrate.measuredKbps(it) }
+        val localReading = mediaId?.let { localBitrateCache[it] }
+
         val (bitrate, provenance) = when {
-            format?.averageBitrate != null && format.averageBitrate > 0 ->
-                Pair((format.averageBitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
-            format?.bitrate != null && format.bitrate > 0 ->
-                Pair((format.bitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
-            mediaId != null && localBitrateCache.containsKey(mediaId) ->
-                Pair(localBitrateCache[mediaId], TelemetryProvenance.AUTHORITATIVE)
+            liveMeasuredKbps != null ->
+                Pair(liveMeasuredKbps, TelemetryProvenance.MEASURED)
+            localReading != null ->
+                Pair(localReading.kbps, localReading.provenance)
+            !isLossless && dsd == null && (format?.averageBitrate ?: 0) > 0 ->
+                Pair((format!!.averageBitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
+            !isLossless && dsd == null && (format?.bitrate ?: 0) > 0 ->
+                Pair((format!!.bitrate + 500) / 1000, TelemetryProvenance.AUTHORITATIVE)
             dsd == null && isRawPcm && pcmDataRate != null ->
                 Pair(pcmDataRate, TelemetryProvenance.DERIVED)
             else ->
@@ -315,5 +386,6 @@ internal class NerdStatsPublisher(
     fun forgetSession() {
         localBitrateCache.clear()
         measuredBitrateCache.clear()
+        measuredBitrate.forget()
     }
 }

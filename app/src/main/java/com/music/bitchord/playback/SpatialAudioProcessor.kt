@@ -54,7 +54,7 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
     fun configure(sampleRate: Int, channelCount: Int) {
         this.sampleRate = sampleRate
         this.channelCount = channelCount
-        if (channelCount != 2 || sampleRate <= 0) {
+        if (sampleRate <= 0) {
             delayLeft = FloatArray(0)
             delayRight = FloatArray(0)
             delayIndex = 0
@@ -86,20 +86,21 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
      */
     fun process(block: AudioBlock) {
         if (!enabled || block.frameCount == 0) return
-        if (block.channelCount != 2) return // Spatial widening only applies to stereo
+        if (block.channelCount < 2) return // Spatial widening applies to the front L/R pair
 
+        val channels = block.channelCount
         val delaySize = delayLeft.size
         if (delaySize == 0) return
 
-        val totalSamples = block.frameCount * 2
-        var idx = 0
         var dIdx = delayIndex
         var lpL = lowpassLeft
         var lpR = lowpassRight
 
-        while (idx < totalSamples) {
-            val left = block.samples[idx]
-            val right = block.samples[idx + 1]
+        // Widen the front L/R pair; channels 2.. are passed through untouched.
+        for (frame in 0 until block.frameCount) {
+            val base = frame * channels
+            val left = block.samples[base]
+            val right = block.samples[base + 1]
 
             val mid = (left + right) * 0.5f
             val side = (left - right) * 0.5f * widthGain
@@ -118,9 +119,8 @@ class SpatialAudioProcessor : BaseAudioProcessor() {
             dIdx = (dIdx + 1) % delaySize
 
             // Headroom is preserved: no clamping to [-1.0f, +1.0f]
-            block.samples[idx] = widenedLeft * outputGain
-            block.samples[idx + 1] = widenedRight * outputGain
-            idx += 2
+            block.samples[base] = widenedLeft * outputGain
+            block.samples[base + 1] = widenedRight * outputGain
         }
 
         delayIndex = dIdx
