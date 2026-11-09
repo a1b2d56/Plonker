@@ -18,6 +18,8 @@ import com.music.bitchord.data.sources.StreamFormat
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.playback.AudioCache
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -217,6 +219,51 @@ object Downloads {
     }
 
     /**
+     * A batch of tracks, queued in one go.
+     *
+     * The loop this replaces did three expensive things per track: it started
+     * the foreground service again for every one of them, it copied the whole
+     * progress map and the whole session list once per track, and it did all
+     * of that on the thread that asked — the thread drawing the screen.
+     */
+    fun enqueueAll(context: Context, songs: List<Song>, from: String? = null) {
+        if (songs.isEmpty()) return
+        val app = context.applicationContext
+        val accepted = mutableListOf<Song>()
+        val refused = mutableListOf<Song>()
+        synchronized(lock) {
+            for (song in songs) {
+                val id = song.videoId
+                if (id in pending || id in running) continue
+                if (!AppSettings.downloadsAllowedNow && !servableFromCache(id)) {
+                    refused += song
+                    continue
+                }
+                pending[id] = song
+                accepted += song
+            }
+        }
+        if (accepted.isNotEmpty()) {
+            _active.update { current ->
+                current + accepted.associate { it.videoId to DownloadState.Queued }
+            }
+            DownloadSession.queuedAll(accepted, from)
+        }
+        for (song in refused) {
+            DownloadSession.queued(song, from)
+            fail(song.videoId, WIFI_ONLY_REFUSAL)
+        }
+        if (accepted.isEmpty()) return
+        runCatching {
+            ContextCompat.startForegroundService(app, Intent(app, DownloadService::class.java))
+        }.onFailure {
+            Log.w(TAG, "could not start the download service: ${it.message}")
+            synchronized(lock) { accepted.forEach { pending.remove(it.videoId) } }
+            accepted.forEach { fail(it.videoId, "Downloads can't start right now") }
+        }
+    }
+
+    /**
      * Tracks asked for from the Cached songs folder, which are saved from the
      * cache's own complete copy when it holds one — see [AudioCache.completeCopyOf].
      *
@@ -295,9 +342,11 @@ object Downloads {
                 }
             }
         }
-        claimed.forEach { song ->
-            _active.update { it + (song.videoId to DownloadState.Queued) }
-            DownloadSession.queued(song, from)
+        if (claimed.isNotEmpty()) {
+            _active.update { current ->
+                current + claimed.associate { it.videoId to DownloadState.Queued }
+            }
+            DownloadSession.queuedAll(claimed, from)
         }
         val slots = Semaphore(BATCH_WORKERS)
         try {
@@ -638,9 +687,7 @@ object Downloads {
             val map = update(_collections.value)
             _collections.value = map
             if (::prefs.isInitialized) {
-                prefs.edit()
-                    .putString(KEY_SAVED_COLLECTIONS, json.encodeToString(collectionSerializer, map))
-                    .apply()
+                indexWriter.submit(mapOf(KEY_SAVED_COLLECTIONS to json.encodeToString(collectionSerializer, map)))
             }
         }
     }
@@ -730,6 +777,14 @@ object Downloads {
      * updated compare-and-set, and the persist is serialised so the copy that
      * reaches disk is never older than one already written.
      */
+    private val indexWriter = CoalescingWriter { payload ->
+        if (::prefs.isInitialized) {
+            prefs.edit().apply {
+                payload.forEach { (key, value) -> putString(key, value) }
+            }.apply()
+        }
+    }
+
     private fun record(
         saved: (Map<String, String>) -> Map<String, String>,
         meta: (Map<String, SavedSongMetadata>) -> Map<String, SavedSongMetadata>,
@@ -737,12 +792,11 @@ object Downloads {
         val savedMap = _saved.updateAndGet(saved)
         val metaMap = _savedMetadata.updateAndGet(meta)
         if (!::prefs.isInitialized) return
-        synchronized(recordLock) {
-            prefs.edit()
-                .putString(KEY_SAVED, json.encodeToString(serializer, savedMap))
-                .putString(KEY_SAVED_METADATA, json.encodeToString(metadataSerializer, metaMap))
-                .apply()
-        }
+        val payload = mapOf(
+            KEY_SAVED to json.encodeToString(serializer, savedMap),
+            KEY_SAVED_METADATA to json.encodeToString(metadataSerializer, metaMap),
+        )
+        indexWriter.submit(payload)
     }
 
     private val recordLock = Any()
@@ -1739,3 +1793,49 @@ data class DownloadedCollection(
     val playlist: Boolean,
     val songs: List<Song>,
 )
+
+/**
+ * The write path for the download index.
+ *
+ * Coalesce: A batch download finishes dozens of tracks in a row, and each
+ * completion used to encode the entire library and write it. Now a payload that
+ * arrives while a write is in flight replaces the pending one instead of
+ * queueing behind it, so a burst costs one write of the final state — which is
+ * the only state anyone will ever read.
+ *
+ * Never lose the last one: drain reads the pending payload until there is
+ * none, and re-checks for a late arrival before clearing draining.
+ */
+internal class CoalescingWriter(
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    private val sink: (Map<String, String>) -> Unit,
+) {
+    private val lock = Any()
+    private var pending: Map<String, String>? = null
+    private var draining = false
+
+    fun submit(payload: Map<String, String>) {
+        val start = synchronized(lock) {
+            pending = (pending ?: emptyMap()) + payload
+            if (draining) return
+            draining = true
+            true
+        }
+        if (start) scope.launch { drain() }
+    }
+
+    private suspend fun drain() {
+        try {
+            while (true) {
+                val next = synchronized(lock) { pending.also { pending = null } } ?: break
+                sink(next)
+            }
+        } finally {
+            val missed = synchronized(lock) {
+                if (pending == null) draining = false
+                pending != null
+            }
+            if (missed) scope.launch { drain() }
+        }
+    }
+}

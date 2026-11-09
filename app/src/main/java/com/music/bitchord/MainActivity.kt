@@ -1815,7 +1815,7 @@ private fun BitChordApp(
         when {
             songs.isEmpty() -> Unit
             granted -> {
-                songs.forEach { Downloads.enqueue(context, it, from?.title) }
+                Downloads.enqueueAll(context, songs, from?.title)
                 if (from != null) Downloads.markRequested(from.id, songs.map { it.videoId })
             }
             // The one case where refusing is fatal: below API 29 there is no
@@ -1946,7 +1946,7 @@ private fun BitChordApp(
                 downloadPendingFrom = from
                 storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             } else {
-                songs.forEach { Downloads.enqueue(context, it, from?.title) }
+                Downloads.enqueueAll(context, songs, from?.title)
                 if (from != null) Downloads.markRequested(from.id, songs.map { it.videoId })
             }
             // Said once per addon and reason per session, and only for a batch
