@@ -957,11 +957,16 @@ class LibraryBrowser(
          * One page of a browse list as a media browser asks for it: [page] counts
          * from zero, a page past the end is empty, and no page is longer than
          * [MAX_AUTO_PAGE_SIZE] whatever the browser asks for.
+         *
+         * A page starts where the browser's own arithmetic says it does, at
+         * `page * pageSize`; only its length is capped. Starting it at a
+         * multiple of the cap instead handed a browser that asked for pages of
+         * 500 items it already had.
          */
         fun <T> paginate(items: List<T>, page: Int, pageSize: Int): List<T> {
             if (page < 0 || pageSize <= 0 || items.isEmpty()) return emptyList()
             val safePageSize = pageSize.coerceAtMost(MAX_AUTO_PAGE_SIZE)
-            val fromLong = page.toLong() * safePageSize.toLong()
+            val fromLong = page.toLong() * pageSize.toLong()
             if (fromLong >= items.size.toLong()) return emptyList()
             val from = fromLong.toInt()
             val to = (fromLong + safePageSize).coerceAtMost(items.size.toLong()).toInt()

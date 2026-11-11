@@ -27,6 +27,15 @@ class LibraryBrowserPagingTest {
     }
 
     @Test
+    fun `a capped page still starts where the browser counts it from`() {
+        // Pages of 100 asked for, 50 served: page 1 is items 100 onwards, not
+        // a second helping of 50 to 99.
+        assertEquals((100 until 120).toList(), LibraryBrowser.paginate(items, page = 1, pageSize = 100))
+        assertTrue(LibraryBrowser.paginate(items, page = 1, pageSize = 1_000).isEmpty())
+        assertTrue(LibraryBrowser.paginate(items, page = 1, pageSize = Int.MAX_VALUE).isEmpty())
+    }
+
+    @Test
     fun `nonsense requests get nothing rather than a crash`() {
         assertTrue(LibraryBrowser.paginate(items, page = -1, pageSize = 20).isEmpty())
         assertTrue(LibraryBrowser.paginate(items, page = 0, pageSize = 0).isEmpty())
