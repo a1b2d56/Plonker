@@ -1725,17 +1725,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private var moodGenreJob: Job? = null
+
     fun openMoodGenre(item: MoodGenre) {
         _selectedMoodGenre.value = item
         _moodGenreShelves.value = UiState.Loading
-        viewModelScope.launch {
-            _moodGenreShelves.value = YtMusicRepository.moodGenreShelves(item.browseId, item.params).fold(
+        // One category's answer must not land on another's page: the earlier
+        // request is dropped, and a late one checks it is still wanted.
+        moodGenreJob?.cancel()
+        moodGenreJob = viewModelScope.launch {
+            val state = YtMusicRepository.moodGenreShelves(item.browseId, item.params).fold(
                 onSuccess = { shelves ->
                     if (shelves.isEmpty()) UiState.Error(text(R.string.nothing_to_explore))
                     else UiState.Success(shelves)
                 },
                 onFailure = { UiState.Error(it.friendly()) },
             )
+            if (_selectedMoodGenre.value == item) _moodGenreShelves.value = state
         }
     }
 
@@ -1903,11 +1909,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    /**
-     * One of the parallel first-page requests has finished. Ignored once a newer
-     * load has taken over, which has already reset the count for its own fan-out.
-     */
-
     private suspend fun loadCommunityPlaylists(identity: String?, generation: Long) {
         val fallbackQueries = listOf("chill mix", "hits playlist", "trending music", "vibes playlist").shuffled()
         for (q in fallbackQueries) {
@@ -1917,7 +1918,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     .map { it.item }
                     .filter {
                         !it.subtitle.orEmpty().contains("YouTube", ignoreCase = true) &&
-                        it.browseId != null &&
                         !it.browseId.startsWith("RD")
                     }
                     .take(15)
@@ -1940,6 +1940,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * One of the parallel first-page requests has finished. Ignored once a newer
+     * load has taken over, which has already reset the count for its own fan-out.
+     */
     private fun homeShelfRequestSettled(identity: String?, generation: Long) {
         if (!isCurrentHomeLoad(identity, generation)) return
         _homePendingShelves.value = (_homePendingShelves.value - 1).coerceAtLeast(0)
@@ -2592,55 +2596,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * The enabled non-YouTube sources, asked at the same time and returned
-     * split at YouTube's own place in the order.
-     *
-     * The split is what makes the Sources screen's ordering visible where it
-     * matters most. A library server ranked above YouTube puts its own copies
-     * at the top of the results — which is the whole point of ranking it there —
-     * and one ranked below appears under them instead.
-     *
-     * Only the Songs filter fans out: albums, artists and playlists are
-     * browse-shaped, and [MusicSource] deliberately answers for tracks only.
-     *
-     * Asked of the playback list rather than every enabled source, so a result
-     * offered here is one this connection's ceiling would actually let play —
-     * a row that can only be tapped into a YouTube stream is a lie about where
-     * the track is coming from.
-     */
-    private suspend fun sourceResults(
-        query: String,
-        filter: SearchFilter,
-    ): Pair<List<SearchResult>, List<SearchResult>> = coroutineScope {
-        if (filter != SearchFilter.SONGS) return@coroutineScope emptyList<SearchResult>() to emptyList()
-        val active = SourceRegistry.activeForPlayback()
-        val youtubeRank = active.indexOfFirst { it.kind == SourceKind.YOUTUBE }
-            .let { if (it < 0) active.size else it }
-
-        val answers = active
-            .filter { it.kind != SourceKind.YOUTUBE }
-            .map { source ->
-                source to async {
-                    // Per-source, so one slow or unreachable server delays the
-                    // results by at most this much rather than for as long as
-                    // its socket takes to give up.
-                    runCatching {
-                        withTimeout(SOURCE_SEARCH_TIMEOUT_MS) { source.search(query, SOURCE_SEARCH_LIMIT) }
-                    }.getOrDefault(emptyList())
-                }
-            }
-
-        val above = mutableListOf<SearchResult>()
-        val below = mutableListOf<SearchResult>()
-        answers.forEach { (source, job) ->
-            val rows = job.await().map { SearchResult.Track(it) }
-            val rank = active.indexOfFirst { it.configId == source.configId }
-            if (rank in 0 until youtubeRank) above += rows else below += rows
-        }
-        above to below
-    }
-
-    /**
      * Warms the stream URL for the top song result the instant results land,
      * not when it's tapped. [AudioCache] gives a head start to whatever's
      * already queued; a fresh search has nothing queued yet, and the top
@@ -2744,26 +2699,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
         /** Enough to be worth scrolling, short enough not to bury YouTube's own rows. */
         const val SOURCE_SEARCH_LIMIT = 12
-
-        /**
-         * What a page with an empty listing says.
-         *
-         * Named because it is a state one can be got *out* of, not just a
-         * message: an own playlist with nothing in it lands here, and adding the
-         * first track to it has to be able to tell "this page is empty" apart
-         * from "this page failed to load" — see [appendToOpenPlaylist].
-         */
-
-        /**
-         * What a downloaded playlist's page says once the files under it are
-         * gone.
-         *
-         * A record here outlives the folder it names — the user is expected to
-         * manage Downloads with a file manager — so this is a state its page has
-         * to be able to reach, not an error. Named because three places say it:
-         * the page, its refresh, and the long-press menu that queues it without
-         * opening it.
-         */
 
         fun browseTypeOf(browseId: String, fallback: BrowseType = BrowseType.OTHER): BrowseType = when {
             // Built for playlists, but an album downloaded whole opens through

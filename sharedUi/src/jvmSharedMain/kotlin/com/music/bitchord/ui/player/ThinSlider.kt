@@ -427,9 +427,11 @@ fun rememberMixPulse(mixBlend: () -> MixBlend?, enabled: Boolean): MixPulse {
                 val dt = (now - last).coerceIn(0L, MAX_FRAME_NANOS)
                 last = now
                 val blend = pulse.blendNow()
-                val beatNanos = blend?.beatMs?.takeIf { it > 0f }?.let { it * 1_000_000.0 }
+                // A beat under a millisecond is not a tempo, and one short enough
+                // to round to zero nanoseconds would divide by zero below.
+                val beatNanos = blend?.beatMs?.takeIf { it >= 1f }?.let { it * 1_000_000.0 }
                 var phase = pulse.phase
-                if (beatNanos != null && blend != null) {
+                if (beatNanos != null) {
                     phase += dt / beatNanos
                     val target = Math.floorMod(now - blend.beatAnchorNanos, beatNanos.toLong()) / beatNanos
                     // Shortest way round the circle to where the beat should be. The very first
