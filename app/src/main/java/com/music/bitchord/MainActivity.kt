@@ -296,8 +296,6 @@ import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
 import com.music.bitchord.ui.onboarding.OnboardingScreen
-import com.music.bitchord.ui.replay.cards
-import com.music.bitchord.ui.replay.ReplayShareSheet
 import com.music.bitchord.ui.replay.ReplayStories
 import com.music.bitchord.ui.replay.ReplayStoryPage
 import com.music.bitchord.ui.replay.rememberReplayState
@@ -344,8 +342,7 @@ class MainActivity : AppCompatActivity() {
             val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
             val appFont by AppSettings.appFont.collectAsStateWithLifecycle()
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
-            val liquidGlassEnabled by AppSettings.liquidGlass.collectAsStateWithLifecycle()
-            val reduceAnimationRoot by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
+                        val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             val iosOverscrollFactory = rememberIosOverscrollFactory()
             val performanceRefreshRate by AppSettings.performanceRefreshRate.collectAsStateWithLifecycle()
             val composeView = LocalView.current
@@ -359,7 +356,7 @@ class MainActivity : AppCompatActivity() {
             }
             BitChordTheme(darkTheme = darkTheme, font = appFont) {
                 // The glass surfaces sample this layer, and a layer records only
-                // what is drawn into it — which, for BitChord, is a page that
+            BitChordTheme(darkTheme = darkTheme) {
                 // paints no background of its own. Everywhere a page is not
                 // showing artwork the recording is transparent, so the glass had
                 // nothing to blur there and you saw straight through it to the
@@ -746,22 +743,6 @@ private fun BitChordApp(
 
 
     // ---- Navigation ----
-    // One back stack for every page: the routes pushed over the tabs, and the
-    // album / artist / playlist pages interleaved with them — see
-    // [AppNavigator]. Whatever was opened last is what is on screen, and back
-    // (the gesture or the bar's button alike) undoes exactly that.
-    val navigator = viewModel.navigator
-    val detailStack by viewModel.detailStack.collectAsStateWithLifecycle()
-    val topEntry = navigator.visibleEntry(detailStack.size)
-    // An artist's open shelf is drawn by the artist page itself, so it is not a
-    // route the page area switches to — only the shelf the page is showing.
-    val artistShelfRoute = topEntry?.route as? AppRoute.ArtistShelf
-    val visibleEntry = topEntry?.takeIf { artistShelfRoute == null }
-    val detailActiveShelf = artistShelfRoute?.shelf
-    /** The route on screen, or null when a release page or a tab is. */
-    val route = visibleEntry?.route
-    /**
-     * The release page at the top of its stack, whether or not a route
      * covers it. Most things want [detail] — the one actually on screen.
      */
     val topDetail = detailStack.lastOrNull()
@@ -792,7 +773,7 @@ private fun BitChordApp(
             homeState
         }
     }
-    val topPicks by viewModel.topPicks.collectAsStateWithLifecycle()
+        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
 
     // The top bar's icon is the quiet, always-there nudge; this is the
     // once-per-launch popup version of the same news. `updateDialogShown`
@@ -2414,7 +2395,6 @@ private fun BitChordApp(
     }
 
     Box(
-        Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             // Nothing of the page under a portrait player that is fully up:
@@ -2721,7 +2701,7 @@ private fun BitChordApp(
                                 libraryListState = libraryListState, libraryPull = libraryPull, signedIn = signedIn,
                                 replay = replay, replayCards = replayCards, downloadedReleases = downloadedReleases,
                                 localPlaylistItems = localPlaylistItems, listPadding = listPadding,
-                            )
+                                player = player, signedIn = signedIn,
                         }
                     }
                     // A pushed page keeps its saved state — a scroll position,
@@ -3576,23 +3556,10 @@ private fun BitChordApp(
                         if (update.apkUrl != null) {
                             scope.launch { AppUpdateChecker.downloadApk(context) }
                         } else {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
-                            showUpdateDialog = false
-                        }
-                    },
-                    onCancelDownload = {
-                        AppUpdateChecker.cancelDownload()
-                    },
-                    onInstall = {
-                        val ready = AppUpdateChecker.download.value as? AppUpdateChecker.DownloadState.Ready
-                        ready?.let { AppUpdateChecker.installApk(context, it.file) }
-                    },
-                    onOpenReleasePage = {
-                        AppUpdateChecker.resetDownload()
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(update.releaseUrl)))
-                        showUpdateDialog = false
+        // ---- Update available (once per launch; held until the welcome is done) ----
                     },
-                    animatedScope = this,
+            visible = showUpdateDialog && onboardingComplete && updateNotice != null,
                 )
             }
         }

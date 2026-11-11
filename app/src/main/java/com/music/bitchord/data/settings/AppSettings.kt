@@ -134,12 +134,6 @@ enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
 }
 
-/**
- * How the app's SF Pro Display is set. [DEFAULT] draws each weight one cut
- * lighter and spaces it to Apple Music's own screens; [LEGACY] is the cut the
- * app shipped with before that, every weight its own and spaced tight.
- */
-enum class AppFont { DEFAULT, LEGACY }
 
 /**
  * Which of the equaliser's two tabs is driving the sound.
@@ -417,7 +411,6 @@ object AppSettings {
 
     val playbackSpeed = MutableStateFlow(1.0f)
     val themeMode = MutableStateFlow(ThemeMode.DARK)
-    val appFont = MutableStateFlow(AppFont.DEFAULT)
 
     /** Keep playing similar music once the queue runs out. */
     val autoplay = MutableStateFlow(true)
@@ -445,8 +438,6 @@ object AppSettings {
      */
     val onboardingComplete = MutableStateFlow(false)
 
-
-    /** Requests a sustained high-refresh UI. Off keeps Android's automatic policy. */
     val highPerformanceMode = MutableStateFlow(false)
 
     /** Preferred UI refresh rate while [highPerformanceMode] is enabled. */
@@ -1035,9 +1026,6 @@ object AppSettings {
         }.getOrDefault(ThemeMode.DARK)
         appFont.value = runCatching {
             AppFont.valueOf(prefs.getString(KEY_APP_FONT, null) ?: AppFont.DEFAULT.name)
-        }.getOrDefault(AppFont.DEFAULT)
-        autoplay.value = prefs.getBoolean(KEY_AUTOPLAY, true)
-        shuffleEnabled.value = prefs.getBoolean(KEY_SHUFFLE_ENABLED, false)
         repeatMode.value = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
         showListenTogetherButton.value = prefs.getBoolean(KEY_LISTEN_TOGETHER_BUTTON, false)
@@ -1047,7 +1035,6 @@ object AppSettings {
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
-            prefs.getInt(KEY_PERFORMANCE_REFRESH_RATE, DEFAULT_PERFORMANCE_REFRESH_RATE),
         )
         stopOnTaskRemoved.value = prefs.getBoolean(KEY_STOP_ON_TASK_REMOVED, true)
         hideVolumeBar.value = prefs.getBoolean(KEY_HIDE_VOLUME_BAR, false)
@@ -1477,10 +1464,6 @@ object AppSettings {
     fun setAppFont(value: AppFont) {
         appFont.value = value
         prefs.edit().putString(KEY_APP_FONT, value.name).apply()
-    }
-
-    fun setHapticFeedbackEnabled(value: Boolean) {
-        hapticFeedbackEnabled.value = value
         com.music.bitchord.ui.haptics.HapticSettings.enabled = value
         prefs.edit().putBoolean(KEY_HAPTIC_FEEDBACK, value).apply()
     }
@@ -1502,11 +1485,6 @@ object AppSettings {
     fun setStopOnTaskRemoved(value: Boolean) {
         stopOnTaskRemoved.value = value
         prefs.edit().putBoolean(KEY_STOP_ON_TASK_REMOVED, value).apply()
-    }
-
-    fun setHideVolumeBar(value: Boolean) {
-        hideVolumeBar.value = value
-        prefs.edit().putBoolean(KEY_HIDE_VOLUME_BAR, value).apply()
     }
 
     fun setHideStatusBarInPlayer(value: Boolean) {
@@ -2363,7 +2341,6 @@ object AppSettings {
     private const val KEY_LISTEN_TOGETHER_BUTTON = "show_listen_together_button"
     private const val KEY_CACHE_LIMIT = "audio_cache_limit_bytes"
     private const val KEY_REDUCE_ANIMATION = "reduce_animation"
-    private const val KEY_HAPTIC_FEEDBACK = "haptic_feedback"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     private const val KEY_HIGH_PERFORMANCE_MODE = "high_performance_mode"
     private const val KEY_PERFORMANCE_REFRESH_RATE = "performance_refresh_rate"
@@ -2373,7 +2350,6 @@ object AppSettings {
     private const val KEY_HIDE_SONG_STATUS = "hide_song_status"
     private const val KEY_SHOW_QUEUE_HISTORY = "show_queue_history"
     private const val KEY_SWIPE_TO_PLAY_NEXT = "swipe_to_play_next"
-    private const val KEY_DONT_REPEAT_SUGGESTIONS = "dont_repeat_suggestions"
     private const val KEY_PREFER_MUSIC_ONLY = "prefer_music_only"
     private const val KEY_HIDE_RECENTS = "hide_recents"
     private const val KEY_HIDE_HOME_VIDEOS = "hide_home_videos"
