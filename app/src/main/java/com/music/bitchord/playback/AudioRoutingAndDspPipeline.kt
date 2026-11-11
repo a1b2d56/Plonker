@@ -73,6 +73,7 @@ internal class AudioRoutingAndDspPipeline(
 ) {
     /** One player's processors, in the order its sink runs them. */
     class Deck(
+        val sing: VocalCutProcessor,
         val spatial: SpatialAudioProcessor,
         val equalizer: EqualizerProcessor,
         val filter: TransitionFilterProcessor,
@@ -121,8 +122,8 @@ internal class AudioRoutingAndDspPipeline(
      * [spareFilter] are the *roles*, and they trade places at every handoff
      * along with the players. Everything downstream talks in roles.
      */
-    val a = Deck(SpatialAudioProcessor(), EqualizerProcessor(), TransitionFilterProcessor())
-    val b = Deck(SpatialAudioProcessor(), EqualizerProcessor(), TransitionFilterProcessor())
+    val a = Deck(VocalCutProcessor(), SpatialAudioProcessor(), EqualizerProcessor(), TransitionFilterProcessor())
+    val b = Deck(VocalCutProcessor(), SpatialAudioProcessor(), EqualizerProcessor(), TransitionFilterProcessor())
 
     /** The platform audio session currently advertised to system audio tools. */
     private var advertisedAudioEffectSessionId: Int = C.AUDIO_SESSION_ID_UNSET
@@ -304,7 +305,7 @@ internal class AudioRoutingAndDspPipeline(
             // them for the same reason: it belongs to the listener and
             // the whole session, while the transition filter belongs to
             // one handoff and has to have the last word on it.
-            val dspChain = DspChain(deck.spatial, deck.equalizer, deck.filter, loudness)
+            val dspChain = DspChain(deck.sing, deck.spatial, deck.equalizer, deck.filter, loudness)
             val precision = PrecisionAudioSink(
                 delegate = defaultSink,
                 dspChain = dspChain,
@@ -587,6 +588,18 @@ internal class AudioRoutingAndDspPipeline(
      * ever describes the active player — see [formatListener] — so both
      * processors are kept in lockstep rather than tracking a role swap.
      */
+    fun applySingLevel() {
+        val level = AppSettings.singLevel.value
+        a.sing.level = level
+        b.sing.level = level
+    }
+
+    fun applySingMethod() {
+        val method = AppSettings.singMethod.value
+        a.sing.setMethod(method)
+        b.sing.setMethod(method)
+    }
+
     fun applySpatialAudioEnabled() {
         val enabled = AppSettings.spatialAudio.value && !activeTrackIsDolbyAtmos
         a.spatial.enabled = enabled

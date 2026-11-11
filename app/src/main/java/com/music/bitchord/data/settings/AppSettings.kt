@@ -23,6 +23,16 @@ import com.music.bitchord.playback.EqualizerPreset
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import com.music.bitchord.playback.SingMethod
 
 
 /**
@@ -132,12 +142,6 @@ enum class DownloadQuality(
 
 enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
-}
-
-    TITLE_ASC,
-    TITLE_DESC,
-    DATE_ADDED,
-    DATE_MODIFIED,
 }
 
 /**
@@ -334,6 +338,29 @@ object AppSettings {
      */
     val dolbyAtmos = MutableStateFlow(true)
 
+    val singLevel = MutableStateFlow(0f)
+
+    fun setSingLevel(value: Float) {
+        val clamped = value.coerceIn(0f, 1f)
+        singLevel.value = clamped
+        if (::prefs.isInitialized) prefs.edit().putFloat(KEY_SING_LEVEL, clamped).apply()
+    }
+
+    /**
+     * Which vocal remover Sing runs — see [SingMethod].
+     *
+     * Defaults to the current engine so an existing install changes nothing
+     * until the listener picks something else. The other two are not
+     * deprecated: each wins on some material, and the choice belongs to
+     * whoever is listening.
+     */
+    val singMethod = MutableStateFlow(SingMethod.VOICE_GATE)
+
+    fun setSingMethod(value: SingMethod) {
+        singMethod.value = value
+        if (::prefs.isInitialized) prefs.edit().putString(KEY_SING_METHOD, value.name).apply()
+    }
+
     /**
      * Play a YouTube-queued track straight from an addon ranked above YouTube,
      * rather than starting it on YouTube and swapping up mid-song.
@@ -417,7 +444,6 @@ object AppSettings {
      */
     val onboardingComplete = MutableStateFlow(false)
 
-    val highPerformanceMode = MutableStateFlow(false)
 
     /** Preferred UI refresh rate while [highPerformanceMode] is enabled. */
     val performanceRefreshRate = MutableStateFlow(DEFAULT_PERFORMANCE_REFRESH_RATE)
@@ -445,8 +471,6 @@ object AppSettings {
     /** Music videos come off the Home feed, along with any shelf left with nothing else on it. */
     val hideHomeVideos = MutableStateFlow(false)
 
-    /** Home's Top Picks for You shelf. */
-    val hideTopPicks = MutableStateFlow(false)
 
     /** Home's Find Your Mood shelf. Explore's moods are a page the listener opened, so they stay. */
     val hideHomeMoods = MutableStateFlow(false)
@@ -488,6 +512,13 @@ object AppSettings {
 
     val liquidGlass = MutableStateFlow(false)
 
+    val sponsorBlockEnabled = MutableStateFlow(true)
+    val sponsorBlockSkipNonMusic = MutableStateFlow(true)
+    val sponsorBlockSkipSponsors = MutableStateFlow(true)
+    val sponsorBlockSkipSelfPromo = MutableStateFlow(true)
+    val sponsorBlockSkipIntroOutro = MutableStateFlow(true)
+    val sponsorBlockShowToast = MutableStateFlow(true)
+
     /**
      * Frosts the glass instead of refracting it, for phones the lens shader is too
      * much for: the bar's rim, shadow, tint and motion all stay. A Liquid Glass
@@ -518,6 +549,20 @@ object AppSettings {
 
     /**
      * How strong the [liquidGlass] material is,
+    /**
+     * How strong the [liquidGlass] material is,
+     * [MIN_LIQUID_GLASS_INTENSITY]..[MAX_LIQUID_GLASS_INTENSITY], multiplied
+     * onto the glass engine's blur, refraction and vibrancy where the config
+     * is provided. 1 is the engine's own look; the floor is above zero because
+     * a zeroed blur and lens is not subtle glass but the flat fill. Lower is cheaper.
+     */
+    val liquidGlassIntensity = MutableStateFlow(1f)
+
+    fun setLiquidGlassIntensity(value: Float) {
+        val clamped = normalizeLiquidGlassIntensity(value)
+        liquidGlassIntensity.value = clamped
+        if (::prefs.isInitialized) prefs.edit().putFloat(KEY_LIQUID_GLASS_INTENSITY, clamped).apply()
+    }
      * [MIN_LIQUID_GLASS_INTENSITY]..[MAX_LIQUID_GLASS_INTENSITY], multiplied
      * onto the glass engine's blur, refraction and vibrancy where the config
      * is provided. 1 is the engine's own look; the floor is above zero because
@@ -914,6 +959,43 @@ object AppSettings {
      * still working from a fallback window that moves as evidence arrives, and
      * a marker that slides around the bar would be worse than no marker.
      */
+    /** How long a network may be gone before the player stops streaming. */
+    private const val NETWORK_LOST_GRACE_MS = 750L
+    private val streamingAvailableFlow = MutableStateFlow(true)
+
+    /** Owns the delayed offline verdict; see [watchConnection]. */
+    private val networkScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Whether the listener asked for offline playback, whatever the radio says.
+     *
+     * A switch, not a mode that resolves itself: on stays on until it is turned
+     * off, network or no network. It exists for the case the detector cannot
+     * know about — a device with a working network and no internet behind it,
+     * which looks identical to being online right up until a stream fails.
+     */
+    private val offlineModeFlow = MutableStateFlow(false)
+    val offlineMode: StateFlow<Boolean> = offlineModeFlow.asStateFlow()
+
+    /**
+     * The one answer the player asks: are we offline?
+     *
+     * True when the switch is on, or when no network has been there for the
+     * grace period. Neither is sufficient alone: the switch does not know
+     * whether the internet is reachable, and the detector does not know what
+     * was asked for. Putting them here means no caller has to remember both.
+     */
+    val effectiveOffline: StateFlow<Boolean> =
+        combine(offlineModeFlow, streamingAvailableFlow) { manual, streaming -> manual || !streaming }
+            .stateIn(networkScope, SharingStarted.Eagerly, false)
+
+    fun setOfflineMode(value: Boolean) {
+        if (offlineModeFlow.value == value) return
+        offlineModeFlow.value = value
+        if (::prefs.isInitialized) prefs.edit().putBoolean(KEY_OFFLINE_MODE, value).apply()
+    }
+    val streamingAvailable: StateFlow<Boolean> = streamingAvailableFlow.asStateFlow()
+
     val smartTransitionWindow = MutableStateFlow<TransitionWindow?>(null)
 
     /**
@@ -1035,9 +1117,6 @@ object AppSettings {
         get() = !wifiOnlyDownloads.value || meteredConnection.value != true
 
     /**
-     * [authStore] is the application's own, passed in rather than opened again:
-     * each open of the encrypted store is a keystore round trip, and a second
-     * one here was a measurable slice of cold start.
      */
     fun init(context: Context, authStore: AuthStore) {
         prefs = context.getSharedPreferences("bitchord_settings", Context.MODE_PRIVATE)
@@ -1047,7 +1126,6 @@ object AppSettings {
             context,
             likedTitle = context.getString(com.music.bitchord.R.string.auto_liked),
         )
-        readAll()
         watchConnection(context)
         watchPowerSave(context)
     }
@@ -1064,9 +1142,20 @@ object AppSettings {
      * device, not the preferences, and a second one would have both firing.
      */
     fun reload() {
+        sponsorBlockEnabled.value = prefs.getBoolean(KEY_SPONSOR_BLOCK_ENABLED, true)
+        sponsorBlockSkipNonMusic.value = prefs.getBoolean(KEY_SPONSOR_BLOCK_SKIP_NON_MUSIC, true)
+        sponsorBlockSkipSponsors.value = prefs.getBoolean(KEY_SPONSOR_BLOCK_SKIP_SPONSORS, true)
+        sponsorBlockSkipSelfPromo.value = prefs.getBoolean(KEY_SPONSOR_BLOCK_SKIP_SELF_PROMO, true)
+        sponsorBlockSkipIntroOutro.value = prefs.getBoolean(KEY_SPONSOR_BLOCK_SKIP_INTRO_OUTRO, true)
+        sponsorBlockShowToast.value = prefs.getBoolean(KEY_SPONSOR_BLOCK_SHOW_TOAST, true)
+
         if (!this::prefs.isInitialized) return
         readAll()
     }
+        liquidGlassIntensity.value = prefs.getFloat(KEY_LIQUID_GLASS_INTENSITY, 1f)
+            .coerceIn(MIN_LIQUID_GLASS_INTENSITY, MAX_LIQUID_GLASS_INTENSITY)
+        singLevel.value = prefs.getFloat(KEY_SING_LEVEL, 0f).coerceIn(0f, 1f)
+        singMethod.value = SingMethod.fromName(prefs.getString(KEY_SING_METHOD, null))
 
     private fun readAll() {
         migrateSingleQuality()
@@ -1287,14 +1376,52 @@ object AppSettings {
 
     private fun readQuality(key: String): AudioQuality {
         val stored = prefs.getString(key, null) ?: return AudioQuality.LOSSLESS
-        return runCatching { AudioQuality.valueOf(stored) }.getOrDefault(AudioQuality.LOSSLESS)
-    }
+        var pendingCheck: Job? = null
 
-    /**
-     * Write down what the download path was already doing, before it starts
-     * being asked instead.
-     *
-     * Download quality used to be derived rather than chosen: a lossless copy
+        // A connected network is not the same thing as a working one. Wi-Fi
+        // with no internet behind it — the router is up, the line is down —
+        // keeps `activeNetwork` non-null, and a verdict that only asks "is
+        // there a network" calls that online. Streams then fail one by one
+        // while the detector insists it is fine. The system's own probe is the
+        // answer: VALIDATED is set only after it got an answer from the
+        // internet, so a captive portal and a dead line both read as offline.
+        val actuallyUp = {
+            runCatching {
+                val network = manager.activeNetwork ?: return@runCatching false
+                val capabilities = manager.getNetworkCapabilities(network)
+                    ?: return@runCatching false
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            }.getOrDefault(false)
+        }
+
+        // Believed immediately when a network is there; believed gone only after
+        // the grace period, and only if it is *still* gone by then. `activeNetwork`
+        // is null for a moment on every handover, and the player reads this to
+        // choose between a downloaded file and a stream — a verdict that
+        // flickers for 200ms mid-handover is how one queue came out as files and
+        // the next as streams.
+        //
+        // The wait has to be *scheduled*, not read from the clock inside the
+        // callback. Reading it there meant the verdict was only ever computed at
+        // the instant the callback ran, which is always inside the grace: with
+        // no network at all the only callback is the initial one, so the app
+        // believed it could stream forever and no downloaded file ever played.
+        val markStreaming = {
+            pendingCheck?.cancel()
+            pendingCheck = null
+            streamingAvailableFlow.value = true
+        }
+
+        return runCatching { AudioQuality.valueOf(stored) }.getOrDefault(AudioQuality.LOSSLESS)
+            if (actuallyUp()) {
+                markStreaming()
+            } else {
+                pendingCheck?.cancel()
+                pendingCheck = networkScope.launch {
+                    delay(NETWORK_LOST_GRACE_MS)
+                    if (!actuallyUp()) streamingAvailableFlow.value = false
+                    pendingCheck = null
      * was kept when `SourceResolver.requestForNow()` said Lossless, which meant
      * a download quietly turned on the lossless preference and off again with
      * it. Someone who switched that off on the Sources screen was getting AAC
@@ -1477,10 +1604,6 @@ object AppSettings {
 
     fun setRepeatMode(value: Int) {
         repeatMode.value = value
-        prefs.edit().putInt(KEY_REPEAT_MODE, value).apply()
-    }
-
-    fun setAudioQualityWifi(value: AudioQuality) {
         audioQualityWifi.value = value
         prefs.edit().putString(KEY_QUALITY_WIFI, value.name).apply()
     }
@@ -1502,11 +1625,6 @@ object AppSettings {
     fun setDownloadQuality(value: DownloadQuality) {
         downloadQuality.value = value
         prefs.edit().putString(KEY_QUALITY_DOWNLOAD, value.name).apply()
-    }
-
-    fun setWifiOnlyDownloads(value: Boolean) {
-        wifiOnlyDownloads.value = value
-        prefs.edit().putBoolean(KEY_WIFI_ONLY_DOWNLOADS, value).apply()
     }
 
     fun setCrossfadeSeconds(value: Int) {
@@ -2363,7 +2481,6 @@ object AppSettings {
      *
      * A replace, not a merge: a partial restore leaves a device holding half of
      * one configuration and half of another, which is the one outcome nobody
-     * asked for. Keys in [SECRETS] survive untouched — they were never in the
      * file being restored from, and clearing them would sign the user out of
      * services the backup has nothing to say about.
      */
@@ -2373,7 +2490,6 @@ object AppSettings {
         prefs.edit().apply {
             clear()
             val incoming = values.filterKeys { it !in SECRETS && it !in DEVICE_LOCAL }
-            (kept + incoming).forEach { (key, value) ->
                 when (value) {
                     is Boolean -> putBoolean(key, value)
                     is Int -> putInt(key, value)
@@ -2388,10 +2504,27 @@ object AppSettings {
         reload()
     }
 
+    private const val KEY_SPONSOR_BLOCK_ENABLED = "sponsor_block_enabled"
+    private const val KEY_SPONSOR_BLOCK_SKIP_NON_MUSIC = "sponsor_block_skip_non_music"
+    private const val KEY_SPONSOR_BLOCK_SKIP_SPONSORS = "sponsor_block_skip_sponsors"
+    private const val KEY_SPONSOR_BLOCK_SKIP_SELF_PROMO = "sponsor_block_skip_self_promo"
+    private const val KEY_SPONSOR_BLOCK_SKIP_INTRO_OUTRO = "sponsor_block_skip_intro_outro"
+    private const val KEY_SPONSOR_BLOCK_SHOW_TOAST = "sponsor_block_show_toast"
+
     /**
      * Preferences an export must not carry — credentials, not configuration.
      * See [exportPrefs].
      */
+    private const val KEY_OFFLINE_MODE = "offline_mode"
+    private const val KEY_SING_METHOD = "sing_method"
+    private const val KEY_SING_LEVEL = "sing_level"
+    private const val KEY_LIQUID_GLASS_INTENSITY = "liquid_glass_intensity"
+    const val MIN_LIQUID_GLASS_INTENSITY = 0.1f
+    const val MAX_LIQUID_GLASS_INTENSITY = 1f
+
+    fun normalizeLiquidGlassIntensity(value: Float): Float =
+        value.coerceIn(MIN_LIQUID_GLASS_INTENSITY, MAX_LIQUID_GLASS_INTENSITY)
+
     private val SECRETS = setOf(
         KEY_LASTFM_SESSION_KEY,
         KEY_LASTFM_API_KEY,
