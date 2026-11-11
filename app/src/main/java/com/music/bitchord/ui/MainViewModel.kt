@@ -768,14 +768,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 library.copy(likedSongs = library.likedSongs.filterNot { it.videoId == videoId }),
             )
         }
-        _detailStack.value = _detailStack.value.map { page ->
+        _detailStack.update { stack -> stack.map { page ->
             val songs = (page.songs as? UiState.Success)?.data
             if (page.browseId != YtMusicRepository.LIKED_MUSIC || songs == null) {
                 page
             } else {
                 page.copy(songs = UiState.Success(songs.filterNot { it.videoId == videoId }))
             }
-        }
+        } }
     }
 
     /** The heart: liked becomes neutral, anything else becomes liked. */
@@ -851,14 +851,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** As [setSavedOnPage], for the artist header's subscribe button. */
     private fun setSubscribedOnPage(browseId: String, subscribed: Boolean) {
-        _detailStack.value = _detailStack.value.map { page ->
+        _detailStack.update { stack -> stack.map { page ->
             val subscription = page.subscription
             if (page.browseId != browseId || subscription == null) {
                 page
             } else {
                 page.copy(subscription = subscription.copy(subscribed = subscribed))
             }
-        }
+        } }
     }
 
     /**
@@ -866,14 +866,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * have pushed or popped pages while the write was in flight.
      */
     private fun setSavedOnPage(browseId: String, saved: Boolean) {
-        _detailStack.value = _detailStack.value.map { page ->
+        _detailStack.update { stack -> stack.map { page ->
             val library = page.library
             if (page.browseId != browseId || library == null) {
                 page
             } else {
                 page.copy(library = library.copy(saved = saved))
             }
-        }
+        } }
     }
 
     /**
@@ -983,9 +983,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         editPlaylistShelf { items ->
             items.map { if (it.browseId == playlist.browseId) it.copy(title = title) else it }
         }
-        _detailStack.value = _detailStack.value.map {
+        _detailStack.update { stack -> stack.map {
             if (it.browseId == playlist.browseId) it.copy(title = title) else it
-        }
+        } }
     }
 
     /**
@@ -1221,7 +1221,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ).fold(
                 onSuccess = {
                     libraryStale = true
-                    _detailStack.value = _detailStack.value.map { page ->
+                    _detailStack.update { stack -> stack.map { page ->
                         val songs = (page.songs as? UiState.Success)?.data
                         if (page.browseId != browseId || songs == null) {
                             page
@@ -1232,7 +1232,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 ),
                             )
                         }
-                    }
+                    } }
                 },
                 onFailure = {},
             )
@@ -1263,7 +1263,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             YtMusicRepository.addToPlaylist(playlistId, listOf(song.videoId)).fold(
                 onSuccess = { added ->
                     libraryStale = true
-                    _detailStack.value = _detailStack.value.map { page ->
+                    _detailStack.update { stack -> stack.map { page ->
                         if (page.browseId != browseId) {
                             page
                         } else {
@@ -1272,7 +1272,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                     .filterNot { it.videoId == song.videoId },
                             )
                         }
-                    }
+                    } }
                     appendToOpenPlaylist(browseId, song, added[song.videoId])
                 },
                 onFailure = {},
@@ -1299,7 +1299,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun appendToOpenPlaylist(browseId: String, added: List<Song>) {
         if (added.isEmpty()) return
-        _detailStack.value = _detailStack.value.map { page ->
+        _detailStack.update { stack -> stack.map { page ->
             if (page.browseId != browseId) return@map page
             val songs = when (val state = page.songs) {
                 is UiState.Success -> state.data
@@ -1315,7 +1315,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     },
                 ),
             )
-        }
+        } }
     }
 
     /**
@@ -1371,13 +1371,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ).fold(
                 onSuccess = {
                     libraryStale = true
-                    _detailStack.value = _detailStack.value.map { page ->
+                    _detailStack.update { stack -> stack.map { page ->
                         if (page.browseId != playlist.browseId || page.songs !is UiState.Success) {
                             page
                         } else {
                             page.copy(songs = UiState.Success(reordered.withArtwork(page.thumbnailUrl)))
                         }
-                    }
+                    } }
                     onResult(true)
                 },
                 onFailure = { onResult(false) },
@@ -1401,8 +1401,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     // Its page may be the one open; a deleted playlist has
                     // nothing left to show.
-                    _detailStack.value = _detailStack.value
-                        .filterNot { it.browseId == playlist.browseId }
+                    _detailStack.update { stack -> stack.filterNot { it.browseId == playlist.browseId } }
                     navigator.onDetailStackShrunk(_detailStack.value.size)
                     libraryStale = true
                 },
@@ -2859,9 +2858,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 emptyList()
             }
             if (onDevice.isNotEmpty()) {
-                _detailStack.value = _detailStack.value.map {
+                _detailStack.update { stack -> stack.map {
                     if (it.browseId == browseId && it.songs is UiState.Loading) it.copy(songs = UiState.Success(onDevice)) else it
-                }
+                } }
             }
             if (localPlaylist != null) {
                 name = localPlaylist.title
@@ -2944,7 +2943,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             // Update by id — the user may have pushed another page meanwhile.
             // A page showing its downloaded copy takes only a real listing: a
             // failed or empty fetch leaves the downloaded tracks up.
-            _detailStack.value = _detailStack.value.map {
+            _detailStack.update { stack -> stack.map {
                 if (it.browseId == browseId &&
                     (it.songs is UiState.Loading || (onDevice.isNotEmpty() && state is UiState.Success))
                 ) {
@@ -2965,7 +2964,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 } else {
                     it
                 }
-            }
+            } }
             // Only once the first page is on screen: [fillIn] appends to it,
             // and has nothing to append to before this.
             more?.let { fillIn(browseId, it, thumbnailUrl ?: artwork) }
@@ -2993,17 +2992,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val playlistId = browseId.removePrefix(SPOTIFY_PAGE_PREFIX)
             fun open() = _detailStack.value.any { it.browseId == browseId }
             fun setSongs(songs: UiState<List<Song>>) {
-                _detailStack.value = _detailStack.value.map {
+                _detailStack.update { stack -> stack.map {
                     if (it.browseId == browseId) it.copy(songs = songs) else it
-                }
+                } }
             }
             // The list only had a thumbnail; the full-size cover replaces it
             // once this page has asked for it.
             launch {
                 val cover = runCatching { SpotifyLibrary.cover(playlistId) }.getOrNull() ?: return@launch
-                _detailStack.value = _detailStack.value.map {
+                _detailStack.update { stack -> stack.map {
                     if (it.browseId == browseId) it.copy(thumbnailUrl = cover) else it
-                }
+                } }
             }
             val tracks = runCatching {
                 SpotifyLibrary.tracks(playlistId) { soFar ->
@@ -3028,12 +3027,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                                 ?: track.asPendingSong().let {
                                     it.copy(videoId = SPOTIFY_MISSING_PREFIX + track.id)
                                 }
-                            _detailStack.value = _detailStack.value.map { page ->
+                            _detailStack.update { stack -> stack.map { page ->
                                 val list = (page.songs as? UiState.Success<List<Song>>)?.data
                                 if (page.browseId == browseId && list != null && index < list.size) {
                                     page.copy(songs = UiState.Success(list.toMutableList().also { it[index] = found }))
                                 } else page
-                            }
+                            } }
                         }
                     }
                 }
@@ -3073,17 +3072,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Renames an open page in place — a device playlist, whose title is the store's. */
     fun retitleDetail(browseId: String, title: String) {
         if (title.isBlank()) return
-        _detailStack.value = _detailStack.value.map { if (it.browseId == browseId) it.copy(title = title) else it }
+        _detailStack.update { stack -> stack.map { if (it.browseId == browseId) it.copy(title = title) else it } }
     }
 
     fun reloadLocalDetail(browseId: String) {
         viewModelScope.launch {
             val state = localPageState(browseId) ?: return@launch
-            _detailStack.value = _detailStack.value.map {
+            _detailStack.update { stack -> stack.map {
                 if (it.browseId == browseId) {
                     it.copy(songs = state)
                 } else it
-            }
+            } }
         }
     }
 

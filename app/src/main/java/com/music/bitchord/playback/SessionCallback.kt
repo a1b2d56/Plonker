@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.guava.future
+import kotlinx.coroutines.withContext
 
 /**
  * The session's callback: who may connect, the app's own commands
@@ -92,8 +93,10 @@ internal class SessionCallback(
     override fun onPlaybackResumption(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo,
-    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.IO) {
-        // 1. If player currently holds items in its queue, resume from it
+    ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> = scope.future(Dispatchers.Main) {
+        // 1. If player currently holds items in its queue, resume from it.
+        // Read on the main thread: the player refuses to be touched from any
+        // other, and off it this threw before the fallback was ever reached.
         val activePlayer = player()
         if (activePlayer != null && activePlayer.mediaItemCount > 0) {
             val currentItems = (0 until activePlayer.mediaItemCount).map { activePlayer.getMediaItemAt(it) }
@@ -107,8 +110,9 @@ internal class SessionCallback(
         }
 
         // 2. Nothing queued: what the library can offer a headset's play
-        // button — see [LibraryBrowser.resumptionFallback].
-        library.resumptionFallback()
+        // button — see [LibraryBrowser.resumptionFallback]. That reads the
+        // disk, so it goes back off the main thread.
+        withContext(Dispatchers.IO) { library.resumptionFallback() }
     }
 
     override fun onSearch(
