@@ -9,7 +9,12 @@ import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -41,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -144,6 +150,7 @@ fun SongActionsMenu(
      */
     onRemoveFromHistory: (() -> Unit)? = null,
     showSleepTimer: Boolean = false,
+    fromPlayer: Boolean = showSleepTimer,
     /**
      * Sends the playing track back to YouTube's own upload, and keeps it there.
      * Offered for any player item that has one behind it — a substituted copy
@@ -200,8 +207,21 @@ fun SongActionsMenu(
     resolvingLinks: Boolean = false,
 ) {
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
-    var pickingSleepTimer by remember { mutableStateOf(false) }
-    var pickingSpeed by remember { mutableStateOf(false) }
+    var currentSubmenu by remember { mutableStateOf(SongSubmenu.Main) }
+    val chosenSleepTimer by SleepTimer.minutes.collectAsStateWithLifecycle()
+    val customMinutes = chosenSleepTimer?.takeIf { it !in SleepTimer.PRESETS }
+    val scrollState = rememberScrollState()
+
+    LaunchedEffect(currentSubmenu) {
+        scrollState.scrollTo(0)
+    }
+
+    BackHandler(enabled = currentSubmenu != SongSubmenu.Main) {
+        currentSubmenu = when (currentSubmenu) {
+            SongSubmenu.CustomSleepTimer -> SongSubmenu.SleepTimer
+            else -> SongSubmenu.Main
+        }
+    }
     // A menu has no pages to swap, so Song Info opens as a dialog.
     if (showingSongInfo) SongInfoDialog(song) { showingSongInfo = false }
     // Neutral rather than the sleeve's colours: the panel floats over the page
@@ -227,10 +247,12 @@ fun SongActionsMenu(
 
         // Leads with the actions it is opened for most, as tiles: the rating
         // — kept up after a tap, so the new state shows in place — and Share.
-        if (canRate || shareAction != null) {
+        // If opened from the player, Like is omitted here because a dedicated
+        // Like/Star button is already visible right beside the 3-dot button.
+        if (canLike || canDislike || shareAction != null) {
             if (startsGroup()) IosMenuSeparator()
             IosMenuQuickActions {
-                if (canRate) {
+                if (canLike) {
                     IosMenuQuickAction(
                         icon = if (liked) SfIcons.StarFill else SfIcons.Star,
                         label = stringResource(R.string.like),
@@ -412,13 +434,13 @@ fun SongActionsMenu(
                     label = stringResource(R.string.sleep_timer),
                     value = sleepTimerStatus(),
                     accent = palette.accent,
-                ) { pickingSleepTimer = true }
+                ) { currentSubmenu = SongSubmenu.SleepTimer }
                 ActionRow(
                     icon = SfIcons.Tune,
                     label = stringResource(R.string.playback_speed),
                     value = playbackSpeedDisplay(),
                     accent = palette.accent,
-                ) { pickingSpeed = true }
+                ) { currentSubmenu = SongSubmenu.Speed }
             }
             // The same popup "Mixing" opens mid-blend, on the transition
             // still to come.
@@ -457,18 +479,57 @@ fun SongActionsMenu(
 }
 
     CompositionLocalProvider(LocalActionRowStyle provides ActionRowStyle.Menu) {
-        Column(modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-            // The player's menu has the sleep timer, and swaps its rows for
-            // the picker in place.
-            if (pickingSleepTimer) {
-                SleepTimerPicker(palette = palette, onBack = { pickingSleepTimer = false })
-            } else if (pickingSpeed) {
-                PlaybackSpeedPicker(palette = palette, onBack = { pickingSpeed = false })
-            } else {
-                rows()
+        Column(modifier.fillMaxWidth().animateContentSize().verticalScroll(scrollState)) {
+            // The player's menu has the sleep timer and speed, and animates its subpages smoothly.
+            AnimatedContent(
+                targetState = currentSubmenu,
+                transitionSpec = {
+                    val forward = targetState.level >= initialState.level
+                    if (forward) {
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { it } + fadeIn(tween(180)))
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { -it / 3 } + fadeOut(tween(140)))
+                            .using(SizeTransform(clip = true))
+                    } else {
+                        (slideInHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { -it / 3 } + fadeIn(tween(180)))
+                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { it } + fadeOut(tween(140)))
+                            .using(SizeTransform(clip = true))
+                    }
+                },
+                label = "songActionsSubmenu",
+            ) { submenu ->
+                Column(Modifier.fillMaxWidth()) {
+                    when (submenu) {
+                        SongSubmenu.Main -> rows()
+                        SongSubmenu.SleepTimer -> SleepTimerPicker(
+                            palette = palette,
+                            onBack = { currentSubmenu = SongSubmenu.Main },
+                            onOpenCustom = { currentSubmenu = SongSubmenu.CustomSleepTimer },
+                        )
+                        SongSubmenu.CustomSleepTimer -> CustomSleepTimerPage(
+                            palette = palette,
+                            initialMinutes = customMinutes ?: 90,
+                            onBack = { currentSubmenu = SongSubmenu.SleepTimer },
+                            onStart = { minutes ->
+                                SleepTimer.start(minutes)
+                                currentSubmenu = SongSubmenu.Main
+                            },
+                        )
+                        SongSubmenu.Speed -> PlaybackSpeedPicker(
+                            palette = palette,
+                            onBack = { currentSubmenu = SongSubmenu.Main },
+                        )
+                    }
+                }
             }
         }
     }
+}
+
+private enum class SongSubmenu(val level: Int) {
+    Main(0),
+    SleepTimer(1),
+    CustomSleepTimer(2),
+    Speed(1),
 }
 
 /**
@@ -639,26 +700,16 @@ private fun WebDavUploadRow(
 
 /** End of track or a duration, plus a way out once one is running. */
 @Composable
-private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
+private fun SleepTimerPicker(
+    palette: ArtworkPalette,
+    onBack: () -> Unit,
+    onOpenCustom: () -> Unit,
+) {
     val chosen by SleepTimer.minutes.collectAsStateWithLifecycle()
     val afterTrack by SleepTimer.afterTrack.collectAsStateWithLifecycle()
     val countdown = sleepTimerCountdown()
     // A running timer no preset matches is a custom one: the row ticks and names it.
     val custom = chosen?.takeIf { it !in SleepTimer.PRESETS }
-    var pickingCustom by remember { mutableStateOf(false) }
-
-    if (pickingCustom) {
-        CustomSleepTimerPage(
-            palette = palette,
-            initialMinutes = custom ?: 90,
-            onBack = { pickingCustom = false },
-            onStart = { minutes ->
-                SleepTimer.start(minutes)
-                onBack()
-            },
-        )
-        return
-    }
 
     Column(Modifier.fillMaxWidth()) {
         SleepTimerHeader(
@@ -702,7 +753,8 @@ private fun SleepTimerPicker(palette: ArtworkPalette, onBack: () -> Unit) {
             } ?: stringResource(R.string.sleep_timer_custom),
             selected = custom != null,
             accent = palette.accent,
-        ) { pickingCustom = true }
+            onClick = onOpenCustom,
+        )
         if (chosen != null || afterTrack) {
             ActionRow(SfIcons.Close, stringResource(R.string.turn_off_timer), accent = palette.accent) {
                 SleepTimer.cancel()

@@ -11,7 +11,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.session.MediaController
 import com.music.bitchord.R
@@ -260,6 +259,7 @@ fun SongMenuBody(heldSong: Song, env: SongMenuEnv, viewModel: MainViewModel) {
         // looked up as the menu opens — see `needsLinks` above.
         resolvingLinks = if (fromPlayer) env.playerLinksLoading else needsLinks && menuLinksLoading,
         showSleepTimer = fromPlayer,
+        fromPlayer = fromPlayer,
         // Offered for every playing track with a YouTube upload
         // behind it, not only for one an upgrade visibly swapped:
         // a source ranked above YouTube can be playing its own
