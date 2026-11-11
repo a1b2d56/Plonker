@@ -9,7 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalClipboardManager
+import android.content.ClipData
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.toClipEntry
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.session.MediaController
@@ -94,7 +96,7 @@ interface SongMenuEnv {
 @Composable
 fun SongMenuBody(heldSong: Song, env: SongMenuEnv, viewModel: MainViewModel) {
     val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     // Set by whoever opened it — see [SongMenuEnv.fromPlayer]. It cannot be
     // read off the player's own visibility any more, because on a
     // tablet the player is visible whatever the menu was opened from.
@@ -350,7 +352,7 @@ fun SongMenuBody(heldSong: Song, env: SongMenuEnv, viewModel: MainViewModel) {
                 env.close()
                 env.coroutineScope.launch {
                     val text = TrackLog.forTrack(song, NerdStats.current.value)
-                    clipboard.setText(AnnotatedString(text))
+                    clipboard.setClipEntry(ClipData.newPlainText("log", text).toClipEntry())
                     // The line count, not just "copied": it is the
                     // one thing the system's own paste confirmation
                     // doesn't say, and an empty log is a real

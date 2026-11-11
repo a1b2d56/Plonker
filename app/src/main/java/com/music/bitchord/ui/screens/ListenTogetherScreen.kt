@@ -70,7 +70,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalClipboardManager
+import android.content.ClipData
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.toClipEntry
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -143,8 +145,7 @@ fun ListenTogetherScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    @Suppress("DEPRECATION")
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
 
     val state by ListenTogether.state.collectAsStateWithLifecycle()
@@ -459,7 +460,7 @@ fun ListenTogetherScreen(
                         shareInvite()
                     },
                     onCopyCode = {
-                        clipboard.setText(AnnotatedString(state.code.orEmpty()))
+                        scope.launch { clipboard.setClipEntry(ClipData.newPlainText("code", state.code.orEmpty()).toClipEntry()) }
                         Toast.makeText(
                             context,
                             context.getString(R.string.copy_code),
@@ -507,7 +508,7 @@ fun ListenTogetherScreen(
         } else {
             InAParty(
                 state = state,
-                onCopy = { clipboard.setText(AnnotatedString(state.code.orEmpty())) },
+                onCopy = { scope.launch { clipboard.setClipEntry(ClipData.newPlainText("code", state.code.orEmpty()).toClipEntry()) } },
                 onShare = { sheet = PartySheet.Invite },
                 onShareLink = shareInvite,
                 onLeave = { scope.launch { ListenTogether.leaveParty() } },
