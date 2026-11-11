@@ -21,7 +21,7 @@ object LocaleTags {
      * because every existing zh catalogue is Simplified.
      */
     fun normalizeAppTag(raw: String?): String {
-        val tag = raw?.trim()?.replace('_', '-')?.takeIf { it.isNotBlank() } ?: return "en"
+        val tag = raw?.trim()?.replace('_', '-')?.takeIf { it.isNotBlank() } ?: return "en-GB"
         val lower = tag.lowercase(Locale.ROOT)
         if (lower.startsWith("zh")) {
             // Explicit script wins.
@@ -33,13 +33,16 @@ object LocaleTags {
             // Bare "zh" (or "zh-Latn" etc.): existing catalogues are Simplified.
             return ZH_HANS
         }
-        // Other languages: base language only ("en-US" -> "en"), with legacy fixes.
+        if (lower.startsWith("en")) {
+            if ("us" in lower) return "en-US"
+            return "en-GB"
+        }
         val base = Locale.forLanguageTag(tag).language.lowercase(Locale.ROOT).ifBlank { lower.substringBefore('-') }
         return when (base) {
             "iw" -> "he"
             "in" -> "id"
             "ji" -> "yi"
-            else -> base.ifBlank { "en" }
+            else -> base.ifBlank { "en-GB" }
         }
     }
 
@@ -52,6 +55,8 @@ object LocaleTags {
         return when (norm) {
             ZH_HANT -> ZH_TW_WIRE
             ZH_HANS -> ZH_CN_WIRE
+            "en-GB" -> "en-GB"
+            "en-US" -> "en"
             else -> norm.substringBefore('-')
         }
     }
@@ -61,7 +66,9 @@ object LocaleTags {
         return when (normalizeAppTag(appTag)) {
             ZH_HANT -> "TW"
             ZH_HANS -> "SG"
-            else -> "US"
+            "en-GB" -> "GB"
+            "en-US" -> "US"
+            else -> "GB"
         }
     }
 
@@ -84,10 +91,11 @@ object LocaleTags {
         return when (normalizeAppTag(appTag)) {
             ZH_HANT -> "zh-TW,zh-Hant;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6"
             ZH_HANS -> "zh-CN,zh-Hans;q=0.9,zh;q=0.8,en-US;q=0.7,en;q=0.6"
-            "en" -> "en-US,en;q=0.9"
+            "en-US" -> "en-US,en;q=0.9"
+            "en-GB" -> "en-GB,en;q=0.9"
             else -> {
                 val base = normalizeAppTag(appTag).substringBefore('-')
-                "$base,en-US;q=0.8,en;q=0.7"
+                "$base,en-GB;q=0.8,en;q=0.7"
             }
         }
     }
