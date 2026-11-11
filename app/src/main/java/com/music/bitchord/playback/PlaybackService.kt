@@ -314,6 +314,13 @@ class PlaybackService : MediaLibraryService() {
         loopPositionMs = { crossfade?.loopPositionMs() },
     )
 
+    /** Auto-skips sponsor & non-music segments during playback — see [SponsorBlockCoordinator]. */
+    private val sponsorBlock = SponsorBlockCoordinator(
+        context = this,
+        scope = scope,
+        player = { player },
+    )
+
     /** What the decoder is really being fed, for stats for nerds — see [NerdStatsPublisher]. */
     private val nerdStats = NerdStatsPublisher(context = this, scope = scope, player = { player })
 
@@ -449,9 +456,11 @@ class PlaybackService : MediaLibraryService() {
             if (isPlaying) {
                 discord.push(exoPlayer)
                 lyrics.startTicker()
+                sponsorBlock.startTicker()
             } else {
                 discord.clear()
                 lyrics.stopTicker()
+                sponsorBlock.stopTicker()
             }
         }
 
@@ -553,7 +562,11 @@ class PlaybackService : MediaLibraryService() {
             }
             autoplay.reload()
             lyrics.load()
-            if (exoPlayer.isPlaying) lyrics.startTicker()
+            sponsorBlock.onMediaItemTransition(mediaItem?.mediaId)
+            if (exoPlayer.isPlaying) {
+                lyrics.startTicker()
+                sponsorBlock.startTicker()
+            }
             refreshCustomLayouts()
         }
 
@@ -1634,7 +1647,11 @@ class PlaybackService : MediaLibraryService() {
         // onMediaItemTransition, and [adoptPlayer] calls this handler by hand.
         publishWidgetState()
         lyrics.load()
-        if (exoPlayer.isPlaying) lyrics.startTicker()
+        sponsorBlock.onMediaItemTransition(exoPlayer.currentMediaItem?.mediaId)
+        if (exoPlayer.isPlaying) {
+            lyrics.startTicker()
+            sponsorBlock.startTicker()
+        }
     }
 
     /**
@@ -1645,6 +1662,7 @@ class PlaybackService : MediaLibraryService() {
         readAhead.cancelPrefetch()
         discord.clear()
         lyrics.stopTicker()
+        sponsorBlock.stopTicker()
         ListeningRecorder.onStopped()
         bounded.forget()
         eachPlayer { p ->
@@ -2141,6 +2159,7 @@ class PlaybackService : MediaLibraryService() {
         // stop, and the next one picks the session up where it was.
         CastController.detach(castPlayback)
         castPlayback.release()
+        sponsorBlock.release()
         pipeline.release()
         partySync?.stop()
         partySync = null
@@ -2273,6 +2292,44 @@ class PlaybackService : MediaLibraryService() {
         player.replaceMediaItems(from, items.size, rebuilt)
     }
 
+    private suspend fun restoreStreamingAfterOffline() {
+        val player = player ?: return
+        val count = player.mediaItemCount
+        if (count == 0) return
+        val items: List<MediaItem> = (0 until count).map { player.getMediaItemAt(it) }
+        val from = player.currentMediaItemIndex + 1
+        if (from >= items.size) return
+        val rebuilt = (from until items.size)
+            .mapNotNull { items[it].toSong().takeIf { song -> song.localUri != null } }
+            .map { it.toMediaItem() }
+        if (rebuilt.isEmpty()) return
+        TrackLog.d(
+            "BitChord",
+            "back online; ${rebuilt.size} queued track(s) return to streaming",
+            about = player.currentMediaItem?.mediaId,
+        )
+        player.replaceMediaItems(from, items.size, rebuilt)
+    }
+
+    private fun applyOfflineFilesToQueue() {
+        val player = player ?: return
+        val count = player.mediaItemCount
+        if (count == 0) return
+        val items: List<MediaItem> = (0 until count).map { player.getMediaItemAt(it) }
+        val from = player.currentMediaItemIndex + 1
+        if (from >= items.size) return
+        val rebuilt = (from until items.size)
+            .mapNotNull { items[it].toSong().takeIf { song -> song.localUri != null } }
+            .map { it.toMediaItem() }
+        if (rebuilt.isEmpty()) return
+        TrackLog.d(
+            "BitChord",
+            "offline; ${rebuilt.size} queued track(s) with files switch to them",
+            about = player.currentMediaItem?.mediaId,
+        )
+        player.replaceMediaItems(from, items.size, rebuilt)
+    }
+
     private companion object {
         /**
          * Shared by both players. Identical on purpose: they take turns being
@@ -2343,6 +2400,96 @@ internal open class FfmpegFallbackRenderersFactory(context: Context) : DefaultRe
         audioSink: AudioSink,
         eventHandler: Handler,
         eventListener: AudioRendererEventListener,
+
+private class SponsorBlockCoordinator(
+    private val context: Context,
+    private val scope: CoroutineScope,
+    private val player: () -> ExoPlayer?,
+) {
+    private var job: Job? = null
+    private var currentVideoId: String? = null
+    private var segments: List<SponsorSegment> = emptyList()
+    private val skippedUuids = mutableSetOf<String>()
+
+    fun onMediaItemTransition(mediaId: String?) {
+        if (mediaId == currentVideoId && currentVideoId != null) return
+        currentVideoId = mediaId
+        skippedUuids.clear()
+        segments = emptyList()
+        job?.cancel()
+        job = null
+
+        if (mediaId.isNullOrBlank()) return
+
+        scope.launch(Dispatchers.IO) {
+            val enabled = AppSettings.sponsorBlockEnabled.value
+            if (!enabled) return@launch
+
+            val categories = mutableListOf<String>()
+            if (AppSettings.sponsorBlockSkipNonMusic.value) categories.add("music_offtopic")
+            if (AppSettings.sponsorBlockSkipSponsors.value) categories.add("sponsor")
+            if (AppSettings.sponsorBlockSkipSelfPromo.value) categories.add("selfpromo")
+            if (AppSettings.sponsorBlockSkipIntroOutro.value) {
+                categories.add("intro")
+                categories.add("outro")
+            }
+            if (categories.isEmpty()) return@launch
+
+            val result = SponsorBlockApi.getSkipSegments(mediaId, categories)
+            val list = result.getOrDefault(emptyList())
+            if (list.isNotEmpty() && currentVideoId == mediaId) {
+                segments = list
+                withContext(Dispatchers.Main) {
+                    if (player()?.isPlaying == true) startTicker()
+                }
+            }
+        }
+    }
+
+    fun startTicker() {
+        if (job != null || segments.isEmpty()) return
+        job = scope.launch(Dispatchers.Main) {
+            while (isActive) {
+                val p = player()
+                if (p != null && p.isPlaying) {
+                    val currentPos = p.currentPosition
+                    val segment = segments.find { seg ->
+                        currentPos >= seg.startMs && currentPos < (seg.endMs - 300) && !skippedUuids.contains(seg.uuid)
+                    }
+                    if (segment != null) {
+                        skippedUuids.add(segment.uuid)
+                        p.seekTo(segment.endMs)
+                        TrackLog.i("BitChord", "SponsorBlock auto-skipped ${segment.category} segment: ${segment.startMs}ms -> ${segment.endMs}ms", about = currentVideoId)
+                        if (AppSettings.sponsorBlockShowToast.value) {
+                            val msg = when (segment.category) {
+                                "music_offtopic" -> context.getString(R.string.sponsorblock_skipped_non_music)
+                                "sponsor" -> context.getString(R.string.sponsorblock_skipped_sponsor)
+                                "selfpromo" -> context.getString(R.string.sponsorblock_skipped_selfpromo)
+                                "intro" -> context.getString(R.string.sponsorblock_skipped_intro)
+                                "outro" -> context.getString(R.string.sponsorblock_skipped_outro)
+                                else -> context.getString(R.string.sponsorblock_skipped_segment)
+                            }
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+                delay(250)
+            }
+        }
+    }
+
+    fun stopTicker() {
+        job?.cancel()
+        job = null
+    }
+
+    fun release() {
+        stopTicker()
+        segments = emptyList()
+        skippedUuids.clear()
+        currentVideoId = null
+    }
+}
         out: ArrayList<Renderer>,
     ) {
         super.buildAudioRenderers(
