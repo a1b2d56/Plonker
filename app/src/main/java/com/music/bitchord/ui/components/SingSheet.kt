@@ -16,13 +16,13 @@ import androidx.compose.ui.text.style.TextAlign
 import com.music.bitchord.playback.SingMethod
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,7 +42,7 @@ import kotlin.math.roundToInt
  * position read as a duet rather than as everything getting quieter.
  */
 @Composable
-fun SingSheet(onDismiss: () -> Unit) {
+fun SingSheet(onDismiss: () -> Unit, accent: Color = MaterialTheme.colorScheme.primary) {
     val level by AppSettings.singLevel.collectAsStateWithLifecycle()
     val method by AppSettings.singMethod.collectAsStateWithLifecycle()
     Column(
@@ -53,9 +53,9 @@ fun SingSheet(onDismiss: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
-            imageVector = if (level > 0.001f) Icons.Rounded.Mic else Icons.Rounded.MicOff,
+            imageVector = if (singIsOn(level)) Icons.Rounded.Mic else Icons.Rounded.MicOff,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = accent,
             modifier = Modifier.size(40.dp),
         )
         Spacer(Modifier.height(8.dp))
@@ -92,13 +92,18 @@ fun SingSheet(onDismiss: () -> Unit) {
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            text = stringResource(R.string.sing_level_percent, (level * 100).roundToInt()),
+            text = stringResource(R.string.sing_level_percent, singVocalPercent(level)),
             style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.primary,
+            color = accent,
         )
-        Slider(
+        // The app's own capsule slider: the thumb widens under the finger on
+        // the card spring. Every move goes straight to the setting, which the
+        // playback service is collecting, so the cut follows the drag.
+        IosSlider(
             value = level,
             onValueChange = { AppSettings.setSingLevel(it) },
+            activeColor = accent,
+            inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f),
             modifier = Modifier.fillMaxWidth(),
         )
         Row(
@@ -183,3 +188,15 @@ private fun MethodSelector(
         }
     }
 }
+
+/**
+ * How much of the lead vocal is left, as a whole percent, for a Sing level.
+ *
+ * The level is how much is cut, so the two run opposite ways: 0 is the
+ * untouched track and reads 100, 1 is the full cut and reads 0.
+ */
+internal fun singVocalPercent(level: Float): Int =
+    ((1f - level.coerceIn(0f, 1f)) * 100f).roundToInt()
+
+/** Whether a Sing level is cutting anything a listener could hear. */
+internal fun singIsOn(level: Float): Boolean = level > 0.001f

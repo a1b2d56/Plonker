@@ -36,9 +36,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -441,6 +443,12 @@ fun SongActionsMenu(
                     value = playbackSpeedDisplay(),
                     accent = palette.accent,
                 ) { currentSubmenu = SongSubmenu.Speed }
+                ActionRow(
+                    icon = Icons.Rounded.Mic,
+                    label = stringResource(R.string.sing_menu_label),
+                    value = singStatus(),
+                    accent = palette.accent,
+                ) { currentSubmenu = SongSubmenu.Sing }
             }
             // The same popup "Mixing" opens mid-blend, on the transition
             // still to come.
@@ -518,6 +526,10 @@ fun SongActionsMenu(
                             palette = palette,
                             onBack = { currentSubmenu = SongSubmenu.Main },
                         )
+                        SongSubmenu.Sing -> SingPage(
+                            palette = palette,
+                            onBack = { currentSubmenu = SongSubmenu.Main },
+                        )
                     }
                 }
             }
@@ -530,6 +542,7 @@ private enum class SongSubmenu(val level: Int) {
     SleepTimer(1),
     CustomSleepTimer(2),
     Speed(1),
+    Sing(1),
 }
 
 /**
@@ -1088,6 +1101,27 @@ internal fun SheetHeading(text: String) {
     )
 }
 
+
+/** What the Sing row shows beside its label: nothing while Sing is off. */
+@Composable
+private fun singStatus(): String? {
+    val level by AppSettings.singLevel.collectAsStateWithLifecycle()
+    return if (singIsOn(level)) stringResource(R.string.sing_level_percent, singVocalPercent(level)) else null
+}
+
+/** [SingSheet] as a page of this menu, under the same back bar as its neighbours. */
+@Composable
+private fun SingPage(palette: ArtworkPalette, onBack: () -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        SleepTimerHeader(
+            title = stringResource(R.string.sing_title),
+            subtitle = singStatus() ?: stringResource(R.string.sing_full_vocals),
+            onBack = onBack,
+        )
+        HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+        SingSheet(onDismiss = onBack, accent = palette.accent)
+    }
+}
 
 @Composable
 private fun playbackSpeedDisplay(): String {
