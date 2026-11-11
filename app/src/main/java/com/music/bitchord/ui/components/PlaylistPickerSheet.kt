@@ -156,17 +156,32 @@ fun PlaylistPickerSheet(
                 .fillMaxSize()
                 .statusBarsPadding(),
         ) {
-            if (creating) {
-                NewPlaylistForm(
-                    // Nowhere to go back to when the sheet opened straight onto
-                    // the form, so that bar closes it instead.
-                    onBack = if (startCreating) null else ({ creating = false }),
-                    onClose = { closeAfter {} },
-                    onCreate = { name, privacy -> closeAfter { onCreate(name, privacy) } },
-                    offline = offline,
-                )
-            } else {
-                SheetTopBar(
+            AnimatedContent(
+                targetState = creating,
+                transitionSpec = {
+                    if (targetState) {
+                        (slideInHorizontally(animationSpec = tween(220)) { (it * 0.35f).toInt() } + fadeIn(tween(200)))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(180)) { -(it * 0.25f).toInt() } + fadeOut(tween(160)))
+                    } else {
+                        (slideInHorizontally(animationSpec = tween(220)) { -(it * 0.25f).toInt() } + fadeIn(tween(200)))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(180)) { (it * 0.35f).toInt() } + fadeOut(tween(160)))
+                    }
+                },
+                label = "playlist_picker_create_transition",
+                modifier = Modifier.fillMaxSize(),
+            ) { isCreating ->
+                if (isCreating) {
+                    NewPlaylistForm(
+                        // Nowhere to go back to when the sheet opened straight onto
+                        // the form, so that bar closes it instead.
+                        onBack = if (startCreating) null else ({ creating = false }),
+                        onClose = { closeAfter {} },
+                        onCreate = { name, privacy -> closeAfter { onCreate(name, privacy) } },
+                        offline = offline,
+                    )
+                } else {
+                    Column(Modifier.fillMaxSize()) {
+                        SheetTopBar(
                     leadingIcon = SfIcons.Close,
                     leadingDescription = stringResource(R.string.close),
                     onLeading = { closeAfter {} },

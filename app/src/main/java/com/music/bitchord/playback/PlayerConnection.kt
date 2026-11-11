@@ -1,5 +1,7 @@
 package com.music.bitchord.playback
 
+import com.music.bitchord.data.settings.AppSettings
+
 import android.content.ComponentName
 import android.net.Uri
 import android.os.Bundle
@@ -644,6 +646,32 @@ private fun Song.pickedMixQuery(configId: String): String {
     return "&${SourceResolver.MIX_PARAM}=${SourceResolver.mixOf(sourceQuality)}"
 }
 
+/**
+ * Should a track with a downloaded file play that file, or stream?
+ *
+ * Network-always-wins, decided from [AppSettings.effectiveOffline]: the switch
+ * in Settings, or the detector, or either — never a value read from one and
+ * forgotten about the other. The detector is optimistic about a network and
+ * waits out a handover before believing one has gone. Getting this wrong is
+ * survivable in one direction only: a stream that fails falls back to the file
+ * ([PlaybackService.fallbackOnlineStreamToFile]), while a stale file cannot
+ * fall forward.
+ */
+internal fun shouldPlayLocalFile(hasLocalFile: Boolean, canStream: Boolean): Boolean =
+    hasLocalFile && !canStream
+
+/**
+ * The same question, asked of the app's own answers rather than of two
+ * booleans someone remembered to combine: [AppSettings.effectiveOffline] is the
+ * manual switch OR the detector, so a caller cannot get this wrong by reading
+ * one and forgetting the other.
+ */
+internal fun shouldPlayLocalFile(hasLocalFile: Boolean): Boolean =
+    shouldPlayLocalFile(
+        hasLocalFile = hasLocalFile,
+        canStream = !AppSettings.effectiveOffline.value,
+    )
+
 fun Song.toMediaItem(): MediaItem {
     val sourceTrack = SourceRegistry.parseTrackKey(videoId)
     // A row from search or a playlist carries no file of its own, but the track
@@ -672,7 +700,11 @@ fun Song.toMediaItem(): MediaItem {
     // leaves that path unguarded.
     val offlineUri = localUri?.takeUnless(Downloads::isMissingLocalFile)
         ?: Downloads.verifiedSavedUri(videoId)
-    val uriString = offlineUri ?: when {
+    val playFile = shouldPlayLocalFile(hasLocalFile = offlineUri != null)
+    val offlineFormat: String? = if (playFile) Downloads.savedFormat(videoId) else null
+    val formatBadge: String? = downloadFormat ?: offlineFormat
+    val playUri = offlineUri?.takeIf { playFile }
+    val uriString = playUri ?: when {
         videoId.startsWith("content://") || videoId.startsWith("file://") -> videoId
         // Title, artist and runtime ride along in the URI because they are what
         // a cross-source match is made on, and the resolver runs on ExoPlayer's

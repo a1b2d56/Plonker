@@ -378,7 +378,7 @@ internal class StreamRecoveryCoordinator(
         // Offline, and there is no file behind this track: every rung of the
         // ladder below is a network lookup that cannot answer. Skip past it cleanly
         // without exhausting consecutive retry budgets.
-        if (AppSettings.meteredConnection.value == null && mediaId !in Downloads.saved.value) {
+        if (AppSettings.effectiveOffline.value && Downloads.verifiedSavedUri(mediaId) == null) {
             TrackLog.d(
                 "BitChord",
                 "$mediaId has no downloaded copy while offline; moving down the queue",
@@ -892,7 +892,14 @@ internal class StreamRecoveryCoordinator(
      * served from the disk cache was never resolved at all and is judged here
      * instead — see [adoptCachedTrack] and [QualityUpgrade.adoptUnresolved].
      */
+    private fun offlineBlocksUpgrades(): Boolean {
+        if (!AppSettings.effectiveOffline.value) return false
+        TrackLog.d("BitChord", "offline mode: skipping the second look")
+        return true
+    }
+
     fun lookForBetterCopy(player: ExoPlayer) {
+        if (offlineBlocksUpgrades()) return
         val item = player.currentMediaItem ?: return
         val mediaId = item.mediaId
         val uri = item.localConfiguration?.uri
@@ -1017,6 +1024,7 @@ internal class StreamRecoveryCoordinator(
      */
     fun upgradeQualityNow() {
         val player = currentPlayer() ?: return
+        if (offlineBlocksUpgrades()) return
         val mediaId = player.currentMediaItem?.mediaId ?: return
         // Do not charge the manual cooldown for a command that merely arrived
         // while this track's automatic or manual upgrade was already running.
