@@ -229,6 +229,7 @@ import com.music.bitchord.ui.components.MiniPlayer
 import com.music.bitchord.ui.components.QueueActionNotice
 import com.music.bitchord.ui.components.QueueActionNoticeHost
 import com.music.bitchord.ui.components.RecognitionSheet
+import com.music.bitchord.ui.components.RecognitionSheet
 import com.music.bitchord.ui.components.SearchField
 import com.music.bitchord.sharedui.resources.Res as SharedRes
 import com.music.bitchord.sharedui.resources.search_hint
@@ -296,8 +297,6 @@ import com.music.bitchord.data.settings.LibraryViewType
 import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
-import com.music.bitchord.ui.onboarding.OnboardingScreen
-import com.music.bitchord.ui.theme.rememberArtworkPalette
 import com.music.bitchord.data.canvas.AppleArtistArtRepository
 import com.music.bitchord.data.canvas.keyColors
 import com.music.bitchord.ui.theme.SystemBarIcons
@@ -344,8 +343,7 @@ class MainActivity : AppCompatActivity() {
                         val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             LaunchedEffect(highPerformance, performanceRefreshRate, composeView) {
                         val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
-            val darkTheme = when (theme) {
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                        val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
@@ -359,7 +357,7 @@ class MainActivity : AppCompatActivity() {
                 // and text came through it untouched. The window's background is
             BitChordTheme(darkTheme = darkTheme) {
                 // laid down here too and the recording is opaque like the screen.
-                val windowBackground = MaterialTheme.colorScheme.background
+            BitChordTheme(darkTheme = darkTheme) {
                 val paintBackdrop: ContentDrawScope.() -> Unit = remember(windowBackground) {
                     {
                         drawRect(windowBackground)
@@ -560,6 +558,23 @@ private fun BitChordApp(
      * What the in-app browser is open for, or null while it is closed —
     var showRecognitionSheet by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
 
+    var showRecognitionSheet by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+
+    if (showRecognitionSheet) {
+        RecognitionSheet(
+            onDismiss = { showRecognitionSheet = false },
+            onPlaySong = { title, artist ->
+                selectedTab = TAB_SEARCH
+                viewModel.onQueryChange("$title $artist")
+                viewModel.submitSearch()
+            },
+            onQueueSong = { title, artist ->
+                selectedTab = TAB_SEARCH
+                viewModel.onQueryChange("$title $artist")
+                viewModel.submitSearch()
+            },
+        )
+    }
     if (showRecognitionSheet) {
         RecognitionSheet(
             onDismiss = { showRecognitionSheet = false },
@@ -746,22 +761,6 @@ private fun BitChordApp(
     // The modal player owns light status glyphs and its own contrast scrim.
     // Every other surface follows the theme; Replay's page and stories remain
     // dark artwork either way. So is the welcome, drawn over all of it.
-    val onboardingComplete by AppSettings.onboardingComplete.collectAsStateWithLifecycle()
-    // Held through the slide away as well, so the glyphs don't turn dark over
-    // the mesh while it is still on its way off the screen.
-    val onboardingShown = remember { MutableTransitionState(!onboardingComplete) }
-    onboardingShown.targetState = !onboardingComplete
-    val onboardingVisible = onboardingShown.currentState || onboardingShown.targetState
-
-
-    // ---- Navigation ----
-     * covers it. Most things want [detail] — the one actually on screen.
-     */
-    val topDetail = detailStack.lastOrNull()
-    val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents) {
-        val loaded = homeState as? UiState.Success
-        if (loaded != null && (hideHomeVideos || hideRecents)) {
-    val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
 
     /**
      * The single gate both surfaces read, so the icon can't announce the update
@@ -792,15 +791,33 @@ private fun BitChordApp(
             loaded?.data
         }
         dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
-        if (!offlineActive) {
+        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
             online
         } else {
             val picks = Downloads.snapshotSongs()
                 .sortedByDescending { it.localDateAddedSeconds ?: 0L }
     val offlineActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
+    val offlineActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
     val offlinePicksTitle = stringResource(R.string.shelf_quick_picks)
-                .take(20)
+    val offlinePicksTitle = stringResource(R.string.shelf_quick_picks)
     val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents, offlineActive, offlinePicksTitle) {
+    val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents, offlineActive, offlinePicksTitle) {
+        val baseShelves = if (loaded != null && (hideHomeVideos || hideRecents)) {
+                        ShelfItem(
+                            title = song.title,
+                            subtitle = "Song • ${song.artist}",
+            shelves
+                            videoId = videoId,
+            loaded?.data
+        }
+        val online = if (baseShelves != null) UiState.Success(baseShelves) else homeState
+        if (!offlineActive) {
+            online
+        } else {
+            val picks = Downloads.snapshotSongs()
+                .sortedByDescending { it.localDateAddedSeconds ?: 0L }
+                .take(20)
+                .mapNotNull { song ->
                     song.videoId.takeIf { it.isNotBlank() }?.let { videoId ->
                         ShelfItem(
                             title = song.title,
@@ -808,6 +825,16 @@ private fun BitChordApp(
                             thumbnailUrl = song.thumbnailUrl,
                             videoId = videoId,
                             browseId = null,
+                        )
+                    }
+                }
+            if (picks.isEmpty()) {
+                online
+            } else {
+                UiState.Success(
+                    listOf(HomeShelf(title = offlinePicksTitle, items = picks)) + (baseShelves ?: emptyList())
+                )
+            }
             loaded?.data
         }
         val online = if (baseShelves != null) UiState.Success(baseShelves) else homeState
@@ -1369,7 +1396,7 @@ private fun BitChordApp(
                 val songs = TopPicks.queue(pick).getOrNull().orEmpty()
                 if (!playRequests.isCurrent(request)) return@launch
                 val activeController = controller ?: return@launch
-                if (songs.isEmpty()) {
+                val activeController = controller
                     Toast.makeText(context, R.string.couldnt_load_tracks, Toast.LENGTH_SHORT).show()
                     return@launch
                 }
@@ -2414,7 +2441,6 @@ private fun BitChordApp(
         onLibraryItemClick = onLibraryItemClick,
         onBrowseLongPress = onBrowseLongPress,
         searchFocusHandled = { searchFocusRequested = false },
-        pickPlaylistFor = { song ->
             playlistTarget = listOf(song)
             playlistTargetTitle = null
             playlistTargetArtwork = null
@@ -2721,7 +2747,7 @@ private fun BitChordApp(
                             )
                             TAB_EXPLORE -> ExploreTab(
                                 viewModel = viewModel, navigator = navigator, alerts = alerts, overlays = overlays, actions = tabActions,
-                                exploreListState = exploreListState, moodGenreListState = moodGenreListState,
+                                player = player, signedIn = signedIn,
                                 explorePull = explorePull, listPadding = listPadding,
                             )
                             TAB_SEARCH -> SearchTab(
@@ -2733,6 +2759,7 @@ private fun BitChordApp(
                             else -> LibraryTab(
                                 viewModel = viewModel, navigator = navigator, alerts = alerts, overlays = overlays, actions = tabActions,
                                 libraryListState = libraryListState, libraryPull = libraryPull, signedIn = signedIn,
+                                onOpenRecognition = { showRecognitionSheet = true },
                                 replay = replay, replayCards = replayCards, downloadedReleases = downloadedReleases,
                                 localPlaylistItems = localPlaylistItems, listPadding = listPadding,
                                 player = player, signedIn = signedIn,
@@ -2827,6 +2854,14 @@ private fun BitChordApp(
                     title = when (route) {
                         AppRoute.Spotify -> stringResource(R.string.spotify)
                         AppRoute.Downloads -> stringResource(R.string.downloads)
+                val offlineBannerActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
+                com.music.bitchord.ui.components.OfflineBanner(
+                    visible = offlineBannerActive,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = com.music.bitchord.ui.components.topBarHeight()),
+                )
+
                         AppRoute.Discord -> "Discord"
                         AppRoute.History -> stringResource(R.string.history)
                         is AppRoute.LibraryShowAll -> route.shelf.title
@@ -2847,11 +2882,11 @@ private fun BitChordApp(
                             detail != null -> detail.title
                             selectedMoodGenre != null -> selectedMoodGenre?.title.orEmpty()
                             else -> tabs[selectedTab].let {
-                                if (it.label == "Play") stringResource(R.string.listen_now) else it.label
+                            detail != null && detailActiveShelf != null -> detailActiveShelf.title
                             }
                         }
                     },
-                    // Every page, in either material, uses separated floating
+                                it.label
                     // circles over the shared gradient — no full-width pane.
                     transparentBackdrop = true,
                 val offlineBannerActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
@@ -2905,6 +2940,7 @@ private fun BitChordApp(
                             // account photo, so it answers the nav bar's Search tap
                             // itself: focus and keyboard, the way the page used to.
                             val keyboard = LocalSoftwareKeyboardController.current
+                                onOpenRecognition = { showRecognitionSheet = true },
                             LaunchedEffect(searchFocusRequested) {
                                 if (searchFocusRequested) {
                                     searchFieldFocus.requestFocus()
@@ -2924,6 +2960,7 @@ private fun BitChordApp(
                                         SharedRes.string.search_addons_hint
                                     } else {
                                         SharedRes.string.search_hint
+                            onOpenRecognition = { showRecognitionSheet = true },
                                     },
                                 ),
                             )
@@ -3576,23 +3613,10 @@ private fun BitChordApp(
                                 confirmingProfile = false
                                 if (accepted) {
                                     webSession = null
-                                    if (mode == WebSessionMode.SIGN_IN) {
-                                        navigator.clear()
-                                        selectedTab = TAB_LIBRARY
-                                    }
-                                } else {
-                                    captureFailed = true
-                                }
-                            }
-                        },
-                    )
-                }
-            }
-        }
-
 
         // ---- Update available (once per launch; held until the welcome is done) ----
-        IosModalContainer(
+        // ---- Update available (once per launch; held until the welcome is done) ----
+            visible = showUpdateDialog && onboardingComplete && updateNotice != null,
             visible = showUpdateDialog && onboardingComplete && updateNotice != null,
             onDismiss = { showUpdateDialog = false },
         ) {

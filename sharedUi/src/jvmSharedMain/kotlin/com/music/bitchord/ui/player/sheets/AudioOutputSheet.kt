@@ -1,5 +1,14 @@
 package com.music.bitchord.ui.player.sheets
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+
 import com.music.bitchord.ui.player.*
 import com.music.bitchord.ui.icons.BitChordIcons
 import androidx.compose.foundation.background
@@ -390,19 +399,58 @@ private fun OutputRow(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val rawBattery = device.batteryLevel
+        val hasValidBattery = rawBattery != null && rawBattery in 0..100
+        val batteryProgress by animateFloatAsState(
+            targetValue = if (hasValidBattery) (rawBattery!! / 100f).coerceIn(0f, 1f) else 0f,
+            animationSpec = tween(400),
+            label = "batteryProgress",
+        )
+
         Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = if (active) 0.16f else 0.08f)),
+            modifier = Modifier.size(44.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = iconFor(device),
-                contentDescription = null,
-                tint = Color.White.copy(alpha = if (active) 1f else 0.7f),
-                modifier = Modifier.size(21.dp),
-            )
+            if (hasValidBattery) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeWidth = 3.dp.toPx()
+                    val inset = strokeWidth / 2f
+                    val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+                    val style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.18f),
+                        startAngle = 135f,
+                        sweepAngle = 270f,
+                        useCenter = false,
+                        topLeft = Offset(inset, inset),
+                        size = arcSize,
+                        style = style,
+                    )
+                    drawArc(
+                        color = if (rawBattery!! <= 20) Color(0xFFFF453A) else Color(0xFF30D158),
+                        startAngle = 135f,
+                        sweepAngle = 270f * batteryProgress,
+                        useCenter = false,
+                        topLeft = Offset(inset, inset),
+                        size = arcSize,
+                        style = style,
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .size(if (hasValidBattery) 34.dp else 40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = if (active) 0.16f else 0.08f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = iconFor(device),
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = if (active) 1f else 0.7f),
+                    modifier = Modifier.size(if (hasValidBattery) 18.dp else 21.dp),
+                )
+            }
         }
         Spacer(Modifier.width(13.dp))
         Column(Modifier.weight(1f)) {
@@ -415,10 +463,16 @@ private fun OutputRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (active) {
+            val subtitle = when {
+                active && hasValidBattery -> stringResource(Res.string.audio_output_playing) + " · $rawBattery% battery"
+                active -> stringResource(Res.string.audio_output_playing)
+                hasValidBattery -> "$rawBattery% battery"
+                else -> null
+            }
+            if (subtitle != null) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = stringResource(Res.string.audio_output_playing),
+                    text = subtitle,
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White.copy(alpha = 0.55f),
                 )

@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import androidx.compose.ui.draw.blur
+
 import com.music.bitchord.ui.player.lyrics.rememberLyricsTranslation
 import com.music.bitchord.ui.player.lyrics.LyricsShareRequest
 import com.music.bitchord.ui.player.lyrics.lyricsShareAvailable
@@ -39,7 +41,9 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import com.music.bitchord.ui.theme.rememberArtworkControlLuminance
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -587,6 +591,7 @@ fun NowPlayingScreen(
     // samples the upper band rather than the whole sleeve because that is what
     // lies beneath the status bar when the player expands to full bleed.
     val artTopLuminance = rememberArtworkTopBandLuminance(remoteArt, ART_PX)
+    val playerInk = Color.White
     val artworkStatusScrimAlpha = topBandScrimAlpha(artTopLuminance)
 
     // Media-player convention: the player always owns light status icons. The
@@ -1607,6 +1612,7 @@ fun NowPlayingScreen(
     DisposableEffect(Unit) { onDispose { reportLiveCanvas(false) } }
     val frostOff by PlayerSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val frost = if (frostOff) null else PlayerPlatform.host.rememberPlayerFrost()
+    CompositionLocalProvider(LocalPlayerInk provides playerInk) {
     FrostedPlayerFrame(
         modifier = modifier,
         // Off where a music video is the backdrop: it can go bright under the
@@ -1982,6 +1988,11 @@ fun NowPlayingScreen(
                             onMove = onMoveInQueue,
                             onClear = onClearQueue,
                             onDragActiveChange = onQueueDragActiveChange,
+                            shuffleEnabled = shuffleEnabled,
+                            onToggleShuffle = onToggleShuffle,
+                            repeatMode = repeatMode,
+                            onCycleRepeat = onCycleRepeat,
+                            onOpenSleepTimer = onOpenMenu,
                             modifier = Modifier.fillMaxSize(),
                         )
                     },
@@ -2014,7 +2025,7 @@ fun NowPlayingScreen(
                 val legacyMeshBackdrop = !tabletArtworkBackdrop && !spotifyCanvasPresentation &&
                     playerTheme == PlayerTheme.LEGACY
                 val artworkMeshBackdrop = !tabletArtworkBackdrop && playerTheme == PlayerTheme.DEFAULT
-                val fullArtworkBackdropAlpha by animateFloatAsState(
+                                val fullArtworkBackdropAlpha by animateFloatAsState(
                     targetValue = if (
                         !legacyMeshBackdrop &&
                         (tabletArtworkBackdrop || fullArtworkBlurImage != null) &&
@@ -2036,7 +2047,7 @@ fun NowPlayingScreen(
                         modifier = Modifier.graphicsLayer { alpha = 1f - fullArtworkBackdropAlpha },
                     )
                 }
-                if (artworkMeshBackdrop) {
+                                if (artworkMeshBackdrop) {
                     // Hung from where the picture stops, so the screen carries on in
                     // the colours the artwork ended in: the banner's bottom edge, or
                     // a portrait clip's or its still's. Left there as the player
@@ -3014,7 +3025,7 @@ fun NowPlayingScreen(
                                     Icon(
                                         imageVector = BitChordIcons.MusicNote,
                                         contentDescription = null,
-                                        tint = Color.White.copy(alpha = 0.35f),
+                                        tint = LocalPlayerInk.current.copy(alpha = 0.35f),
                                         modifier = Modifier
                                             .size(40.dp)
                                             .graphicsLayer {
@@ -3025,6 +3036,10 @@ fun NowPlayingScreen(
                                     )
                                 }
                             }
+                            val smartMixProgress by PlayerSettings.smartMixProgress.collectAsStateWithLifecycle()
+                            val autoMixBlurRadius = if (mixing) {
+                                (16f * kotlin.math.sin(kotlin.math.PI * smartMixProgress.coerceIn(0f, 1f)).toFloat()).dp
+                            } else 0.dp
                             AsyncImage(
                                 // Decode at the sleeve's *expanded* size, always.
                                 // Coil otherwise sizes the decode to however large
@@ -3062,6 +3077,7 @@ fun NowPlayingScreen(
                                 // [PlayerArtwork.loaded] still flips the moment it does.
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .then(if (autoMixBlurRadius > 0.dp) Modifier.blur(autoMixBlurRadius) else Modifier)
                                     .drawWithContent {
                                         val frame = still()
                                         if (frame == null) {
@@ -3077,6 +3093,8 @@ fun NowPlayingScreen(
                                         }
                                     },
                             )
+
+                            
 
                             // Where the clip plays when it can't have the banner:
                             // inside the same clip as the still art, taking the
@@ -3276,7 +3294,7 @@ fun NowPlayingScreen(
                             Icon(
                                 imageVector = if (showNext) Icons.Rounded.FastForward else Icons.Rounded.FastRewind,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = LocalPlayerInk.current,
                                 modifier = Modifier
                                     .align(Alignment.TopCenter)
                                     .offset {
@@ -3641,6 +3659,11 @@ fun NowPlayingScreen(
                                     collapsePlayerOnScroll = true,
                                     onRevealPlayer = { queueControlsOpen = true },
                                     onHidePlayer = { queueControlsOpen = false },
+                                    shuffleEnabled = shuffleEnabled,
+                                    onToggleShuffle = onToggleShuffle,
+                                    repeatMode = repeatMode,
+                                    onCycleRepeat = onCycleRepeat,
+                                    onOpenSleepTimer = onOpenMenu,
                                     modifier = Modifier.weight(1f),
                                 )
                             }
@@ -3826,6 +3849,7 @@ fun NowPlayingScreen(
                 }
             }
         }
+    }
     }
 }
 

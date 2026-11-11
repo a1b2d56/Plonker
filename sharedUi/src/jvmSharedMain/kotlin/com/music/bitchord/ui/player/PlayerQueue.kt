@@ -10,6 +10,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -18,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -243,6 +245,11 @@ internal fun InlineQueue(
     collapsePlayerOnScroll: Boolean = false,
     onRevealPlayer: () -> Unit = {},
     onHidePlayer: () -> Unit = {},
+    shuffleEnabled: Boolean = false,
+    onToggleShuffle: (() -> Unit)? = null,
+    repeatMode: Int = 0,
+    onCycleRepeat: (() -> Unit)? = null,
+    onOpenSleepTimer: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -256,6 +263,8 @@ internal fun InlineQueue(
         onHide = onHidePlayer,
     )
     val showHistory by PlayerSettings.showQueueHistory.collectAsStateWithLifecycle()
+    var reorderLocked by remember { mutableStateOf(true) }
+    val effectiveLocked = controlsLocked || reorderLocked
     val tracks = remember(queue, currentIndex, showHistory) { splitQueue(queue, currentIndex, showHistory) }
     val drag = rememberQueueDrag(listState, tracks, onMove, onDragActiveChange)
     val nowPlaying = tracks.nowPlaying
@@ -282,6 +291,17 @@ internal fun InlineQueue(
     }
 
     Column(modifier.fillMaxWidth()) {
+        QueueStadiumControls(
+            shuffleEnabled = shuffleEnabled,
+            onToggleShuffle = onToggleShuffle,
+            repeatMode = repeatMode,
+            onCycleRepeat = onCycleRepeat,
+            onOpenSleepTimer = onOpenSleepTimer,
+            reorderLocked = reorderLocked,
+            onToggleReorderLock = { reorderLocked = !reorderLocked },
+            controlsLocked = controlsLocked,
+        )
+        Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -358,7 +378,7 @@ internal fun InlineQueue(
                             QueueClearButton(MaterialTheme.typography.labelLarge, controlsLocked, onClear)
                         }
                     }
-                    queueSection(tracks.user, QueueSection.USER, drag, controlsLocked, onJumpTo, onRemove)
+                    queueSection(tracks.user, QueueSection.USER, drag, effectiveLocked, onJumpTo, onRemove)
                 }
                 if (tracks.context.isNotEmpty()) {
                     item(key = "header-context") {
@@ -893,5 +913,123 @@ private fun InlineQueueRow(
             }
         }
     }
+    }
+}
+
+@Composable
+internal fun QueueStadiumControls(
+    shuffleEnabled: Boolean,
+    onToggleShuffle: (() -> Unit)?,
+    repeatMode: Int,
+    onCycleRepeat: (() -> Unit)?,
+    onOpenSleepTimer: (() -> Unit)?,
+    reorderLocked: Boolean,
+    onToggleReorderLock: () -> Unit,
+    controlsLocked: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val haptics = rememberHaptics()
+    val ink = LocalPlayerInk.current
+    val pillShape = RoundedCornerShape(percent = 50)
+    val activeBg = ink.copy(alpha = 0.88f)
+    val activeTint = Color.Black
+    val inactiveBg = ink.copy(alpha = 0.12f)
+    val inactiveTint = ink
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val shuffleBg by animateColorAsState(if (shuffleEnabled) activeBg else inactiveBg, label = "queueShuffleBg")
+        val shuffleContent by animateColorAsState(if (shuffleEnabled) activeTint else inactiveTint, label = "queueShuffleTint")
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(38.dp)
+                .clip(pillShape)
+                .background(shuffleBg)
+                .clickable(enabled = onToggleShuffle != null && !controlsLocked) {
+                    haptics.play(Haptic.Select)
+                    onToggleShuffle?.invoke()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = BitChordIcons.PlayerShuffle,
+                contentDescription = stringResource(Res.string.shuffle),
+                tint = shuffleContent,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+
+        val isRepeatActive = repeatMode != 0
+        val repeatBg by animateColorAsState(if (isRepeatActive) activeBg else inactiveBg, label = "queueRepeatBg")
+        val repeatContent by animateColorAsState(if (isRepeatActive) activeTint else inactiveTint, label = "queueRepeatTint")
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(38.dp)
+                .clip(pillShape)
+                .background(repeatBg)
+                .clickable(enabled = onCycleRepeat != null && !controlsLocked) {
+                    haptics.play(Haptic.Select)
+                    onCycleRepeat?.invoke()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (repeatMode == 1) BitChordIcons.RepeatOne else BitChordIcons.PlayerRepeat,
+                contentDescription = stringResource(Res.string.repeat),
+                tint = repeatContent,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+
+        val timerBg by animateColorAsState(inactiveBg, label = "queueTimerBg")
+        val timerContent by animateColorAsState(inactiveTint, label = "queueTimerTint")
+        Box(
+            modifier = Modifier
+                .weight(1.1f)
+                .height(38.dp)
+                .clip(pillShape)
+                .background(timerBg)
+                .clickable(enabled = onOpenSleepTimer != null) {
+                    haptics.play(Haptic.Select)
+                    onOpenSleepTimer?.invoke()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = BitChordIcons.Clock,
+                contentDescription = stringResource(Res.string.sleep_timer),
+                tint = timerContent,
+                modifier = Modifier.size(17.dp),
+            )
+        }
+
+        val lockBg by animateColorAsState(if (!reorderLocked) activeBg else inactiveBg, label = "queueLockBg")
+        val lockContent by animateColorAsState(if (!reorderLocked) activeTint else inactiveTint, label = "queueLockTint")
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(38.dp)
+                .clip(pillShape)
+                .background(lockBg)
+                .clickable(enabled = !controlsLocked) {
+                    haptics.play(Haptic.Select)
+                    onToggleReorderLock()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (reorderLocked) BitChordIcons.Lock else BitChordIcons.LockOpen,
+                contentDescription = if (reorderLocked) "Locked" else "Unlocked",
+                tint = lockContent,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }

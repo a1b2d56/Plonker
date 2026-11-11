@@ -163,6 +163,8 @@ private fun AudioRouting.Device.toOutputDevice() = AudioOutputDevice(
         AudioRouting.Form.SPEAKER -> BluetoothForm.SPEAKER
         AudioRouting.Form.CAR -> BluetoothForm.CAR
     },
+    batteryLevel = batteryLevel,
+    isAirPods = name.contains("airpod", ignoreCase = true),
 )
 
 /**

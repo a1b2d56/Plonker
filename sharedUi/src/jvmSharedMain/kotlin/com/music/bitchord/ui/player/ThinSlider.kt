@@ -95,12 +95,12 @@ fun ThinSlider(
      * unplayed bar so the mix is visible before it arrives.
      */
     transitionWindow: ClosedFloatingPointRange<Float>? = null,
-    idleHeight: Dp = 7.dp,
-    activeHeight: Dp = 12.dp,
-    activeColor: Color = Color.White.copy(alpha = 0.92f),
-    inactiveColor: Color = Color.White.copy(alpha = 0.26f),
+    idleHeight: Dp = 8.dp,
+    activeHeight: Dp = 14.dp,
+    activeColor: Color = LocalPlayerInk.current.copy(alpha = 0.92f),
+    inactiveColor: Color = LocalPlayerInk.current.copy(alpha = 0.26f),
     /** Halfway between the two track colours: visible against unplayed, invisible under played. */
-    markerColor: Color = Color.White.copy(alpha = 0.5f),
+    markerColor: Color = LocalPlayerInk.current.copy(alpha = 0.5f),
 ) {
     var dragging by remember { mutableStateOf(false) }
     val height by animateDpAsState(

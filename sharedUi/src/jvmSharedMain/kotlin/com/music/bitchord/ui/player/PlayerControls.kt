@@ -172,6 +172,7 @@ internal fun PlaybackOriginCaption(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val ink = LocalPlayerInk.current
     val chrome = LocalPlayerChrome.current
     Text(
         text = text,
@@ -182,7 +183,7 @@ internal fun PlaybackOriginCaption(
                 blurRadius = 4f,
             ),
         ),
-        color = Color.White.copy(alpha = if (chrome) CHROME_FULL_ALPHA else 1f),
+        color = ink.copy(alpha = if (chrome) CHROME_FULL_ALPHA else 1f),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = textAlign,
@@ -370,6 +371,7 @@ internal fun PlaybackQualityLabel(
  */
 @Composable
 internal fun SleeveNerdStats(song: Song, modifier: Modifier = Modifier) {
+    val ink = LocalPlayerInk.current
     val showNerdStats by PlayerSettings.showNerdStats.collectAsStateWithLifecycle()
     if (!showNerdStats) return
     val nerdStats by NerdStats.current.collectAsStateWithLifecycle()
@@ -406,7 +408,7 @@ internal fun SleeveNerdStats(song: Song, modifier: Modifier = Modifier) {
             Text(
                 text = stats,
                 style = nerdStyle,
-                color = Color.White.copy(alpha = 0.65f),
+                color = ink.copy(alpha = 0.65f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -441,7 +443,7 @@ internal fun SleeveNerdStats(song: Song, modifier: Modifier = Modifier) {
                 // Dimmer than the measured line above it: that one describes
                 // the audio, this one describes the app, and the ranking
                 // should show.
-                color = Color.White.copy(alpha = 0.5f),
+                color = ink.copy(alpha = 0.5f),
                 // The detailed line runs long on a phone: a second line rather
                 // than an ellipsis through the part that says what the mix is.
                 maxLines = 2,
@@ -476,16 +478,16 @@ internal fun TransportRow(
     compact: Boolean = false,
     smoothness: Float = DEFAULT_TRANSPORT_SMOOTHNESS,
 ) {
-    val playSize = if (compact) 46.dp else 59.dp
+    val playSize = if (compact) 58.dp else 74.dp
     val playTouch = if (compact) 76.dp else 92.dp
-    val skipSize = if (compact) 35.dp else PLAYER_SKIP_ICON_SIZE
+    val skipSize = if (compact) 44.dp else PLAYER_SKIP_ICON_SIZE
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(TRANSPORT_GAP, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TransportGlyph(
-            shape = TransportShape.PREVIOUS,
+            icon = Res.drawable.ic_player_previous,
             contentDescription = stringResource(Res.string.widget_previous),
             size = skipSize,
             touchSize = PLAYER_SKIP_TOUCH_SIZE,
@@ -507,7 +509,7 @@ internal fun TransportRow(
             }
         } else {
             TransportGlyph(
-                shape = if (isPlaying) TransportShape.PAUSE else TransportShape.PLAY,
+                icon = if (isPlaying) Res.drawable.ic_player_pause else Res.drawable.ic_player_play,
                 contentDescription = stringResource(if (isPlaying) Res.string.pause else Res.string.play),
                 size = playSize,
                 touchSize = playTouch,
@@ -517,7 +519,7 @@ internal fun TransportRow(
             )
         }
         TransportGlyph(
-            shape = TransportShape.NEXT,
+            icon = Res.drawable.ic_player_next,
             contentDescription = stringResource(Res.string.widget_next),
             size = skipSize,
             touchSize = PLAYER_SKIP_TOUCH_SIZE,
@@ -706,6 +708,7 @@ internal fun CircleGlyph(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
+    val ink = LocalPlayerInk.current
     val discAlpha by animateFloatAsState(
         targetValue = if (active) 0.34f else 0.18f,
         label = "glyphDisc",
@@ -735,7 +738,7 @@ internal fun CircleGlyph(
                     if (chrome) {
                         VibrantChromeInk.copy(alpha = (discAlpha * CIRCLE_DISC_DODGE_GAIN).coerceAtMost(1f))
                     } else {
-                        Color.White.copy(alpha = discAlpha)
+                        ink.copy(alpha = discAlpha)
                     },
                 ),
         )
@@ -747,7 +750,7 @@ internal fun CircleGlyph(
             Icon(
                 imageVector = glyph,
                 contentDescription = contentDescription,
-                tint = Color.White,
+                tint = ink,
                 modifier = Modifier.size(19.dp),
             )
         }
@@ -773,6 +776,7 @@ private fun TransportGlyph(
     heightScale: Float = 1f,
     smoothness: Float = DEFAULT_TRANSPORT_SMOOTHNESS,
 ) {
+    val ink = LocalPlayerInk.current
     val haptics = rememberHaptics()
     // Faded rather than hidden: the row keeps its shape at the ends of a queue.
     val alpha by animateFloatAsState(
@@ -798,7 +802,7 @@ private fun TransportGlyph(
         when {
             shape != null -> TransportShapeGlyph(
                 shape = shape,
-                tint = Color.White.copy(alpha = alpha),
+                tint = ink.copy(alpha = alpha),
                 contentDescription = contentDescription,
                 smoothness = smoothness,
                 modifier = glyphModifier,
@@ -806,7 +810,7 @@ private fun TransportGlyph(
             icon != null -> Icon(
                 painter = painterResource(icon),
                 contentDescription = contentDescription,
-                tint = Color.White.copy(alpha = alpha),
+                tint = ink.copy(alpha = alpha),
                 modifier = glyphModifier,
             )
         }
@@ -814,7 +818,7 @@ private fun TransportGlyph(
 }
 
 /** The skip glyphs' width, and their touch box, beside the larger play button. */
-private val PLAYER_SKIP_ICON_SIZE = 42.dp
+private val PLAYER_SKIP_ICON_SIZE = 53.dp
 private val TRANSPORT_GAP = 32.dp
 private val PLAYER_SKIP_TOUCH_SIZE = 53.dp
 
@@ -893,11 +897,12 @@ private fun Pill(
     modifier: Modifier = Modifier,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val ink = LocalPlayerInk.current
     Row(
         modifier = modifier
             .height(BOTTOM_ACTION_SIZE)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.12f))
+            .background(ink.copy(alpha = 0.12f))
             .animateContentSize(
                 animationSpec = spring(
                     dampingRatio = 0.82f,
@@ -911,11 +916,12 @@ private fun Pill(
 
 @Composable
 private fun PillDivider() {
+    val ink = LocalPlayerInk.current
     Box(
         Modifier
             .width(1.dp)
             .fillMaxHeight()
-            .background(Color.White.copy(alpha = 0.20f)),
+            .background(ink.copy(alpha = 0.20f)),
     )
 }
 
@@ -1053,6 +1059,7 @@ private fun PillSegment(
     vibrant: Boolean = false,
 ) {
     val haptics = rememberHaptics()
+    val ink = LocalPlayerInk.current
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
     val chrome = LocalPlayerChrome.current
     Box(
@@ -1061,7 +1068,7 @@ private fun PillSegment(
             .height(BOTTOM_ACTION_SIZE)
             // Round the highlight and both fades, not inside them — see [CircleGlyph].
             .additiveChrome(chrome && !vibrant)
-            .background(if (highlighted) Color.White.copy(alpha = 0.14f) else Color.Transparent)
+            .background(if (highlighted) ink.copy(alpha = 0.14f) else Color.Transparent)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -1082,8 +1089,8 @@ private fun PillSegment(
         } else {
             when {
                 !highlighted -> chromeWhite(0.75f)
-                chrome -> Color.White.copy(alpha = CHROME_FULL_ALPHA)
-                else -> Color.White
+                chrome -> ink.copy(alpha = CHROME_FULL_ALPHA)
+                else -> ink
             }
         }
         Crossfade(
@@ -1095,7 +1102,7 @@ private fun PillSegment(
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(17.dp),
-                    color = Color.White,
+                    color = ink,
                     strokeWidth = 2.dp,
                 )
             } else if (icon != null) {
@@ -1267,6 +1274,7 @@ private fun BottomGlyph(
     vibrant: Boolean = false,
 ) {
     val haptics = rememberHaptics()
+    val ink = LocalPlayerInk.current
     // Read only from the click handler, never during composition, so writing it
     // costs no recomposition. Starts a full window in the past so the first tap
     // is never the one that gets swallowed.
@@ -1326,7 +1334,7 @@ private fun BottomGlyph(
         val tint = if (vibrant && chrome) {
             VibrantChromeInk
         } else {
-            if (highlighted) Color.White else chromeWhite(0.75f)
+            if (highlighted) ink else chromeWhite(0.75f)
         }
         val glyphChrome = if (vibrant) Modifier.vibrantChrome(chrome) else Modifier.additiveChrome(chrome)
         if (icon != null) {
@@ -1882,6 +1890,7 @@ private fun ShimmerText(
     ),
     baseAlpha: Float = 0.55f,
 ) {
+    val ink = LocalPlayerInk.current
     val transition = rememberInfiniteTransition(label = "lossless-shimmer")
     val progress = transition.animateFloat(
         initialValue = 0f,
@@ -1892,7 +1901,7 @@ private fun ShimmerText(
         ),
         label = "lossless-shimmer-progress",
     )
-    val tint = Color.White.copy(alpha = if (LocalPlayerChrome.current) CHROME_FULL_ALPHA else 1f)
+    val tint = ink.copy(alpha = if (LocalPlayerChrome.current) CHROME_FULL_ALPHA else 1f)
     val baseColor = chromeWhite(baseAlpha)
     // The glyphs are laid out and drawn once, in the plain tint, and the moving
     // band is painted over them in the draw phase with SrcIn — which keeps the
