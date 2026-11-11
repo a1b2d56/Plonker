@@ -2,6 +2,7 @@
 
 package com.music.bitchord.ui.navigation
 
+import com.music.bitchord.ui.components.RecognitionHistorySheet
 import com.music.bitchord.ui.components.RecognitionSheet
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -283,6 +284,34 @@ fun SearchTab(
         )
     }
 
+    var showRecognitionHistory by rememberSaveable { mutableStateOf(false) }
+    val recognitionHistoryLabel = stringResource(R.string.recognition_history_source)
+
+    if (showRecognitionHistory) {
+        RecognitionHistorySheet(
+            onDismiss = { showRecognitionHistory = false },
+            onPlay = { entry ->
+                val videoId = entry.videoId
+                if (videoId != null) {
+                    // Shazam linked the video: play it, with a station behind it.
+                    actions.playRadio(
+                        Song(
+                            videoId = videoId,
+                            title = entry.title,
+                            artist = entry.artist,
+                            thumbnailUrl = entry.artworkUrl,
+                        ),
+                        QueueSource(recognitionHistoryLabel, PlaybackSourceType.SEARCH),
+                    )
+                } else {
+                    // No video to go on, so find it the way a fresh match is found.
+                    viewModel.onQueryChange("${entry.title} ${entry.artist}")
+                    viewModel.submitSearch()
+                }
+            },
+        )
+    }
+
     with(alerts) { with(overlays) { with(actions) {
         SearchScreen(
             query = query,
@@ -299,6 +328,7 @@ fun SearchTab(
             focusRequested = searchFocusRequested,
             onFocusHandled = searchFocusHandled,
             onOpenRecognition = onOpenRecognition ?: { showRecognitionSheet = true },
+            onOpenRecognitionHistory = { showRecognitionHistory = true },
             // Search hits are alternatives to each other, not a running
             // order — play the one tapped and build a station from it.
             onSongClick = { songs, index ->
@@ -338,7 +368,7 @@ fun SearchTab(
             },
             onBrowseClick = { item ->
                 viewModel.recordEntity(SearchHistoryEntity(
-                    id = item.browseId ?: "",
+                    id = item.browseId,
                     title = item.title,
                     subtitle = item.subtitle.ifBlank { "" },
                     artworkUrl = item.thumbnailUrl,

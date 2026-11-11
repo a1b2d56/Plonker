@@ -74,4 +74,6 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.20" apply false
     id("org.jetbrains.kotlin.plugin.serialization") version "2.3.20" apply false
     id("org.jetbrains.compose") version "1.10.3" apply false
+    // Room's annotation processor. KSP versions on its own line since 2.3, not Kotlin's.
+    id("com.google.devtools.ksp") version "2.3.6" apply false
 }

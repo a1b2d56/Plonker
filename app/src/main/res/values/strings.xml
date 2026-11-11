@@ -1361,6 +1361,7 @@
     <string name="liquid_glass_intensity" translatable="false">Liquid Glass intensity</string>
     <string name="liquid_glass_intensity_subtitle" translatable="false">Scales the blur and refraction; lower is cheaper to render, which fixes glass stutter on low-end devices</string>
     <string name="sing_title" translatable="false">Sing</string>
+    <string name="sing_menu_label" translatable="false">Sing · Vocal level</string>
     <string name="sing_subtitle" translatable="false">Turn the lead vocal down and sing over the track</string>
     <string name="sing_level_percent" translatable="false">Vocals at %1$d%%</string>
     <string name="sing_full_vocals" translatable="false">Full vocals</string>
@@ -1399,6 +1400,10 @@
     <string translatable="false" name="recognition_no_match">No match found. Try again with clearer audio.</string>
     <string translatable="false" name="recognition_permission_needed">Microphone permission is needed to recognize music.</string>
     <string translatable="false" name="recognition_history">Recognition History</string>
+    <string translatable="false" name="recognition_history_clear">Clear</string>
+    <string translatable="false" name="recognition_history_empty">Songs you identify will appear here.</string>
+    <string translatable="false" name="recognition_history_remove">Remove from history</string>
+    <string translatable="false" name="recognition_history_source">Recognition History</string>
         
     <string name="english_gb">English (GB)</string>
     <string name="english_us">English (US)</string>
