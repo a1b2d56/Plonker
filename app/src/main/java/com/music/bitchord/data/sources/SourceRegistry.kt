@@ -98,10 +98,13 @@ data class SourceConfig(
 
     /** What the sources screen and the player show. Never blank. */
     val displayName: String
-        get() = label.ifBlank {
-            baseUrl.takeIf { it.isNotBlank() }
-                ?.let { runCatching { Uri.parse(it).host }.getOrNull() }
-                ?: kind.label
+        get() {
+            if (kind == SourceKind.HIRES) return SourceRegistry.HIRES_DISPLAY_NAME
+            return label.ifBlank {
+                baseUrl.takeIf { it.isNotBlank() }
+                    ?.let { runCatching { Uri.parse(it).host }.getOrNull() }
+                    ?: kind.label
+            }
         }
 
     /** Whether this has enough filled in to be worth contacting at all. */
@@ -587,6 +590,7 @@ object SourceRegistry {
         SourceKind.CUSTOM_MODULE -> ModuleSource(config)
         SourceKind.MODULE -> ModuleSource(config)
         SourceKind.JIOSAAVN -> JioSaavnSource(config)
+        SourceKind.HIRES -> HiresDirectSource(config)
         SourceKind.YOUTUBE -> YouTubeSource(config)
     }
 
@@ -631,7 +635,10 @@ object SourceRegistry {
             .build()
             .toString()
 
-    private val BUILT_IN_KINDS = listOf(SourceKind.JIOSAAVN, SourceKind.YOUTUBE)
+    private val BUILT_IN_KINDS = listOf(SourceKind.JIOSAAVN, SourceKind.HIRES, SourceKind.YOUTUBE)
+
+    /** The branded name of the community Hi-Res source. */
+    const val HIRES_DISPLAY_NAME = "BitChord Hi-Res Lossless Addon" 
 
     private const val KEY_SOURCES = "sources"
     /** One-shot migration: existing users must explicitly opt in again. */
