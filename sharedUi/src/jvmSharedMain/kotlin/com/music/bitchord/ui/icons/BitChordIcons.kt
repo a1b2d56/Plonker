@@ -310,6 +310,76 @@ object BitChordIcons {
             }
         }.build()
 
+    val RepeatOne: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_repeat_one",
+            defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(
+                stroke = stroke,
+                strokeLineWidth = STROKE,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            ) {
+                moveTo(8.6f, 7.6f)
+                lineTo(15.4f, 7.6f)
+                arcToRelative(4.4f, 4.4f, 0f, isMoreThanHalf = false, isPositiveArc = true, 0f, 8.8f)
+                lineTo(8.6f, 16.4f)
+                arcToRelative(4.4f, 4.4f, 0f, isMoreThanHalf = false, isPositiveArc = true, 0f, -8.8f)
+                close()
+                moveTo(13.5f, 5.7f); lineTo(15.4f, 7.6f); lineTo(13.5f, 9.5f)
+                moveTo(10.5f, 14.5f); lineTo(8.6f, 16.4f); lineTo(10.5f, 18.3f)
+                // Number 1 in the middle
+                moveTo(11.2f, 10.5f); lineTo(12f, 9.8f); lineTo(12f, 14.2f)
+            }
+        }.build()
+    }
+
+    val Lock: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_lock", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(stroke = stroke, strokeLineWidth = STROKE, strokeLineCap = StrokeCap.Round) {
+                moveTo(6.5f, 11f); lineTo(17.5f, 11f)
+                arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+                lineTo(19.5f, 18f)
+                arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+                lineTo(6.5f, 20f)
+                arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+                lineTo(4.5f, 13f)
+                arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+                close()
+                moveTo(8f, 11f); lineTo(8f, 7.5f)
+                arcToRelative(4f, 4f, 0f, false, true, 8f, 0f)
+                lineTo(16f, 11f)
+            }
+        }.build()
+    }
+
+    val LockOpen: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "bc_lock_open", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 24f, viewportHeight = 24f,
+        ).apply {
+            path(stroke = stroke, strokeLineWidth = STROKE, strokeLineCap = StrokeCap.Round) {
+                moveTo(6.5f, 11f); lineTo(17.5f, 11f)
+                arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
+                lineTo(19.5f, 18f)
+                arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
+                lineTo(6.5f, 20f)
+                arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
+                lineTo(4.5f, 13f)
+                arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
+                close()
+                moveTo(8f, 11f); lineTo(8f, 7.5f)
+                arcToRelative(4f, 4f, 0f, false, true, 8f, 0f)
+                lineTo(16f, 5.5f)
+            }
+        }.build()
+    }
+
     /** AutoPlay's lemniscate. */
     val Infinity: ImageVector by lazy {
         ImageVector.Builder(

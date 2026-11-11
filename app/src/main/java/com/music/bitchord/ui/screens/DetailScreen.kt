@@ -615,6 +615,17 @@ fun DetailScreen(
                 }
             }
 
+            if (isArtist && (page.subscriberCountText != null || page.monthlyListenerCount != null)) {
+                item(key = "artist-header-stats") {
+                    ArtistStatsRow(
+                        subscriberCountText = page.subscriberCountText,
+                        monthlyListenerCount = page.monthlyListenerCount,
+                        palette = palette,
+                        centered = true,
+                    )
+                }
+            }
+
             if (searching) {
                 item(key = "search") {
                     DetailSearchField(
@@ -1831,33 +1842,52 @@ private fun ArtistStatsRow(
     subscriberCountText: String?,
     monthlyListenerCount: String?,
     palette: ArtworkPalette,
+    centered: Boolean = false,
 ) {
-    // Stacked and left-aligned with the text under it, since this now sits in
-    // the About section rather than across the header.
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = ARTIST_CONTENT_GUTTER, end = ARTIST_CONTENT_GUTTER, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-        horizontalAlignment = Alignment.Start,
-    ) {
-        // YouTube's own count text already reads "1.2M subscribers" in full,
-        // so only the number is kept and the label re-said in the app's own
-        // words — the one way to fit both stats on one line on a narrow
-        // screen without either wrapping into two.
-        subscriberCountText?.let {
-            StatChip(
-                icon = Icons.Rounded.Person,
-                text = stringResource(R.string.subscribers, it.substringBefore(' ')),
-                palette = palette,
-            )
+    if (centered) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = PAGE_GUTTER, end = PAGE_GUTTER, bottom = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        ) {
+            subscriberCountText?.let {
+                StatChip(
+                    icon = Icons.Rounded.Person,
+                    text = stringResource(R.string.subscribers, it.substringBefore(' ')),
+                    palette = palette,
+                )
+            }
+            monthlyListenerCount?.let {
+                StatChip(
+                    icon = Icons.Rounded.GraphicEq,
+                    text = stringResource(R.string.monthly_listeners, it.substringBefore(' ')),
+                    palette = palette,
+                )
+            }
         }
-        monthlyListenerCount?.let {
-            StatChip(
-                icon = Icons.Rounded.GraphicEq,
-                text = stringResource(R.string.monthly_listeners, it.substringBefore(' ')),
-                palette = palette,
-            )
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = ARTIST_CONTENT_GUTTER, end = ARTIST_CONTENT_GUTTER, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            subscriberCountText?.let {
+                StatChip(
+                    icon = Icons.Rounded.Person,
+                    text = stringResource(R.string.subscribers, it.substringBefore(' ')),
+                    palette = palette,
+                )
+            }
+            monthlyListenerCount?.let {
+                StatChip(
+                    icon = Icons.Rounded.GraphicEq,
+                    text = stringResource(R.string.monthly_listeners, it.substringBefore(' ')),
+                    palette = palette,
+                )
+            }
         }
     }
 }

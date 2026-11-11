@@ -179,7 +179,7 @@
     <string name="shelf_concerts">Concerts</string>
     <string name="shelf_featured_playlists_for_you">Featured playlists for you</string>
     <string name="shelf_for_you">For you</string>
-    <string name="shelf_forgotten_favorites">Forgotten favorites</string>
+    <string name="shelf_forgotten_favorites">Forgotten favourites</string>
     <string name="shelf_from_the_community">From the community</string>
     <string name="shelf_from_your_library">From your library</string>
     <string name="shelf_hits_today">Hits today</string>
@@ -284,4 +284,7 @@
     <string name="automix_overview_unavailable">No Automix transition coming up</string>
     <string name="library_search_hint">Search this</string>
     <string name="library_empty_segment">Nothing here yet</string>
+    <string name="shuffle">Shuffle</string>
+    <string name="repeat">Repeat</string>
+    <string name="sleep_timer">Sleep timer</string>
 </resources>

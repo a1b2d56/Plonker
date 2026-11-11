@@ -78,6 +78,7 @@ object AudioRouting {
         val isActive: Boolean = false,
         /** For a [Kind.BLUETOOTH] device, what it is you listen with — see [formOf]. */
         val form: Form = Form.UNKNOWN,
+        val batteryLevel: Int? = null,
     )
 
     /** What shape of thing a Bluetooth sink is, as far as can be told. */
@@ -123,6 +124,7 @@ object AudioRouting {
                     kind = kind,
                     isActive = info.id == active?.id,
                     form = if (kind == Kind.BLUETOOTH) formOf(info, name) else Form.UNKNOWN,
+                    batteryLevel = if (kind == Kind.BLUETOOTH) batteryOf(info, name) else null,
                 )
             }
             // One row per physical device. Several entries under one name is
@@ -257,6 +259,24 @@ object AudioRouting {
      * Worn things are checked first, so "Echo Buds" or "SoundLink Flex
      * headphones" land on the head rather than the shelf.
      */
+
+    @Suppress("DEPRECATION", "MissingPermission")
+    private fun batteryOf(info: AudioDeviceInfo, name: String): Int? {
+        val adapter = runCatching { BluetoothAdapter.getDefaultAdapter() }.getOrNull() ?: return null
+        val bonded = runCatching { adapter.bondedDevices }.getOrNull() ?: return null
+        val target = (if (Build.VERSION.SDK_INT >= 28 && BluetoothAdapter.checkBluetoothAddress(info.address)) {
+            bonded.firstOrNull { it.address.equals(info.address, ignoreCase = true) }
+        } else null) ?: bonded.firstOrNull {
+            it.name == name || it.name == info.productName?.toString()
+        }
+        val device = target ?: return null
+        return runCatching {
+            val method = device.javaClass.getMethod("getBatteryLevel")
+            val level = method.invoke(device) as? Int
+            if (level != null && level in 0..100) level else null
+        }.getOrNull()
+    }
+
     internal fun formFromName(name: String): Form? {
         val lower = name.lowercase()
         if (lower.isBlank()) return null

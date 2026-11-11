@@ -330,6 +330,8 @@ data class AudioOutputDevice(
      * says, rather than a guess drawn as fact.
      */
     val form: BluetoothForm = BluetoothForm.UNKNOWN,
+    val batteryLevel: Int? = null,
+    val isAirPods: Boolean = false,
 )
 
 enum class BluetoothForm { UNKNOWN, BUDS, HEADPHONES, SPEAKER, CAR }
