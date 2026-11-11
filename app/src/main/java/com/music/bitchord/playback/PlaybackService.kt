@@ -2422,6 +2422,7 @@ private class SponsorBlockCoordinator(
     private val player: () -> ExoPlayer?,
 ) {
     private var job: Job? = null
+    private var fetch: Job? = null
     private var currentVideoId: String? = null
     private var segments: List<SponsorSegment> = emptyList()
     private val skippedUuids = mutableSetOf<String>()
@@ -2433,10 +2434,17 @@ private class SponsorBlockCoordinator(
         segments = emptyList()
         job?.cancel()
         job = null
+        fetch?.cancel()
+        fetch = null
 
-        if (mediaId.isNullOrBlank()) return
+        // Local files and source tracks carry a path or key as their media
+        // id; only a YouTube id is ever sent out.
+        if (mediaId == null || !SponsorBlockApi.isYouTubeVideoId(mediaId)) return
 
-        scope.launch(Dispatchers.IO) {
+        // On Main, like every other touch of this class's state: the answer
+        // for a track that has since been replaced is dropped by the cancel
+        // above rather than by a check another thread could lose a race with.
+        fetch = scope.launch(Dispatchers.Main) {
             val enabled = AppSettings.sponsorBlockEnabled.value
             if (!enabled) return@launch
 
@@ -2454,9 +2462,7 @@ private class SponsorBlockCoordinator(
             val list = result.getOrDefault(emptyList())
             if (list.isNotEmpty() && currentVideoId == mediaId) {
                 segments = list
-                withContext(Dispatchers.Main) {
-                    if (player()?.isPlaying == true) startTicker()
-                }
+                if (player()?.isPlaying == true) startTicker()
             }
         }
     }
@@ -2500,6 +2506,8 @@ private class SponsorBlockCoordinator(
 
     fun release() {
         stopTicker()
+        fetch?.cancel()
+        fetch = null
         segments = emptyList()
         skippedUuids.clear()
         currentVideoId = null
