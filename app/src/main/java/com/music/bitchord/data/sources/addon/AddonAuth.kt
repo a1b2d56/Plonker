@@ -307,7 +307,7 @@ object AddonAuth {
     /** One call to the auth service. Its refusals are [AttestRefused]; anything else is transient. */
     private fun call(request: Request): String =
         client.newCall(request.newBuilder().header("Accept", "application/json").build()).execute().use { response ->
-            val text = response.body?.string().orEmpty()
+            val text = response.body.string().orEmpty()
             when {
                 response.isSuccessful -> text
                 response.code == 429 || response.code >= 500 -> throw java.io.IOException("auth service HTTP ${response.code}")

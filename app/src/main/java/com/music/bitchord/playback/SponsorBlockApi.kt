@@ -60,7 +60,7 @@ object SponsorBlockApi {
                 .build()
 
             val response = client.newCall(request).execute()
-            val responseBody = response.body?.string()
+            val responseBody = response.body.string()
 
             if (response.code == 404) {
                 segmentCache[videoId] = emptyList()

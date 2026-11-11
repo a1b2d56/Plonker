@@ -363,7 +363,7 @@ object HiResMonochromeBackend {
             .build()
         return client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-            response.body?.string()?.takeIf { it.isNotBlank() }
+            response.body.string().takeIf { it.isNotBlank() }
                 ?: throw IOException("Empty response")
         }
     }
