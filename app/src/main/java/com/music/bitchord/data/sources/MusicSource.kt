@@ -52,6 +52,11 @@ data class SourceStream(
      * reproduces the stream already playing.
      */
     val sourceConfigId: String? = null,
+    /**
+     * Which backend inside a multi-backend source served this, in plain
+     * words for diagnostics — "Direct FLAC", "Tidal Hi-Fi", etc.
+     */
+    val backend: String? = null,
 )
 
 /**

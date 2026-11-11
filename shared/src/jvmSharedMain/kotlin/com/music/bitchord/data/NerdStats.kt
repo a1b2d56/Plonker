@@ -245,6 +245,35 @@ object NerdStats {
     @Volatile
     private var activeMediaId: String? = null
 
+    private val refusals = ConcurrentHashMap<String, Pair<String, Long>>()
+    private const val REFUSAL_TTL_MS = 30_000L
+
+    fun noteRefusal(host: String?, reason: String) {
+        if (host.isNullOrBlank()) return
+        refusals[host.lowercase()] = reason to System.currentTimeMillis()
+    }
+
+    /** The recorded refusal for [host], or null when none is fresh. */
+    fun refusalFor(host: String?): String? {
+        if (host.isNullOrBlank()) return null
+        val (message, at) = refusals[host.lowercase()] ?: return null
+        if (System.currentTimeMillis() - at > REFUSAL_TTL_MS) {
+            refusals.remove(host.lowercase())
+            return null
+        }
+        return message
+    }
+
+    /** Drop all recorded refusals — a manual retry asks everything again. */
+    fun clearRefusals() {
+        refusals.clear()
+    }
+
+    /** Test-only alias. Public because app-module tests need it. */
+    fun clearRefusalsForTests() {
+        clearRefusals()
+    }
+
     val current = MutableStateFlow<Snapshot?>(null)
 
     /**
