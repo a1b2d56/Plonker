@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import com.music.bitchord.R
-import com.music.bitchord.data.settings.AppFont
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.AutomixPerformanceMode
 import com.music.bitchord.data.settings.BitPerfectMode
@@ -119,23 +118,6 @@ internal fun PlayerTheme.description(): String = stringResource(
         PlayerTheme.DEFAULT -> R.string.player_theme_default_subtitle
         PlayerTheme.LEGACY -> R.string.player_theme_legacy_subtitle
         PlayerTheme.SIMPLE -> R.string.player_theme_simple_subtitle
-    },
-)
-
-@Composable
-internal fun AppFont.localizedLabel(): String = stringResource(
-    when (this) {
-        AppFont.DEFAULT -> R.string.font_default
-        AppFont.LEGACY -> R.string.font_legacy
-    },
-)
-
-/** The typeface each [AppFont] sets, named under its label. */
-@Composable
-internal fun AppFont.description(): String = stringResource(
-    when (this) {
-        AppFont.DEFAULT -> R.string.font_default_subtitle
-        AppFont.LEGACY -> R.string.font_legacy_subtitle
     },
 )
 

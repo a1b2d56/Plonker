@@ -15,7 +15,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
-import com.music.bitchord.data.settings.AppFont
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.AutomixPerformanceMode
@@ -115,19 +114,6 @@ fun SettingsChoicePage(
                 }
             }
 
-            SettingsChoiceKind.FONT -> {
-                val selected by AppSettings.appFont.collectAsStateWithLifecycle()
-                ChoiceGroup(
-                    options = AppFont.entries,
-                    selected = selected,
-                    label = { it.localizedLabel() },
-                    detail = { it.description() },
-                    footer = stringResource(R.string.font_footer),
-                ) { font ->
-                    AppSettings.setAppFont(font)
-                    onChosen()
-                }
-            }
         }
         Spacer(Modifier.height(32.dp))
     }

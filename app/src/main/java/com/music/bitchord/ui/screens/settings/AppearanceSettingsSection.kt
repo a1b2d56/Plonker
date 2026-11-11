@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.data.lyrics.translationLanguageName
-import com.music.bitchord.data.settings.AppFont
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.PlayerTheme
 import com.music.bitchord.data.settings.ThemeMode
@@ -43,7 +42,6 @@ internal fun AppearanceSettingsGroup(
     onTranslationLanguage: () -> Unit,
 ) {
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
-    val appFont by AppSettings.appFont.collectAsStateWithLifecycle()
     val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
     val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlurSetting.collectAsStateWithLifecycle()
@@ -77,17 +75,7 @@ internal fun AppearanceSettingsGroup(
                     modifier = Modifier.padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
                 )
             }
-            val fontTitle = stringResource(R.string.font)
-            row(fontTitle, "typeface", "sf pro", "legacy") {
-                SettingsRow(
-                    icon = SfIcons.Font,
-                    title = fontTitle,
-                    subtitle = appFont.description(),
-                    value = appFont.localizedLabel(),
-                    onClick = { onOpenChoice(SettingsChoiceKind.FONT) },
-                )
-            }
-            val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
+                        val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
             val hapticFeedbackTitle = stringResource(R.string.haptic_feedback)
             row(hapticFeedbackTitle, "vibration", "touch", "haptics") {
                 SettingsRow(
