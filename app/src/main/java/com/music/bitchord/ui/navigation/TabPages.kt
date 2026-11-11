@@ -1,6 +1,8 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.music.bitchord.ui.navigation
+
+import com.music.bitchord.ui.components.RecognitionSheet
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -250,6 +252,7 @@ fun SearchTab(
     player: PlayerState,
     /** Set each time the Search tab is tapped: focus the field. */ searchFocusRequested: Boolean,
     /** The quality cap addon rows are dimmed against. */ addonCeiling: AudioQuality,
+    onOpenRecognition: (() -> Unit)? = null,
     listPadding: PaddingValues,
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
@@ -264,6 +267,22 @@ fun SearchTab(
     val addonResults by viewModel.addonResults.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val searchLabel = stringResource(R.string.search)
+    var showRecognitionSheet by rememberSaveable { mutableStateOf(false) }
+
+    if (showRecognitionSheet) {
+        RecognitionSheet(
+            onDismiss = { showRecognitionSheet = false },
+            onPlaySong = { title, artist ->
+                viewModel.onQueryChange("$title $artist")
+                viewModel.submitSearch()
+            },
+            onQueueSong = { title, artist ->
+                viewModel.onQueryChange("$title $artist")
+                viewModel.submitSearch()
+            },
+        )
+    }
+
     with(alerts) { with(overlays) { with(actions) {
         SearchScreen(
             query = query,
@@ -279,6 +298,7 @@ fun SearchTab(
             scrollResetTrigger = searchScrollReset,
             focusRequested = searchFocusRequested,
             onFocusHandled = searchFocusHandled,
+            onOpenRecognition = onOpenRecognition ?: { showRecognitionSheet = true },
             // Search hits are alternatives to each other, not a running
             // order — play the one tapped and build a station from it.
             onSongClick = { songs, index ->
