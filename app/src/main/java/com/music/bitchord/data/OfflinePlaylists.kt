@@ -54,6 +54,7 @@ object OfflinePlaylists {
 
     private const val PREF_NAME = "bitchord_offline_playlists"
     private const val KEY_PLAYLISTS = "playlists_json"
+    private const val KEY_UNREADABLE = "playlists_json_unreadable"
 
     private lateinit var prefs: SharedPreferences
     private val lock = Any()
@@ -203,20 +204,34 @@ object OfflinePlaylists {
 
     private fun load(): List<OfflinePlaylist> {
         val raw = prefs.getString(KEY_PLAYLISTS, null) ?: return emptyList()
-        return runCatching {
-            val array = JSONArray(raw)
-            (0 until array.length()).map { i ->
+        return parse(raw) ?: run {
+            // The next edit writes over this document, so what could not be
+            // read is set aside first rather than lost to it.
+            DebugLog.w("BitChord", "Offline playlists unreadable; kept under $KEY_UNREADABLE")
+            prefs.edit().putString(KEY_UNREADABLE, raw).apply()
+            emptyList()
+        }
+    }
+
+    /**
+     * The playlists in [raw], or null when it is not a list at all. One entry
+     * that can't be read is left out and the others kept: a single bad row
+     * must not take Liked and every other playlist with it.
+     */
+    internal fun parse(raw: String): List<OfflinePlaylist>? {
+        val array = runCatching { JSONArray(raw) }.getOrNull() ?: return null
+        return (0 until array.length()).mapNotNull { i ->
+            runCatching {
                 val obj = array.getJSONObject(i)
-                val songs = obj.getJSONArray("songs")
+                val songs = obj.optJSONArray("songs") ?: JSONArray()
                 OfflinePlaylist(
                     id = obj.getString("id"),
                     title = obj.optString("title"),
-                    songs = (0 until songs.length()).mapNotNull { songFrom(songs.getJSONObject(it)) },
+                    songs = (0 until songs.length()).mapNotNull { index ->
+                        songs.optJSONObject(index)?.let { songFrom(it) }
+                    },
                 )
-            }
-        }.getOrElse {
-            DebugLog.w("BitChord", "Offline playlists unreadable: ${it.message}")
-            emptyList()
+            }.getOrNull()
         }
     }
 
