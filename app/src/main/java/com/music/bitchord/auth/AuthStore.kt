@@ -122,6 +122,21 @@ class AuthStore(context: Context) {
         set(value) = prefs.edit().putString(KEY_SMB_PASSWORD, value).apply()
 
     /**
+     * A service credential the settings own: a scrobbler session key, the
+     * Spotify cookie, an API key. Kept here rather than in the plain settings
+     * file because that file is in Android's cloud backup and device transfer,
+     * and this store is excluded from both.
+     */
+    fun secret(name: String): String? = prefs.getString(SECRET_PREFIX + name, null)
+
+    /** Stores [value] under [name]; null or empty forgets it. */
+    fun setSecret(name: String, value: String?) {
+        val edit = prefs.edit()
+        if (value.isNullOrEmpty()) edit.remove(SECRET_PREFIX + name) else edit.putString(SECRET_PREFIX + name, value)
+        edit.apply()
+    }
+
+    /**
      * The channel the listener chose to act as, if they chose one.
      *
      * Stored beside the cookie rather than in the plain settings because it is
@@ -219,6 +234,7 @@ class AuthStore(context: Context) {
         private val API_SID_NAMES =
             setOf("SAPISID", "__Secure-3PAPISID", "__Secure-1PAPISID")
 
+        private const val SECRET_PREFIX = "secret_"
         private const val KEY_COOKIE = "cookie"
         private const val KEY_SESSIONS = "google_account_sessions_v2"
         private const val KEY_ACTIVE_ACCOUNT = "active_google_account_id_v2"
