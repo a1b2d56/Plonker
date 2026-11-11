@@ -19,6 +19,8 @@
     <!-- Bit-perfect output: setting Android 14's preferred mixer attributes
          for a USB DAC. A normal permission, granted at install. -->
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <!--

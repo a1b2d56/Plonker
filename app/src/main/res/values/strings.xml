@@ -1336,9 +1336,6 @@
     <string name="version_switch_in_party">Everyone in Listen Together hears the same version</string>
     <string name="haptic_feedback">Haptic feedback</string>
     <string name="haptic_feedback_subtitle">Vibrate on buttons, sliders, and gestures</string>
-    <string name="save_cover_art" translatable="false">Save cover art</string>
-    <string name="cover_saved" translatable="false">Saved %1$s</string>
-    <string name="cover_save_failed" translatable="false">Couldn\'t save cover art</string>
     <plurals name="add_tracks_to_playlists_count" translatable="false">
         <item quantity="one">Add %1$d track to %2$d playlists</item>
         <item quantity="other">Add %1$d tracks to %2$d playlists</item>
@@ -1349,4 +1346,58 @@
     </plurals>
     <string name="liquid_glass_haptics" translatable="false">Liquid glass haptics</string>
     <string name="liquid_glass_haptics_subtitle" translatable="false">Haptic buzz on glass nav, toggles, sliders and menus</string>
+</resources>
+    <string name="offline_mode" translatable="false">Offline mode</string>
+    <string name="offline_mode_detected" translatable="false">No connection</string>
+    <string name="offline_mode_subtitle" translatable="false">Play downloaded files only. Stays on until you turn it off.</string>
+    <string name="sing_method_original" translatable="false">Classic</string>
+    <string name="sing_method_band" translatable="false">Band</string>
+    <string name="sing_method_gate" translatable="false">Smart</string>
+    <string name="sing_method_original_note" translatable="false">The plain centre cut, from the first version. Fastest and cleanest on an old recording; takes the kick and snare with the vocal on anything modern.</string>
+    <string name="sing_method_band_note" translatable="false">Cuts only 150 Hz to 10 kHz and lets drum hits through. Leaves a faint thinning from the crossover phase.</string>
+    <string name="sing_method_gate_note" translatable="false">The same band, rebuilt as a true bandpass, with a voice detector that leaves instrumentals alone and side makeup that replaces the removed energy.</string>
+    <string name="liquid_glass_intensity" translatable="false">Liquid Glass intensity</string>
+    <string name="liquid_glass_intensity_subtitle" translatable="false">Scales the blur and refraction; lower is cheaper to render, which fixes glass stutter on low-end devices</string>
+    <string name="sing_title" translatable="false">Sing</string>
+    <string name="sing_subtitle" translatable="false">Turn the lead vocal down and sing over the track</string>
+    <string name="sing_level_percent" translatable="false">Vocals at %1$d%%</string>
+    <string name="sing_full_vocals" translatable="false">Full vocals</string>
+    <string name="sing_no_vocals" translatable="false">No vocals</string>
+    <string name="sing_duet_note" translatable="false">Halfway down keeps the backing vocals while the lead steps back — that middle is the duet mix.</string>
+    <string name="sing_turn_off" translatable="false">Turn off</string>
+    <!-- SponsorBlock -->
+    <string translatable="false" name="sponsorblock">SponsorBlock</string>
+    <string translatable="false" name="sponsorblock_subtitle">Skip non-music intros, sponsors and banter automatically</string>
+    <string translatable="false" name="sponsorblock_enable">Enable SponsorBlock</string>
+    <string translatable="false" name="sponsorblock_skip_non_music">Skip non-music sections</string>
+    <string translatable="false" name="sponsorblock_skip_sponsors">Skip sponsor segments</string>
+    <string translatable="false" name="sponsorblock_skip_selfpromo">Skip self-promotion</string>
+    <string translatable="false" name="sponsorblock_skip_intro_outro">Skip intro/outro</string>
+    <string translatable="false" name="sponsorblock_show_toast">Show skip notifications</string>
+    <string translatable="false" name="sponsorblock_skipped_non_music">Skipped non-music section</string>
+    <string translatable="false" name="sponsorblock_skipped_sponsor">Skipped sponsor</string>
+    <string translatable="false" name="sponsorblock_skipped_selfpromo">Skipped self-promotion</string>
+    <string translatable="false" name="sponsorblock_skipped_intro">Skipped intro</string>
+    <string translatable="false" name="sponsorblock_skipped_outro">Skipped outro</string>
+    <string translatable="false" name="sponsorblock_skipped_segment">Skipped segment</string>
+
+    <!-- Bluetooth & Audio Device -->
+    <string translatable="false" name="bluetooth_audio_device">Bluetooth Device</string>
+    <string translatable="false" name="phone_speaker">Phone speaker</string>
+    <string translatable="false" name="wired_headphones">Wired headphones</string>
+    <string translatable="false" name="battery_level">Battery</string>
+    <string translatable="false" name="battery_percent">%1$d%% battery</string>
+
+    <!-- Community Discovery & Lyrics -->
+    <string translatable="false" name="from_the_community">From the Community</string>
+    <string translatable="false" name="filter_community_playlists">Community playlists</string>
+    <string translatable="false" name="recognition_title">Recognize Music</string>
+    <string translatable="false" name="recognition_listening">Listening for music…</string>
+    <string translatable="false" name="recognition_processing">Identifying song…</string>
+    <string translatable="false" name="recognition_no_match">No match found. Try again with clearer audio.</string>
+    <string translatable="false" name="recognition_permission_needed">Microphone permission is needed to recognize music.</string>
+    <string translatable="false" name="recognition_history">Recognition History</string>
+        
+    <string name="english_gb">English (GB)</string>
+    <string name="english_us">English (US)</string>
 </resources>

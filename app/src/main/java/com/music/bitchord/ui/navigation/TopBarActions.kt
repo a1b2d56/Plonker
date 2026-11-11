@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.History
@@ -86,6 +87,7 @@ fun TopBarActions(
     account: Account?,
     signedIn: Boolean,
     onOpenAccountSelector: () -> Unit,
+    onOpenRecognition: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     // This is intentionally scoped to Listen together: the

@@ -228,6 +228,7 @@ import com.music.bitchord.ui.components.ListenBrainzTokenAlert
 import com.music.bitchord.ui.components.MiniPlayer
 import com.music.bitchord.ui.components.QueueActionNotice
 import com.music.bitchord.ui.components.QueueActionNoticeHost
+import com.music.bitchord.ui.components.RecognitionSheet
 import com.music.bitchord.ui.components.SearchField
 import com.music.bitchord.sharedui.resources.Res as SharedRes
 import com.music.bitchord.sharedui.resources.search_hint
@@ -296,8 +297,6 @@ import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
 import com.music.bitchord.ui.onboarding.OnboardingScreen
-import com.music.bitchord.ui.replay.rememberReplayState
-import com.music.bitchord.ui.theme.BitChordTheme
 import com.music.bitchord.ui.theme.rememberArtworkPalette
 import com.music.bitchord.data.canvas.AppleArtistArtRepository
 import com.music.bitchord.data.canvas.keyColors
@@ -344,8 +343,7 @@ class MainActivity : AppCompatActivity() {
             val iosOverscrollFactory = rememberIosOverscrollFactory()
                         val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             LaunchedEffect(highPerformance, performanceRefreshRate, composeView) {
-                applyPerformanceMode(highPerformance, performanceRefreshRate, composeView)
-            }
+                        val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             val darkTheme = when (theme) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -359,7 +357,7 @@ class MainActivity : AppCompatActivity() {
             BitChordTheme(darkTheme = darkTheme) {
                 // sharp page underneath: album art came through the bar blurred
                 // and text came through it untouched. The window's background is
-                // the floor the pages have always been drawn against, so it is
+            BitChordTheme(darkTheme = darkTheme) {
                 // laid down here too and the recording is opaque like the screen.
                 val windowBackground = MaterialTheme.colorScheme.background
                 val paintBackdrop: ContentDrawScope.() -> Unit = remember(windowBackground) {
@@ -560,6 +558,23 @@ private fun BitChordApp(
     }
     /**
      * What the in-app browser is open for, or null while it is closed —
+    var showRecognitionSheet by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+
+    if (showRecognitionSheet) {
+        RecognitionSheet(
+            onDismiss = { showRecognitionSheet = false },
+            onPlaySong = { title, artist ->
+                selectedTab = TAB_SEARCH
+                viewModel.onQueryChange("$title $artist")
+                viewModel.submitSearch()
+            },
+            onQueueSong = { title, artist ->
+                selectedTab = TAB_SEARCH
+                viewModel.onQueryChange("$title $artist")
+                viewModel.submitSearch()
+            },
+        )
+    }
      * signing in, or picking a channel in YouTube Music's own Accounts list.
      */
     // The sheets and sign-ins pushed pages ask for, held in [AppOverlayState];
@@ -746,22 +761,6 @@ private fun BitChordApp(
     val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents) {
         val loaded = homeState as? UiState.Success
         if (loaded != null && (hideHomeVideos || hideRecents)) {
-            var shelves = loaded.data
-            if (hideRecents) shelves = shelves.filterNot { it.title == YtMusicRepository.RECENT_TITLE }
-            if (hideHomeVideos) shelves = shelves.withoutVideos()
-            UiState.Success(shelves)
-        } else {
-            homeState
-        }
-    }
-        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
-
-    // The top bar's icon is the quiet, always-there nudge; this is the
-    // once-per-launch popup version of the same news. `updateDialogShown`
-    // rides out configuration changes on rememberSaveable so a rotation
-    // doesn't bring it back — only a fresh launch does.
-    var updateDialogShown by rememberSaveable { mutableStateOf(false) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
     val updateAvailable by viewModel.updateAvailable.collectAsStateWithLifecycle()
 
     /**
@@ -792,6 +791,25 @@ private fun BitChordApp(
     )
             loaded?.data
         }
+        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
+        if (!offlineActive) {
+            online
+        } else {
+            val picks = Downloads.snapshotSongs()
+                .sortedByDescending { it.localDateAddedSeconds ?: 0L }
+    val offlineActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
+    val offlinePicksTitle = stringResource(R.string.shelf_quick_picks)
+                .take(20)
+    val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents, offlineActive, offlinePicksTitle) {
+                    song.videoId.takeIf { it.isNotBlank() }?.let { videoId ->
+                        ShelfItem(
+                            title = song.title,
+                            subtitle = "Song • ${song.artist}",
+                            thumbnailUrl = song.thumbnailUrl,
+                            videoId = videoId,
+                            browseId = null,
+            loaded?.data
+        }
         val online = if (baseShelves != null) UiState.Success(baseShelves) else homeState
         if (!offlineActive) {
             online
@@ -808,6 +826,15 @@ private fun BitChordApp(
                             videoId = videoId,
                             browseId = null,
                         )
+                    }
+                }
+            if (picks.isEmpty()) {
+                online
+            } else {
+                UiState.Success(
+                    listOf(HomeShelf(title = offlinePicksTitle, items = picks)) + (baseShelves ?: emptyList())
+                )
+            }
                     }
                 }
             if (picks.isEmpty()) {
@@ -2414,7 +2441,6 @@ private fun BitChordApp(
             // The same test the player's own dim skips itself on. Composition
             // and layout carry on, so the page is current the moment the
             // player starts to come down and this draws again.
-            .drawWithContent {
                 if (!coveredByPlayer) drawContent()
             },
     ) {
@@ -2721,7 +2747,7 @@ private fun BitChordApp(
                     // the background, or this page on its way out: each frame of
                     // them redraws the page under the glass, for nobody.
                     val barsMotion = artworkMotion && transition.targetState == EnterExitState.Visible
-                    CompositionLocalProvider(LocalPlayingBarsMotion provides barsMotion) {
+                                player = player, signedIn = signedIn,
                         if (destination is AppDestination.Tab) {
                             pageContent()
                         } else {
@@ -2733,6 +2759,7 @@ private fun BitChordApp(
 
                 // The top-bar footprint is transparent on every page so the
                 // shared app-level gradient is continuous; its controls float
+                                onOpenRecognition = { showRecognitionSheet = true },
                 // as separate circles in both the glass and blur materials.
                 val isDetailVisible = detail != null &&
                     (detail.type == BrowseType.ALBUM ||
@@ -2827,6 +2854,14 @@ private fun BitChordApp(
                     // Every page, in either material, uses separated floating
                     // circles over the shared gradient — no full-width pane.
                     transparentBackdrop = true,
+                val offlineBannerActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
+                com.music.bitchord.ui.components.OfflineBanner(
+                    visible = offlineBannerActive,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = com.music.bitchord.ui.components.topBarHeight()),
+                )
+
                     artworkPageChrome = true,
                     backButtonHazeState = hazeState,
                     trailingTitle = if (detail != null && detailActiveShelf != null) detail.title else null,
@@ -2905,6 +2940,7 @@ private fun BitChordApp(
                             isLocalDetail = isLocalDetail,
                             selectedTab = selectedTab,
                             partyServerStatus = partyServerStatus,
+                                onOpenRecognition = { showRecognitionSheet = true },
                             updateNotice = updateNotice,
                             onShowUpdate = { showUpdateDialog = true },
                             librarySort = librarySort,
@@ -2924,6 +2960,7 @@ private fun BitChordApp(
                 )
 
                 // Drawn before the bars so their own glass reads on top of it.
+                            onOpenRecognition = { showRecognitionSheet = true },
                 BottomFadeScrim(
                     withMiniPlayer = player.song != null,
                     // Not the wash: by the foot of the screen the page has finished
@@ -3576,23 +3613,10 @@ private fun BitChordApp(
         // ---- Update available (once per launch; held until the welcome is done) ----
                     },
             visible = showUpdateDialog && onboardingComplete && updateNotice != null,
-                )
-            }
         }
-
+        // ---- Update available (once per launch; held until the welcome is done) ----
         IosModalContainer(
-            visible = showLyricsSources,
-            onDismiss = { showLyricsSources = false },
-        ) {
-            LyricsSourcesDialog(
-                hazeState = hazeState,
-                onDismiss = { showLyricsSources = false },
-                animatedScope = this,
-            )
-        }
-
-        IosModalContainer(
-                // read against the list reordering behind the frost.
+            visible = showUpdateDialog && onboardingComplete && updateNotice != null,
         // ---- Update available (once per launch; held until the welcome is done) ----
                     detail?.browseId?.let { browseId ->
             visible = showUpdateDialog && onboardingComplete && updateNotice != null,
