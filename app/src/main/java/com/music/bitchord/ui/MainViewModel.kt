@@ -1797,6 +1797,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                 }
             }
+            launch {
+                try {
+                    loadCommunityPlaylists(identity, generation)
+                } catch (_: Exception) {}
+            }
             YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.forEach { browseId ->
                 launch {
                     try {
@@ -1903,6 +1908,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * One of the parallel first-page requests has finished. Ignored once a newer
      * load has taken over, which has already reset the count for its own fan-out.
      */
+
+    private suspend fun loadCommunityPlaylists(identity: String?, generation: Long) {
+        val fallbackQueries = listOf("chill mix", "hits playlist", "trending music", "vibes playlist").shuffled()
+        for (q in fallbackQueries) {
+            val res = YtMusicRepository.searchPage(q, SearchFilter.COMMUNITY_PLAYLISTS).getOrNull()
+            if (res != null && res.rows.isNotEmpty()) {
+                val items = res.rows.filterIsInstance<SearchResult.Browse>()
+                    .map { it.item }
+                    .filter {
+                        !it.subtitle.orEmpty().contains("YouTube", ignoreCase = true) &&
+                        it.browseId != null &&
+                        !it.browseId.startsWith("RD")
+                    }
+                    .take(15)
+                    .map {
+                        ShelfItem(
+                            title = it.title,
+                            subtitle = it.subtitle.orEmpty(),
+                            thumbnailUrl = it.thumbnailUrl,
+                            videoId = null,
+                            browseId = it.browseId,
+                        )
+                    }
+                if (items.isNotEmpty()) {
+                    if (isCurrentHomeLoad(identity, generation)) {
+                        publishHomeShelves(listOf(HomeShelf(title = "From the Community", items = items, layout = com.music.bitchord.data.model.ShelfLayout.CARDS)))
+                    }
+                    break
+                }
+            }
+        }
+    }
+
     private fun homeShelfRequestSettled(identity: String?, generation: Long) {
         if (!isCurrentHomeLoad(identity, generation)) return
         _homePendingShelves.value = (_homePendingShelves.value - 1).coerceAtLeast(0)

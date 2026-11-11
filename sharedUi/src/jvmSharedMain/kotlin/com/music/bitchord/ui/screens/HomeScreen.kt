@@ -496,12 +496,11 @@ private fun HomeTitle(
                 modifier = logoModifier,
             )
         }
-        // "Listen now" is hidden for now; the wordmark above stays.
-        // Text(
-        //     text = title,
-        //     style = style,
-        //     color = MaterialTheme.colorScheme.onBackground,
-        // )
+        Text(
+            text = title,
+            style = style,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
     }
 }
 
