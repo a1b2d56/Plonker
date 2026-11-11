@@ -396,6 +396,7 @@ enum class SearchFilter(val label: String, val params: String?) {
     ALBUMS("Albums", "EgWKAQIYAWoKEAkQChAFEAMQBA=="),
     ARTISTS("Artists", "EgWKAQIgAWoKEAkQChAFEAMQBA=="),
     PLAYLISTS("Playlists", "EgWKAQIoAWoKEAkQChAFEAMQBA=="),
+    COMMUNITY_PLAYLISTS("Community Playlists", "EgeKAQQoAEABagoQAxAEEAoQCRAF"),
 }
 
 /** A card in a home-feed carousel: either a track (videoId) or an album/playlist (browseId). */
