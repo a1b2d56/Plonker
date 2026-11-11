@@ -2236,6 +2236,40 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      * Commits the current query text: clears suggestions/typeahead, runs the
      * full search, and records the term in history for future recall.
      */
+    /**
+     * The song an identified track is on YouTube Music: the video Shazam
+     * linked when it linked one, otherwise the first song a search for its
+     * title and artist finds. [onResult] gets null when neither does.
+     */
+    fun findRecognised(
+        result: com.music.bitchord.recognition.RecognitionResult,
+        onResult: (Song?) -> Unit,
+    ) {
+        viewModelScope.launch {
+            val linked = result.youtubeVideoId?.takeIf { it.isNotBlank() }
+            val song = if (linked != null) {
+                Song(
+                    videoId = linked,
+                    title = result.title,
+                    artist = result.artist,
+                    thumbnailUrl = result.coverArtHqUrl ?: result.coverArtUrl,
+                )
+            } else {
+                YtMusicRepository.searchPage("${result.title} ${result.artist}", SearchFilter.SONGS)
+                    .getOrNull()
+                    ?.rows
+                    ?.firstNotNullOfOrNull { row ->
+                        when (row) {
+                            is SearchResult.TopTrack -> row.song
+                            is SearchResult.Track -> row.song
+                            else -> null
+                        }
+                    }
+            }
+            onResult(song)
+        }
+    }
+
     fun submitSearch() {
         val q = _query.value.trim()
         if (q.isEmpty() || _searchSource.value == SearchSource.LIBRARY) return

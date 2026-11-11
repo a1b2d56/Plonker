@@ -1399,6 +1399,14 @@
     <string translatable="false" name="recognition_processing">Identifying song…</string>
     <string translatable="false" name="recognition_no_match">No match found. Try again with clearer audio.</string>
     <string translatable="false" name="recognition_permission_needed">Microphone permission is needed to recognize music.</string>
+    <string translatable="false" name="recognition_sheet_title">Identify Song</string>
+    <string translatable="false" name="recognition_hold_near">Hold your phone near the audio playing</string>
+    <string translatable="false" name="recognition_identifying">Identifying with Shazam…</string>
+    <string translatable="false" name="recognition_failed">Couldn\'t identify the song. Try again.</string>
+    <string translatable="false" name="recognition_play_now">Play Now</string>
+    <string translatable="false" name="recognition_add_to_queue">Add to Queue</string>
+    <string translatable="false" name="recognition_allow_microphone">Allow microphone</string>
+    <string translatable="false" name="recognition_open_settings">Open settings</string>
     <string translatable="false" name="recognition_history">Recognition History</string>
     <string translatable="false" name="recognition_history_clear">Clear</string>
     <string translatable="false" name="recognition_history_empty">Songs you identify will appear here.</string>

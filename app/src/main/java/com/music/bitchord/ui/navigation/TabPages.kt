@@ -253,7 +253,8 @@ fun SearchTab(
     player: PlayerState,
     /** Set each time the Search tab is tapped: focus the field. */ searchFocusRequested: Boolean,
     /** The quality cap addon rows are dimmed against. */ addonCeiling: AudioQuality,
-    onOpenRecognition: (() -> Unit)? = null,
+    /** Opens the Identify Song sheet, which the activity hosts. */
+    onOpenRecognition: () -> Unit,
     listPadding: PaddingValues,
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
@@ -268,22 +269,6 @@ fun SearchTab(
     val addonResults by viewModel.addonResults.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val searchLabel = stringResource(R.string.search)
-    var showRecognitionSheet by rememberSaveable { mutableStateOf(false) }
-
-    if (showRecognitionSheet) {
-        RecognitionSheet(
-            onDismiss = { showRecognitionSheet = false },
-            onPlaySong = { title, artist ->
-                viewModel.onQueryChange("$title $artist")
-                viewModel.submitSearch()
-            },
-            onQueueSong = { title, artist ->
-                viewModel.onQueryChange("$title $artist")
-                viewModel.submitSearch()
-            },
-        )
-    }
-
     var showRecognitionHistory by rememberSaveable { mutableStateOf(false) }
     val recognitionHistoryLabel = stringResource(R.string.recognition_history_source)
 
@@ -327,7 +312,7 @@ fun SearchTab(
             scrollResetTrigger = searchScrollReset,
             focusRequested = searchFocusRequested,
             onFocusHandled = searchFocusHandled,
-            onOpenRecognition = onOpenRecognition ?: { showRecognitionSheet = true },
+            onOpenRecognition = onOpenRecognition,
             onOpenRecognitionHistory = { showRecognitionHistory = true },
             // Search hits are alternatives to each other, not a running
             // order — play the one tapped and build a station from it.

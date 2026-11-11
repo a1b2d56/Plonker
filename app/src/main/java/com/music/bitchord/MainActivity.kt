@@ -558,21 +558,6 @@ private fun BitChordApp(
     val openPlayerRequested by PlayerDeepLink.pending.collectAsStateWithLifecycle()
     var showRecognitionSheet by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
 
-    if (showRecognitionSheet) {
-        RecognitionSheet(
-            onDismiss = { showRecognitionSheet = false },
-            onPlaySong = { title, artist ->
-                selectedTab = TAB_SEARCH
-                viewModel.onQueryChange("$title $artist")
-                viewModel.submitSearch()
-            },
-            onQueueSong = { title, artist ->
-                selectedTab = TAB_SEARCH
-                viewModel.onQueryChange("$title $artist")
-                viewModel.submitSearch()
-            },
-        )
-    }
     LaunchedEffect(openPlayerRequested) {
         if (openPlayerRequested) {
             showNowPlaying = true
@@ -2454,6 +2439,33 @@ private fun BitChordApp(
     )
     val goBack: () -> Unit = {
         if (!navigator.pop() && !viewModel.closeMoodGenre()) selectedTab = TAB_HOME
+    }
+
+    if (showRecognitionSheet) {
+        // What both buttons fall back to when the song can't be found to
+        // play: the search a listener would have typed themselves.
+        val searchForRecognised: (com.music.bitchord.recognition.RecognitionResult) -> Unit = { result ->
+            selectedTab = TAB_SEARCH
+            viewModel.onQueryChange("${result.title} ${result.artist}")
+            viewModel.submitSearch()
+        }
+        RecognitionSheet(
+            onDismiss = { showRecognitionSheet = false },
+            onPlaySong = { result ->
+                viewModel.findRecognised(result) { song ->
+                    if (song != null) {
+                        playRadio(song, QueueSource(searchLabel, PlaybackSourceType.SEARCH))
+                    } else {
+                        searchForRecognised(result)
+                    }
+                }
+            },
+            onQueueSong = { result ->
+                viewModel.findRecognised(result) { song ->
+                    if (song != null) addToQueue(song) else searchForRecognised(result)
+                }
+            },
+        )
     }
 
     Box(
