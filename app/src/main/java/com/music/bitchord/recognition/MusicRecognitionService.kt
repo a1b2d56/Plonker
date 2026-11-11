@@ -58,7 +58,6 @@ object MusicRecognitionService {
     
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var recognitionJob: Job? = null
-    private var activeAudioRecord: AudioRecord? = null
 
     fun startRecognizing(context: Context) {
         recognitionJob?.cancel()
@@ -88,7 +87,10 @@ object MusicRecognitionService {
     @SuppressLint("MissingPermission")
     suspend fun recognize(context: Context): RecognitionStatus = withContext(Dispatchers.IO) {
         if (!hasRecordPermission(context)) {
+            // Published as well as returned: the sheet draws what this flow
+            // says, and a status left at Ready reads as "listening".
             return@withContext RecognitionStatus.Error("Microphone permission not granted")
+                .also { _recognitionStatus.value = it }
         }
         
         _recognitionStatus.value = RecognitionStatus.Listening
@@ -190,7 +192,6 @@ object MusicRecognitionService {
             AUDIO_FORMAT,
             bufferSize
         )
-        activeAudioRecord = audioRecord
         
         val outputStream = ByteArrayOutputStream()
         val buffer = ByteArray(bufferSize)
@@ -212,24 +213,18 @@ object MusicRecognitionService {
                 }
                 audioRecord.release()
             } catch (_: Exception) {}
-            if (activeAudioRecord == audioRecord) {
-                activeAudioRecord = null
-            }
         }
         
         outputStream.toByteArray()
     }
     
+    /**
+     * Back to the resting state. The recorder is not touched from here: it
+     * belongs to the recording coroutine, which stops and releases it itself
+     * once its cancelled read returns. Releasing it from this thread while
+     * that read was still in progress is a crash inside the platform.
+     */
     fun reset() {
-        try {
-            activeAudioRecord?.let {
-                if (it.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
-                    it.stop()
-                }
-                it.release()
-            }
-        } catch (_: Exception) {}
-        activeAudioRecord = null
         _recognitionStatus.value = RecognitionStatus.Ready
     }
 }
