@@ -19,4 +19,9 @@
     <exclude domain="sharedpref" path="bitchord_last_played.xml" />
     <exclude domain="sharedpref" path="bitchord_bounded_context.xml" />
     <exclude domain="sharedpref" path="bitchord_party_queue_stash.xml" />
+    <!-- The in-app browser's cookie jar: the Google and Spotify logins. -->
+    <exclude domain="root" path="app_webview" />
+    <!-- Saved audio: far past the backup quota, and re-downloadable. -->
+    <exclude domain="file" path="downloads" />
+    <exclude domain="file" path="offline-hls" />
 </full-backup-content>

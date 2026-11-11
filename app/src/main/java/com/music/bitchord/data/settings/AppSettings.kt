@@ -1194,15 +1194,15 @@ object AppSettings {
         lyricsSources.value = readLyricsSources()
         lyricsSourceOrder.value = readLyricsSourceOrder()
         prioritizeSyllableSync.value = prefs.getBoolean(KEY_PRIORITIZE_SYLLABLE_SYNC, false)
-        paxSenixApiKey.value = prefs.getString(KEY_PAXSENIX_API_KEY, "").orEmpty()
+        paxSenixApiKey.value = readSecret(KEY_PAXSENIX_API_KEY)
         com.music.bitchord.data.lyrics.PaxSenix.setApiKey(paxSenixApiKey.value)
         audioCacheLimitBytes.value = clampCacheLimit(prefs.getLong(KEY_CACHE_LIMIT, DEFAULT_CACHE_LIMIT_BYTES))
         showCacheFolder.value = prefs.getBoolean(KEY_SHOW_CACHE_FOLDER, false)
         lastfmEnabled.value = prefs.getBoolean(KEY_LASTFM_ENABLED, false)
         lastfmUsername.value = prefs.getString(KEY_LASTFM_USERNAME, "").orEmpty()
-        lastfmSessionKey.value = prefs.getString(KEY_LASTFM_SESSION_KEY, "").orEmpty()
-        lastfmApiKey.value = prefs.getString(KEY_LASTFM_API_KEY, "").orEmpty().ifBlank { BuildConfig.LASTFM_API_KEY }
-        lastfmSecret.value = prefs.getString(KEY_LASTFM_SECRET, "").orEmpty().ifBlank { BuildConfig.LASTFM_SECRET }
+        lastfmSessionKey.value = readSecret(KEY_LASTFM_SESSION_KEY)
+        lastfmApiKey.value = readSecret(KEY_LASTFM_API_KEY).ifBlank { BuildConfig.LASTFM_API_KEY }
+        lastfmSecret.value = readSecret(KEY_LASTFM_SECRET).ifBlank { BuildConfig.LASTFM_SECRET }
         lastfmEndpoint.value = prefs.getString(KEY_LASTFM_ENDPOINT, "").orEmpty()
         lastfmScrobbleEnabled.value = prefs.getBoolean(KEY_LASTFM_SCROBBLE_ENABLED, false)
         lastfmNowPlaying.value = prefs.getBoolean(KEY_LASTFM_NOW_PLAYING, false) && lastfmScrobbleEnabled.value
@@ -1211,9 +1211,9 @@ object AppSettings {
         scrobbleDelayPercent.value = prefs.getFloat(KEY_SCROBBLE_DELAY_PERCENT, 0.5f)
         scrobbleDelaySeconds.value = prefs.getInt(KEY_SCROBBLE_DELAY_SECONDS, 180)
         listenBrainzEnabled.value = prefs.getBoolean(KEY_LISTENBRAINZ_ENABLED, false)
-        listenBrainzToken.value = prefs.getString(KEY_LISTENBRAINZ_TOKEN, "").orEmpty()
+        listenBrainzToken.value = readSecret(KEY_LISTENBRAINZ_TOKEN)
         listenBrainzPrimaryArtistOnly.value = prefs.getBoolean(KEY_LISTENBRAINZ_PRIMARY_ARTIST_ONLY, false)
-        spotifySpdcToken.value = prefs.getString(KEY_SPOTIFY_SPDC_TOKEN, "").orEmpty()
+        spotifySpdcToken.value = readSecret(KEY_SPOTIFY_SPDC_TOKEN)
         replayGenres.value = prefs.getBoolean(KEY_REPLAY_GENRES, true)
         filterNonMusicAudio.value = prefs.getBoolean(KEY_FILTER_NON_MUSIC_AUDIO, true)
         localMusicSort.value = readLocalMusicSort(KEY_LOCAL_MUSIC_SORT)
@@ -1863,7 +1863,7 @@ object AppSettings {
     fun setPaxSenixApiKey(value: String) {
         val normalized = com.music.bitchord.data.lyrics.normalizePaxSenixApiKey(value)
         paxSenixApiKey.value = normalized
-        prefs.edit().putString(KEY_PAXSENIX_API_KEY, normalized).apply()
+        writeSecret(KEY_PAXSENIX_API_KEY, normalized)
         com.music.bitchord.data.lyrics.PaxSenix.setApiKey(normalized)
     }
 
@@ -1962,17 +1962,17 @@ object AppSettings {
 
     fun setLastfmSessionKey(value: String) {
         lastfmSessionKey.value = value
-        prefs.edit().putString(KEY_LASTFM_SESSION_KEY, value).apply()
+        writeSecret(KEY_LASTFM_SESSION_KEY, value)
     }
 
     fun setLastfmApiKey(value: String) {
         lastfmApiKey.value = value
-        prefs.edit().putString(KEY_LASTFM_API_KEY, value).apply()
+        writeSecret(KEY_LASTFM_API_KEY, value)
     }
 
     fun setLastfmSecret(value: String) {
         lastfmSecret.value = value
-        prefs.edit().putString(KEY_LASTFM_SECRET, value).apply()
+        writeSecret(KEY_LASTFM_SECRET, value)
     }
 
     fun setLastfmEndpoint(value: String) {
@@ -1982,7 +1982,7 @@ object AppSettings {
 
     fun setSpotifySpdcToken(value: String) {
         spotifySpdcToken.value = value
-        prefs.edit().putString(KEY_SPOTIFY_SPDC_TOKEN, value).apply()
+        writeSecret(KEY_SPOTIFY_SPDC_TOKEN, value)
         SpotifyToken.invalidate()
     }
 
@@ -2073,7 +2073,7 @@ object AppSettings {
 
     fun setListenBrainzToken(value: String) {
         listenBrainzToken.value = value
-        prefs.edit().putString(KEY_LISTENBRAINZ_TOKEN, value).apply()
+        writeSecret(KEY_LISTENBRAINZ_TOKEN, value)
     }
 
     fun setListenBrainzPrimaryArtistOnly(value: Boolean) {
@@ -2274,6 +2274,26 @@ object AppSettings {
         setSmbBasePath("")
         setSmbUsername("")
         setSmbPassword("")
+    }
+
+    /**
+     * Reads a credential from the encrypted store, moving it there first if an
+     * older build left it in the plain settings file. That file is in Android's
+     * cloud backup and device transfer; the encrypted store is in neither.
+     */
+    private fun readSecret(key: String): String {
+        val legacy = prefs.getString(key, null)
+        if (legacy != null) {
+            if (legacy.isNotEmpty()) authStore.setSecret(key, legacy)
+            prefs.edit().remove(key).apply()
+            return legacy
+        }
+        return authStore.secret(key).orEmpty()
+    }
+
+    private fun writeSecret(key: String, value: String) {
+        authStore.setSecret(key, value)
+        if (prefs.contains(key)) prefs.edit().remove(key).apply()
     }
 
     private fun publishSmbAuth() {
