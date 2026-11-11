@@ -223,6 +223,39 @@ object InnerTubeXResolver {
      * @throws com.metrolist.innertubex.extraction.StreamResolveException with a
      *   reason when InnerTubeX exhausted its catalog.
      */
+    private val streamClientFailures = ConcurrentHashMap<String, FailedStreamClients>()
+
+    private data class FailedStreamClients(
+        val clientNames: Set<String>,
+        val failedAtMs: Long,
+    )
+
+    fun markStreamClientFailed(
+        videoId: String,
+        clientName: String,
+        nowMs: Long = MonotonicClock.nowMs(),
+    ) {
+        streamClientFailures.compute(videoId) { _, failures ->
+            FailedStreamClients(failures?.clientNames.orEmpty() + clientName, nowMs)
+        }
+    }
+
+    fun failedStreamClients(
+        videoId: String,
+        nowMs: Long = MonotonicClock.nowMs(),
+    ): Set<String> {
+        val failures = streamClientFailures[videoId] ?: return emptySet()
+        if ((nowMs - failures.failedAtMs) !in 0 until STREAM_CLIENT_FAILURE_TTL_MS) {
+            streamClientFailures.remove(videoId, failures)
+            return emptySet()
+        }
+        return failures.clientNames
+    }
+
+    fun clearStreamClientFailures() {
+        streamClientFailures.clear()
+    }
+
     suspend fun extract(
         videoId: String,
         maxKbps: Int,
@@ -233,11 +266,51 @@ object InnerTubeXResolver {
         innerTube.cookie = Innertube.cookie
         innerTube.visitorData = Innertube.ensureVisitorData()
         innerTube.locale = YouTubeLocale(gl = Innertube.currentRegion, hl = Innertube.currentLanguage)
+
+        val isUserLoggedIn = !Innertube.cookie.isNullOrBlank()
+        val isHighQualityWanted = maxKbps > LOW_KBPS
+        val failedClients = failedStreamClients(videoId)
+        val shouldTryPremium = isHighQualityWanted && isUserLoggedIn && "WEB_REMIX" !in failedClients && "WEB_REMIX" !in skipClients
+
+        if (shouldTryPremium) {
+            val premiumHints = ContentHints(
+                isUploaded = true.takeIf { uploaded },
+                playbackClientOverrideId = "WEB_REMIX",
+            ).withStreamCapabilities(allowHls = false, allowSabr = false, allowBoundedRange = true)
+             .withPremium(true)
+
+            try {
+                val candidate = extractor.extract(
+                    videoId = videoId,
+                    hints = premiumHints,
+                    excludedClients = excludedFor(videoId) + skipClients + failedClients,
+                    audioQuality = if (requireM4a) AudioQuality.MP4 else AudioQuality.AUTO,
+                    clientPlaybackNonce = generateClientPlaybackNonce(),
+                )
+                if (candidate != null && ((candidate.bitrate ?: 0) >= 250_000 || candidate.audioUrl.contains("itag=141"))) {
+                    TrackLog.i(TAG, "Extracted YouTube Premium 256+ kbps stream for $videoId (client=${candidate.clientName}, itag=${candidate.itag}, bitrate=${candidate.bitrate})")
+                    return rememberExtracted(videoId, candidate)
+                } else {
+                    if (candidate != null) {
+                        TrackLog.d(TAG, "WEB_REMIX returned non-premium stream for $videoId (${candidate.bitrate} bps); falling back to standard extraction")
+                    }
+                    markStreamClientFailed(videoId, "WEB_REMIX")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                TrackLog.w(TAG, "WEB_REMIX extraction failed for $videoId: ${e.message}; falling back to standard extraction")
+                markStreamClientFailed(videoId, "WEB_REMIX")
+            }
+        }
+
+        val standardHints = ContentHints(isUploaded = true.takeIf { uploaded })
+            .withStreamCapabilities(allowHls = false, allowSabr = false, allowBoundedRange = true)
+        val standardExcludedClients = excludedFor(videoId) + skipClients + failedStreamClients(videoId) + "WEB_REMIX"
         val stream = extractor.extract(
             videoId = videoId,
-            hints = ContentHints(isUploaded = true.takeIf { uploaded })
-                .withStreamCapabilities(allowHls = false, allowSabr = false, allowBoundedRange = true),
-            excludedClients = excludedFor(videoId) + skipClients,
+            hints = standardHints,
+            excludedClients = standardExcludedClients,
             audioQuality = when {
                 requireM4a -> AudioQuality.MP4
                 maxKbps <= LOW_KBPS -> AudioQuality.LOW
@@ -245,6 +318,11 @@ object InnerTubeXResolver {
             },
             clientPlaybackNonce = generateClientPlaybackNonce(),
         ) ?: return null
+
+        return rememberExtracted(videoId, stream)
+    }
+
+    private fun rememberExtracted(videoId: String, stream: com.metrolist.innertubex.extraction.ExtractedStream): Extracted {
         check(stream.sabrBootstrap == null) { "SABR is not supported by this playback engine" }
         val mime = stream.mimeType.orEmpty()
         val extracted = Extracted(
@@ -383,6 +461,7 @@ object InnerTubeXResolver {
     }
 
     fun onSessionChanged() {
+        clearStreamClientFailures()
         excluded.clear()
         minted.clear()
         // A new cookie or visitor means a new player config and PoToken binding.
@@ -405,4 +484,5 @@ object InnerTubeXResolver {
     /** Off the cold-start path; the first tap on a track is rarely sooner. */
     private const val WARM_DELAY_MS = 2_000L
     private const val KEPT_PLAYERS = 3
+    private const val STREAM_CLIENT_FAILURE_TTL_MS = 5 * 60 * 1000L
 }

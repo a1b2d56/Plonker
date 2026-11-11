@@ -429,7 +429,10 @@ object InnertubeParser {
      * and the button is the side that knows what it would act on.
      */
     private fun subscription(header: JsonElement?): SubscriptionState? {
-        val immersive = header.o("musicImmersiveHeaderRenderer") ?: return null
+        val immersive = header.o("musicImmersiveHeaderRenderer")
+            ?: header.o("musicVisualHeaderRenderer")
+            ?: header.o("musicHeaderRenderer")
+            ?: return null
         // Both shapes are tried rather than the first one found being trusted:
         // the newer button is sometimes only the count, and a page that ships
         // both is one where the state is on the other one.
@@ -459,17 +462,26 @@ object InnertubeParser {
      * across those shapes.
      */
     private fun subscriberCount(header: JsonElement?): String? {
-        val immersive = header.o("musicImmersiveHeaderRenderer") ?: return null
+        val immersive = header.o("musicImmersiveHeaderRenderer")
+            ?: header.o("musicVisualHeaderRenderer")
+            ?: header.o("musicHeaderRenderer")
+            ?: return null
         val button2 = immersive.o("subscriptionButton2").o("subscribeButtonRenderer")
         val button1 = immersive.o("subscriptionButton").o("subscribeButtonRenderer")
         return button2.o("subscriberCountWithSubscribeText").firstRunText()
             ?: button1.o("longSubscriberCountText").firstRunText()
             ?: button1.o("shortSubscriberCountText").firstRunText()
+            ?: immersive.o("subscriberCountText").firstRunText()
     }
 
     /** "3.4M monthly listeners", off the same header as [subscriberCount]. */
-    private fun monthlyListeners(header: JsonElement?): String? =
-        header.o("musicImmersiveHeaderRenderer").o("monthlyListenerCount").firstRunText()
+    private fun monthlyListeners(header: JsonElement?): String? {
+        val container = header.o("musicImmersiveHeaderRenderer")
+            ?: header.o("musicVisualHeaderRenderer")
+            ?: header.o("musicHeaderRenderer")
+            ?: return null
+        return container.o("monthlyListenerCount").firstRunText()
+    }
 
     /**
      * The name the page bills itself under. A track credited to a trio hands
