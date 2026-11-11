@@ -48,6 +48,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -108,6 +109,8 @@ fun SearchScreen(
     focusRequested: Boolean,
     onFocusHandled: () -> Unit,
     onOpenRecognition: (() -> Unit)? = null,
+    /** Opens the list of songs identified before; the button sits beside the identify one. */
+    onOpenRecognitionHistory: (() -> Unit)? = null,
     onSongClick: (List<Song>, Int) -> Unit,
     onSongLongPress: (Song) -> Unit,
     onSongSwipe: (Song) -> Unit,
@@ -312,7 +315,10 @@ fun SearchScreen(
                 results == null -> {
                     if (onOpenRecognition != null && !searchingLibrary && !searchingAddons) {
                         item(key = "search:recognition_banner") {
-                            SearchRecognitionBanner(onOpenRecognition = onOpenRecognition)
+                            SearchRecognitionBanner(
+                                onOpenRecognition = onOpenRecognition,
+                                onOpenHistory = onOpenRecognitionHistory,
+                            )
                         }
                     }
                     if (history.isEmpty()) {
@@ -338,7 +344,6 @@ fun SearchScreen(
                             is SearchResult.TopTrack -> row.song
                             is SearchResult.Track -> row.song
                             is SearchResult.Browse -> null
-                            else -> null
                         } }
                     val isCurrentRow = playingRowMatcher(tracks, currentSong)
                     val topResult = results.data.filterIsInstance<SearchResult.TopTrack>().firstOrNull()
@@ -1086,6 +1091,7 @@ private const val BLOCKED_ROW_ALPHA = 0.38f
 @Composable
 private fun SearchRecognitionBanner(
     onOpenRecognition: () -> Unit,
+    onOpenHistory: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     androidx.compose.material3.Surface(
@@ -1127,6 +1133,15 @@ private fun SearchRecognitionBanner(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (onOpenHistory != null) {
+                androidx.compose.material3.IconButton(onClick = onOpenHistory) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Rounded.History,
+                        contentDescription = "Recognition history",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }

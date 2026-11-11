@@ -33,7 +33,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.music.bitchord.recognition.MusicRecognitionService
+import com.music.bitchord.recognition.RecognitionHistory
 import com.music.bitchord.recognition.RecognitionResult
 import com.music.bitchord.recognition.RecognitionStatus
 
@@ -103,6 +104,14 @@ fun RecognitionSheet(
         onDispose {
             MusicRecognitionService.stopRecognizing()
         }
+    }
+
+    // Every match goes into the history, whether or not it is then played.
+    // Keyed on the result, so one match is written once however often this
+    // recomposes; a second match of the same song replaces its row.
+    val matched = (status as? RecognitionStatus.Success)?.result
+    LaunchedEffect(matched) {
+        if (matched != null) RecognitionHistory.save(context, matched)
     }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -380,7 +389,7 @@ private fun SuccessView(
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(percent = 50),
                 ) {
-                    Icon(Icons.Rounded.QueueMusic, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
                     Text("Add to Queue")
                 }
