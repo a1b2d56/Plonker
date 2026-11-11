@@ -1443,7 +1443,7 @@
     <string name="haptic_feedback">触覚フィードバック</string>
     <string name="haptic_feedback_subtitle">ボタン、スライダー、ジェスチャー時に振動</string>
     <string name="automix_overview">Automixの概要</string>
-    <string name="diwali_title">Plonkerよりディワリのお祝いを申し上げます</string>
-    <string name="diwali_subtitle">この光の祭典が皆様の家庭に喜びをもたらし、音楽に満ちた日々となりますように。</string>
-    <string name="diwali_cta">お祝いする</string>
+
+    <string name="english_gb">英語 (イギリス)</string>
+    <string name="english_us">英語 (アメリカ)</string>
 </resources>

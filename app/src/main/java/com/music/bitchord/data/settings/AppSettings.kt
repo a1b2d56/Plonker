@@ -445,8 +445,6 @@ object AppSettings {
      */
     val onboardingComplete = MutableStateFlow(false)
 
-    /** Whether the one-time Diwali 2026 greeting has been seen and dismissed. */
-    val diwaliGreetingShown = MutableStateFlow(false)
 
     /** Requests a sustained high-refresh UI. Off keeps Android's automatic policy. */
     val highPerformanceMode = MutableStateFlow(false)
@@ -1047,7 +1045,6 @@ object AppSettings {
         hapticFeedbackEnabled.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)
         com.music.bitchord.ui.haptics.HapticSettings.enabled = hapticFeedbackEnabled.value
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
-        diwaliGreetingShown.value = prefs.getBoolean(KEY_DIWALI_GREETING_SHOWN, false)
         highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
             prefs.getInt(KEY_PERFORMANCE_REFRESH_RATE, DEFAULT_PERFORMANCE_REFRESH_RATE),
@@ -1500,11 +1497,6 @@ object AppSettings {
     fun setOnboardingComplete() {
         onboardingComplete.value = true
         prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, true).apply()
-    }
-
-    fun setDiwaliGreetingShown() {
-        diwaliGreetingShown.value = true
-        prefs.edit().putBoolean(KEY_DIWALI_GREETING_SHOWN, true).apply()
     }
 
     fun setStopOnTaskRemoved(value: Boolean) {
@@ -2373,7 +2365,6 @@ object AppSettings {
     private const val KEY_REDUCE_ANIMATION = "reduce_animation"
     private const val KEY_HAPTIC_FEEDBACK = "haptic_feedback"
     private const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
-    private const val KEY_DIWALI_GREETING_SHOWN = "diwali_greeting_2026_shown"
     private const val KEY_HIGH_PERFORMANCE_MODE = "high_performance_mode"
     private const val KEY_PERFORMANCE_REFRESH_RATE = "performance_refresh_rate"
     private const val KEY_STOP_ON_TASK_REMOVED = "stop_on_task_removed"
