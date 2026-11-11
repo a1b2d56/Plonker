@@ -383,7 +383,7 @@ class AddonClient(rawBaseUrl: String, private val pickedQuality: String? = null)
                     ?.takeIf { it.trimStart().startsWith("BitChord", ignoreCase = true) }
                 when {
                     response.isSuccessful ->
-                        return@withContext response.body?.string()?.takeIf { it.isNotBlank() }
+                        return@withContext response.body.string().takeIf { it.isNotBlank() }
                             ?: throw AddonException("Empty response")
                     authChallenge != null -> {
                         val code = AUTH_ERROR.find(authChallenge)?.groupValues?.get(1)

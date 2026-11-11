@@ -402,7 +402,7 @@ private fun OutputRow(
         val rawBattery = device.batteryLevel
         val hasValidBattery = rawBattery != null && rawBattery in 0..100
         val batteryProgress by animateFloatAsState(
-            targetValue = if (hasValidBattery) (rawBattery!! / 100f).coerceIn(0f, 1f) else 0f,
+            targetValue = if (hasValidBattery) (rawBattery / 100f).coerceIn(0f, 1f) else 0f,
             animationSpec = tween(400),
             label = "batteryProgress",
         )
@@ -427,7 +427,7 @@ private fun OutputRow(
                         style = style,
                     )
                     drawArc(
-                        color = if (rawBattery!! <= 20) Color(0xFFFF453A) else Color(0xFF30D158),
+                        color = if (rawBattery <= 20) Color(0xFFFF453A) else Color(0xFF30D158),
                         startAngle = 135f,
                         sweepAngle = 270f * batteryProgress,
                         useCenter = false,

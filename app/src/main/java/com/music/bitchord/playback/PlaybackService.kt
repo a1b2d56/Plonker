@@ -1500,16 +1500,16 @@ class PlaybackService : MediaLibraryService() {
             bounded.saveBoundedContextSnapshot(exoPlayer)
         }
         currentAudioInputFormat = null
-        NerdStats.onTrackTransition(mediaItem?.mediaId)
+        NerdStats.onTrackTransition(mediaItem.mediaId)
         // A rendition discarded and fetched again comes back under the same
         // URI, so a size measured for the last track isn't kept past it.
         nerdStats.onTrackTransition()
         AudioOutputStatus.onTrackTransition()
         // The entry this track is read from now counts as played — the only
         // kind the Cached songs folder lists. See [AudioCache.Origin].
-        mediaItem?.let { AudioCache.notePlayed(it.toSong(), it.localConfiguration?.uri) }
+        mediaItem.let { AudioCache.notePlayed(it.toSong(), it.localConfiguration?.uri) }
         readAhead.scheduleForeignCachePurge()
-        mediaItem?.mediaId?.let { id ->
+        mediaItem.mediaId.let { id ->
             nerdStats.resolveLocalBitrate(id, mediaItem)
         }
 
@@ -1520,15 +1520,15 @@ class PlaybackService : MediaLibraryService() {
         // already been reported once and won't be again. The claim from
         // source resolution stands in until the decoder itself confirms or
         // corrects it — see [formatListener]'s onAudioInputFormatChanged.
-        activeTrackIsDolbyAtmos = NerdStats.declaredFormat(mediaItem?.mediaId)?.isDolbyAtmos == true
+        activeTrackIsDolbyAtmos = NerdStats.declaredFormat(mediaItem.mediaId)?.isDolbyAtmos == true
         pipeline.applySpatialAudioEnabled()
 
         // A genuinely different track, so the gain is re-read for it. A
         // quality upgrade never reaches here — it returns early in
         // [Player.Listener.onMediaItemTransition] via [swappingMediaId] — which
         // is precisely what carries the applied gain across the swap.
-        loudness.setup(mediaItem?.mediaId)
-        loudness.scheduleRetry(mediaItem?.mediaId)
+        loudness.setup(mediaItem.mediaId)
+        loudness.scheduleRetry(mediaItem.mediaId)
 
         // Keep a real, bounded history in the player rather than merely hiding
         // old rows in Compose. MediaController mirrors the playlist across the
@@ -1570,8 +1570,8 @@ class PlaybackService : MediaLibraryService() {
         // a budget of two, and roughly twenty-seven full resolve walks for one
         // unplayable track. [retryingMediaId] is the one case that must not
         // reset; everything else still does.
-        val becameCurrent = mediaItem?.mediaId
-        if (becameCurrent == null || becameCurrent != retryingMediaId) {
+        val becameCurrent = mediaItem.mediaId
+        if (becameCurrent != retryingMediaId) {
             recovery.recoveries.clear()
         }
         retryingMediaId = null
@@ -1587,23 +1587,23 @@ class PlaybackService : MediaLibraryService() {
             TrackLog.d(
                 "BitChord",
                 "TIMING first audio: 0ms, the crossfade covered it",
-                about = mediaItem?.mediaId,
+                about = mediaItem.mediaId,
             )
             // The other way a track becomes audible. `onIsPlayingChanged` never
             // fires across a crossfade handoff — the incoming track has been
             // sounding since before it was current — so without this a blended
             // advance would leave every track looking like it never started.
-            audibleMediaId = mediaItem?.mediaId
+            audibleMediaId = mediaItem.mediaId
             consecutiveErrorSkips = 0
         }
         // And the same instant on the wall clock, which is the one
         // logcat stamps its lines with — see [TrackLog].
-        mediaItem?.mediaId?.let(TrackLog::onTrackStarted)
+        mediaItem.mediaId.let(TrackLog::onTrackStarted)
         // A play beginning is what ends the last one's upgrade verdict. Here
         // rather than in [QualityUpgrade.forget] because that runs on the
         // failure and rollback paths, where a previous "no" is exactly what
         // should be kept.
-        mediaItem?.mediaId?.let {
+        mediaItem.mediaId.let {
             QualityUpgrade.onPlaybackStarted(
                 it,
                 mediaItem.localConfiguration?.uri?.let(QualityUpgrade::cacheTag),
@@ -1611,8 +1611,8 @@ class PlaybackService : MediaLibraryService() {
         }
         TrackLog.d(
             "BitChord",
-            "TIMING track selected: ${mediaItem?.mediaId} (reason=$reason)",
-            about = mediaItem?.mediaId,
+            "TIMING track selected: ${mediaItem.mediaId} (reason=$reason)",
+            about = mediaItem.mediaId,
         )
 
         history.onTrackChanged(mediaItem, previousEnded, exoPlayer)
