@@ -64,8 +64,7 @@ private const val AT_REST = -1f
  * - only the glint moves, and between glints no frame is asked for at all;
  * - the glint runs at [MOTION_FRAME_GAP_MS] pacing (30fps), not every vsync;
  * - it holds still while [LocalArtworkScrolling] says the page is scrolling,
- *   and while [LocalArtworkMotion] is off (app in the background, Now Playing
- *   up, or the Diwali greeting covering the page);
+ *   and while [LocalArtworkMotion] is off (app in the background, Now Playing up);
  * - the blurred glow is never animated, so its blur renders once and is kept.
  *
  * Progress is read only inside draw lambdas, so a glint frame redraws these

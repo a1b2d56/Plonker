@@ -1465,7 +1465,7 @@
     <string name="haptic_feedback">Haptisches Feedback</string>
     <string name="haptic_feedback_subtitle">Bei Tasten, Schiebereglern und Gesten vibrieren</string>
     <string name="automix_overview">Automix-Übersicht</string>
-    <string name="diwali_title">Plonker wünscht Ihnen ein frohes Diwali</string>
-    <string name="diwali_subtitle">Möge dieses Lichterfest Ihr Zuhause mit Freude und Ihre Tage mit Musik erfüllen.</string>
-    <string name="diwali_cta">Jetzt feiern</string>
+
+    <string name="english_gb">Englisch (Großbritannien)</string>
+    <string name="english_us">Englisch (USA)</string>
 </resources>

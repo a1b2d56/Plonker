@@ -296,8 +296,6 @@ import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
 import com.music.bitchord.ui.onboarding.OnboardingScreen
-import com.music.bitchord.ui.festive.DiwaliGate
-import com.music.bitchord.ui.festive.DiwaliGreetingScreen
 import com.music.bitchord.ui.replay.cards
 import com.music.bitchord.ui.replay.ReplayShareSheet
 import com.music.bitchord.ui.replay.ReplayStories
@@ -746,22 +744,6 @@ private fun BitChordApp(
     onboardingShown.targetState = !onboardingComplete
     val onboardingVisible = onboardingShown.currentState || onboardingShown.targetState
 
-    // ---- Diwali (greeting once after the welcome, golden home wordmark) ----
-    // Indian users only, by the device timezone alone, and only on Diwali
-    // itself (see DiwaliGate). Asked again each time the app comes to the
-    // front, so one left open overnight into the day still greets — and one
-    // left open past it lets the gold go.
-    val diwaliFestive = remember(appForeground) {
-        DiwaliGate.isIndianTimezone() && DiwaliGate.isDiwaliDay()
-    }
-    var showDiwali by rememberSaveable { mutableStateOf(false) }
-    var diwaliAutoShown by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(diwaliFestive, onboardingComplete) {
-        if (diwaliFestive && onboardingComplete && !diwaliAutoShown) {
-            diwaliAutoShown = true
-            if (!AppSettings.diwaliGreetingShown.value) showDiwali = true
-        }
-    }
 
     // ---- Navigation ----
     // One back stack for every page: the routes pushed over the tabs, and the
@@ -792,7 +774,7 @@ private fun BitChordApp(
     }
 
     SystemBarIcons(
-        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible && !showDiwali,
+        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
     )
 
     val homeState by viewModel.home.collectAsStateWithLifecycle()
@@ -2414,7 +2396,6 @@ private fun BitChordApp(
         onSearchSourceChange = onSearchSourceChange,
         onLibraryItemClick = onLibraryItemClick,
         onBrowseLongPress = onBrowseLongPress,
-        openDiwali = { showDiwali = true },
         searchFocusHandled = { searchFocusRequested = false },
         pickPlaylistFor = { song ->
             playlistTarget = listOf(song)
@@ -2721,7 +2702,7 @@ private fun BitChordApp(
                             TAB_HOME -> HomeTab(
                                 viewModel = viewModel, navigator = navigator, alerts = alerts, overlays = overlays, actions = tabActions,
                                 visibleHomeState = visibleHomeState, homeListState = homeListState, homePull = homePull,
-                                player = player, signedIn = signedIn, diwaliFestive = diwaliFestive, showDiwali = showDiwali,
+                                player = player, signedIn = signedIn,
                                 artworkMotion = artworkMotion, listPadding = listPadding,
                             )
                             TAB_EXPLORE -> ExploreTab(
@@ -3576,23 +3557,10 @@ private fun BitChordApp(
             }
         }
 
-        // ---- Diwali greeting ----
-        AnimatedVisibility(
-            visible = showDiwali,
-            enter = fadeIn(tween(400)),
-            exit = fadeOut(tween(300)),
-        ) {
-            val dismissDiwali = {
-                showDiwali = false
-                AppSettings.setDiwaliGreetingShown()
-            }
-            BackHandler(onBack = dismissDiwali)
-            DiwaliGreetingScreen(onDismiss = dismissDiwali)
-        }
 
-        // ---- Update available (once per launch; held until the welcome and Diwali greeting are done) ----
+        // ---- Update available (once per launch; held until the welcome is done) ----
         IosModalContainer(
-            visible = showUpdateDialog && onboardingComplete && !showDiwali && updateNotice != null,
+            visible = showUpdateDialog && onboardingComplete && updateNotice != null,
             onDismiss = { showUpdateDialog = false },
         ) {
             updateNotice?.let { update ->

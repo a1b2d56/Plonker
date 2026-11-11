@@ -77,8 +77,6 @@ class TabActions(
     val onSearchSourceChange: (SearchSource) -> Unit,
     val onLibraryItemClick: (ShelfItem) -> Unit,
     val onBrowseLongPress: (ShelfItem) -> Unit,
-    /** The festive greeting, from the golden wordmark. */
-    val openDiwali: () -> Unit,
     val searchFocusHandled: () -> Unit,
     /** The YouTube playlist picker, for [Song]. */
     val pickPlaylistFor: (Song) -> Unit,
@@ -100,8 +98,6 @@ fun HomeTab(
     homePull: PullToRefreshState,
     player: PlayerState,
     signedIn: Boolean,
-    diwaliFestive: Boolean,
-    /** Whether the festive greeting is up over Home. */ showDiwali: Boolean,
     artworkMotion: Boolean,
     listPadding: PaddingValues,
 ) {
@@ -122,8 +118,6 @@ fun HomeTab(
             currentSong = player.song,
             isPlaying = player.isPlaying,
             title = stringResource(R.string.listen_now),
-            festiveLogo = diwaliFestive,
-            onFestiveLogoClick = openDiwali,
             signedIn = signedIn,
             onSignIn = { webSession = WebSessionMode.SIGN_IN },
             signInBannerDismissed = signInBannerDismissed,
@@ -164,7 +158,7 @@ fun HomeTab(
             onMoodClick = playMood.takeUnless { hideHomeMoods },
             onMoodsShowAll = { navigator.push(AppRoute.Moods) },
             // Nothing on Home is seen while the greeting covers it.
-            artworkMotion = artworkMotion && !showDiwali,
+            artworkMotion = artworkMotion,
             onTopPickLongPress = { pick ->
                 pick.browseId?.let { browseId ->
                     onShelfLongPress(

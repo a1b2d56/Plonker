@@ -1442,7 +1442,7 @@
     <string name="haptic_feedback">觸覺回饋</string>
     <string name="haptic_feedback_subtitle">在按鈕、滑桿和手勢操作時震動</string>
     <string name="automix_overview">Automix 概覽</string>
-    <string name="diwali_title">Plonker 祝您排燈節快樂</string>
-    <string name="diwali_subtitle">願這燈節給您的家帶來歡樂，讓您的日子充滿音樂。</string>
-    <string name="diwali_cta">一起慶祝</string>
+
+    <string name="english_gb">英文（英國）</string>
+    <string name="english_us">英文（美國）</string>
 </resources>
