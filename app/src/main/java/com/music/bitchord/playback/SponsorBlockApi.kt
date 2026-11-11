@@ -19,7 +19,6 @@ data class SponsorSegment(
 
 object SponsorBlockApi {
     private const val DEFAULT_SERVER_URL = "https://sponsor.ajay.app"
-    private const val TAG = "SponsorBlockApi"
 
     private val client by lazy {
         OkHttpClient.Builder()
@@ -30,25 +29,67 @@ object SponsorBlockApi {
 
     private val segmentCache = ConcurrentHashMap<String, List<SponsorSegment>>()
 
+    /** Past this many answers the cache starts over; one listening session never gets near it. */
+    private const val MAX_CACHED = 256
+
+    private val VIDEO_ID = Regex("^[A-Za-z0-9_-]{11}$")
+
+    /**
+     * Whether [id] has the shape of a YouTube video id. Only those are sent to
+     * the server: a local file's media id is its path or content URI, which is
+     * nobody else's business and matches nothing there anyway.
+     */
+    fun isYouTubeVideoId(id: String?): Boolean = id != null && VIDEO_ID.matches(id)
+
+    /** An answer depends on which categories were asked for as much as on the video. */
+    internal fun cacheKey(videoId: String, categories: List<String>): String =
+        videoId + "|" + categories.sorted().joinToString(",")
+
+    /** The skippable segments in a `skipSegments` answer, earliest first. */
+    internal fun parseSegments(body: String): List<SponsorSegment> {
+        val jsonArray = JSONArray(body)
+        val segments = mutableListOf<SponsorSegment>()
+        for (i in 0 until jsonArray.length()) {
+            val obj = jsonArray.optJSONObject(i) ?: continue
+            val segmentArray = obj.optJSONArray("segment") ?: continue
+            if (segmentArray.length() < 2) continue
+            val startMs = (segmentArray.optDouble(0, Double.NaN) * 1000)
+            val endMs = (segmentArray.optDouble(1, Double.NaN) * 1000)
+            if (startMs.isNaN() || endMs.isNaN() || endMs.toLong() <= startMs.toLong()) continue
+            segments.add(
+                SponsorSegment(
+                    category = obj.optString("category", ""),
+                    actionType = obj.optString("actionType", "skip"),
+                    startMs = startMs.toLong(),
+                    endMs = endMs.toLong(),
+                    uuid = obj.optString("UUID", ""),
+                ),
+            )
+        }
+        return segments.sortedBy { it.startMs }
+    }
+
+    private fun remember(key: String, segments: List<SponsorSegment>) {
+        if (segmentCache.size >= MAX_CACHED) segmentCache.clear()
+        segmentCache[key] = segments
+    }
+
     suspend fun getSkipSegments(
         videoId: String,
         categories: List<String>,
         serverUrl: String = DEFAULT_SERVER_URL,
     ): Result<List<SponsorSegment>> = withContext(Dispatchers.IO) {
-        if (videoId.isBlank()) return@withContext Result.success(emptyList())
+        if (!isYouTubeVideoId(videoId) || categories.isEmpty()) return@withContext Result.success(emptyList())
 
-        segmentCache[videoId]?.let { return@withContext Result.success(it) }
-
-        if (categories.isEmpty()) return@withContext Result.success(emptyList())
+        val key = cacheKey(videoId, categories)
+        segmentCache[key]?.let { return@withContext Result.success(it) }
 
         val baseUrl = if (serverUrl.isBlank()) DEFAULT_SERVER_URL else serverUrl.trimEnd('/')
-        val categoriesJson = JSONArray(categories).toString()
-
         val httpUrl = ("$baseUrl/api/skipSegments")
             .toHttpUrlOrNull()
             ?.newBuilder()
             ?.addQueryParameter("videoID", videoId)
-            ?.addQueryParameter("categories", categoriesJson)
+            ?.addQueryParameter("categories", JSONArray(categories).toString())
             ?.build()
             ?: return@withContext Result.failure(Exception("Invalid SponsorBlock API URL"))
 
@@ -59,51 +100,22 @@ object SponsorBlockApi {
                 .get()
                 .build()
 
-            val response = client.newCall(request).execute()
-            val responseBody = response.body.string()
-
-            if (response.code == 404) {
-                segmentCache[videoId] = emptyList()
-                return@withContext Result.success(emptyList())
-            }
-
-            if (!response.isSuccessful || responseBody.isNullOrBlank()) {
-                return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
-            }
-
-            val jsonArray = JSONArray(responseBody)
-            val segments = mutableListOf<SponsorSegment>()
-
-            for (i in 0 until jsonArray.length()) {
-                val obj = jsonArray.getJSONObject(i)
-                val category = obj.optString("category", "")
-                val actionType = obj.optString("actionType", "skip")
-                val segmentArray = obj.optJSONArray("segment")
-
-                if (segmentArray != null && segmentArray.length() >= 2) {
-                    val startSec = segmentArray.getDouble(0)
-                    val endSec = segmentArray.getDouble(1)
-                    val startMs = (startSec * 1000).toLong()
-                    val endMs = (endSec * 1000).toLong()
-                    val uuid = obj.optString("UUID", "")
-
-                    if (endMs > startMs) {
-                        segments.add(
-                            SponsorSegment(
-                                category = category,
-                                actionType = actionType,
-                                startMs = startMs,
-                                endMs = endMs,
-                                uuid = uuid,
-                            ),
-                        )
-                    }
+            client.newCall(request).execute().use { response ->
+                // 404 is the server's "nothing submitted for this video".
+                if (response.code == 404) {
+                    remember(key, emptyList())
+                    return@withContext Result.success(emptyList())
                 }
+                val body = response.body.string()
+                if (!response.isSuccessful || body.isBlank()) {
+                    return@withContext Result.failure(Exception("HTTP ${response.code}: ${response.message}"))
+                }
+                val segments = parseSegments(body)
+                remember(key, segments)
+                Result.success(segments)
             }
-
-            val sorted = segments.sortedBy { it.startMs }
-            segmentCache[videoId] = sorted
-            Result.success(sorted)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }
