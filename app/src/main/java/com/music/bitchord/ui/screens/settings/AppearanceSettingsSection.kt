@@ -22,7 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.data.lyrics.translationLanguageName
-import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.PlayerTheme
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.ui.components.IosSwitch
@@ -43,7 +42,6 @@ internal fun AppearanceSettingsGroup(
 ) {
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
-    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlurSetting.collectAsStateWithLifecycle()
     val blurReducedBySystem by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
@@ -53,6 +51,7 @@ internal fun AppearanceSettingsGroup(
     val liquidGlassHaptics by AppSettings.liquidGlassHaptics.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
+    val liquidGlassIntensity by AppSettings.liquidGlassIntensity.collectAsStateWithLifecycle()
     val fullBleedDetailArtwork by AppSettings.fullBleedDetailArtwork.collectAsStateWithLifecycle()
     val playerTheme by AppSettings.playerTheme.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
@@ -77,17 +76,7 @@ internal fun AppearanceSettingsGroup(
             }
                         val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
             val hapticFeedbackTitle = stringResource(R.string.haptic_feedback)
-            row(hapticFeedbackTitle, "vibration", "touch", "haptics") {
-                SettingsRow(
-                    icon = SfIcons.SmartButton,
-                    title = hapticFeedbackTitle,
-                    subtitle = stringResource(R.string.haptic_feedback_subtitle),
-                    trailing = {
-                        IosSwitch(
-                            checked = hapticFeedback,
-                            onCheckedChange = AppSettings::setHapticFeedbackEnabled,
-                        )
-                    },
+                        val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
                     onClick = { AppSettings.setHapticFeedbackEnabled(!hapticFeedback) },
                 )
             }
@@ -181,30 +170,44 @@ internal fun AppearanceSettingsGroup(
                 val progressiveBlurTitle = stringResource(R.string.progressive_blur)
                 row(progressiveBlurTitle, "blur", "status bar", "top", divided = false) {
                     SettingsSubRow(
-                        title = progressiveBlurTitle,
-                        checked = progressiveBlur,
-                        onCheckedChange = AppSettings::setProgressiveBlur,
-                    )
-                }
-                val liquidGlassHapticsTitle = stringResource(R.string.liquid_glass_haptics)
-                row(liquidGlassHapticsTitle, "haptics", "vibration", "glass", "touch", divided = false) {
-                    SettingsSubRow(
-                        title = liquidGlassHapticsTitle,
-                        checked = liquidGlassHaptics,
-                        onCheckedChange = AppSettings::setLiquidGlassHaptics,
-                    )
-                }
-            }
-            // Left out where the player won't honour it: a window too wide for
-            // the player to fill and too narrow to stand a page beside it keeps
-            // the sleeve either way. A docked pane is a phone's width, so it does
-            // honour it — see [fullBleedArtworkAvailable].
-            if (fullBleedArtworkAvailable(windowWidth)) {
-                val fullScreenCoverArtTitle = stringResource(R.string.full_screen_cover_art)
-                row(fullScreenCoverArtTitle, "artwork", "player") {
-                    SettingsRow(
-                        icon = SfIcons.Fullscreen,
-                        title = fullScreenCoverArtTitle,
+            val liquidGlassIntensityTitle = stringResource(R.string.liquid_glass_intensity)
+            val glassPerformanceTitle = stringResource(R.string.glass_performance)
+            val progressiveBlurTitle = stringResource(R.string.progressive_blur)
+            val liquidGlassHapticsTitle = stringResource(R.string.liquid_glass_haptics)
+            row(liquidGlassIntensityTitle, "glass", "intensity", "performance", "progressive", "blur", "haptics", divided = false) {
+                AnimatedVisibility(
+                    visible = liquidGlass && liquidGlassSupported,
+                    enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                    exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+                ) {
+                    Column {
+                        RowDivider()
+                        SliderRow(
+                            icon = SfIcons.Tune,
+                            title = liquidGlassIntensityTitle,
+                            subtitle = stringResource(R.string.liquid_glass_intensity_subtitle),
+                            value = "${(liquidGlassIntensity * 100).roundToInt()}%",
+                            sliderValue = liquidGlassIntensity,
+                            onSliderValue = { AppSettings.setLiquidGlassIntensity(it) },
+                            valueRange = AppSettings.MIN_LIQUID_GLASS_INTENSITY..AppSettings.MAX_LIQUID_GLASS_INTENSITY,
+                            steps = 8,
+                        )
+                        SettingsSubRow(
+                            title = glassPerformanceTitle,
+                            checked = glassPerformance,
+                            onCheckedChange = AppSettings::setGlassPerformance,
+                        )
+                        SettingsSubRow(
+                            title = progressiveBlurTitle,
+                            checked = progressiveBlur,
+                            onCheckedChange = AppSettings::setProgressiveBlur,
+                        )
+                        SettingsSubRow(
+                            title = liquidGlassHapticsTitle,
+                            checked = liquidGlassHaptics,
+                            onCheckedChange = AppSettings::setLiquidGlassHaptics,
+                        )
+                    }
                         subtitle = stringResource(R.string.full_screen_cover_art_subtitle),
                         trailing = {
                             IosSwitch(

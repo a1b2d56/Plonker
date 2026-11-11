@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.WindowInfo
+import com.music.bitchord.ui.components.GlassMotion
 import com.music.bitchord.ui.components.MiniPlayerPull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -154,6 +155,7 @@ class PlayerSheetMotion(
     private fun sampleSheet(at: Float) {
         val now = System.nanoTime()
         if (!sheetSampleAt.isNaN()) {
+            if (at != sheetSampleAt) GlassMotion.sheet.moved()
             val seconds = (now - sheetSampleNanos) / 1e9f
             if (seconds > 0f) {
                 val instant = (at - sheetSampleAt) / seconds
@@ -176,9 +178,11 @@ class PlayerSheetMotion(
                 settle?.cancel()
                 reopening()
                 val from = held
+                GlassMotion.sheet.moved()
                 settle = scope.launch {
                     slide(from = from, to = 0f)
                     held = Float.NaN
+                    GlassMotion.sheet.settled()
                 }
             }
             return
@@ -187,6 +191,7 @@ class PlayerSheetMotion(
         closing = false
         val travel = travel()
         held = travel
+        GlassMotion.sheet.moved()
         // Raised already open: [held] is what slides it up.
         setShown(true)
         settle = scope.launch {
@@ -195,6 +200,7 @@ class PlayerSheetMotion(
             withTimeoutOrNull(LAYOUT_WAIT_MS) { snapshotFlow { laidOut }.first { it } }
             slide(from = travel, to = 0f)
             held = Float.NaN
+            GlassMotion.sheet.settled()
         }
     }
 
@@ -265,6 +271,7 @@ class PlayerSheetMotion(
         }
         val velocity = if (holding) 0f else recentSheetVelocity()
         held = from
+        GlassMotion.sheet.moved()
         settle = scope.launch {
             slide(from = from, to = travel(), velocity = velocity.coerceAtLeast(0f))
             dismissQuietly()
@@ -285,6 +292,7 @@ class PlayerSheetMotion(
         }
         settle?.cancel()
         held = (held + delta).coerceIn(0f, travel())
+        GlassMotion.sheet.moved()
     }
 
     override fun release(velocity: Float) {
@@ -308,12 +316,18 @@ class PlayerSheetMotion(
             reopening()
         }
         val from = held
+        GlassMotion.sheet.moved()
         settle = scope.launch {
             // The finger's own speed goes into the spring, so the player
             // carries on as it was moving and then settles — a flick fast,
             // a slow pull gently.
             slide(from = from, to = if (open) 0f else travel, velocity = speed)
-            if (open) held = Float.NaN else dismissQuietly()
+            if (open) {
+                held = Float.NaN
+                GlassMotion.sheet.settled()
+            } else {
+                dismissQuietly()
+            }
         }
     }
 
@@ -328,6 +342,7 @@ class PlayerSheetMotion(
         laidOut = false
         sheet = null
         window = null
+        GlassMotion.sheet.settled()
     }
 
     private suspend fun slide(from: Float, to: Float, velocity: Float = 0f) {
@@ -346,6 +361,7 @@ class PlayerSheetMotion(
             // enough at its target it can pass it once: never past open or
             // past the bar.
             held = value.coerceIn(0f, travel)
+            GlassMotion.sheet.moved()
         }
     }
 
@@ -353,5 +369,6 @@ class PlayerSheetMotion(
     private fun dismissQuietly() {
         quietWindow()
         setShown(false)
+        GlassMotion.sheet.settled()
     }
 }

@@ -34,6 +34,9 @@ import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.ObserverModifierNode
 import androidx.compose.ui.node.observeReads
+import androidx.compose.ui.node.invalidateDraw
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Constraints
@@ -107,7 +110,9 @@ fun Modifier.drawBackdrop(
     // processes far fewer pixels. Pixel-sized effect parameters (blur radius, lens
     // refraction) must be pre-multiplied by the same factor by the caller; the blur
     // hides the upscaling. 1f keeps the original full resolution behavior.
-    backdropScale: Float = 1f
+    backdropScale: Float = 1f,
+    // Reuse the last capture while the surface moves during a transition.
+    frozen: () -> Boolean = { false }
 ): Modifier {
     val shapeProvider = ShapeProvider(shape)
     return this
@@ -159,7 +164,8 @@ fun Modifier.drawBackdrop(
                 onDrawBackdrop = onDrawBackdrop,
                 onDrawSurface = onDrawSurface,
                 onDrawFront = onDrawFront,
-                backdropScale = backdropScale.coerceIn(0.05f, 1f)
+                backdropScale = backdropScale.coerceIn(0.05f, 1f),
+                frozen = frozen
             )
         )
 }
@@ -174,7 +180,8 @@ private class DrawBackdropElement(
     val onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     val onDrawSurface: (DrawScope.() -> Unit)?,
     val onDrawFront: (DrawScope.() -> Unit)?,
-    val backdropScale: Float
+    val backdropScale: Float,
+    val frozen: () -> Boolean = { false }
 ) : ModifierNodeElement<DrawBackdropNode>() {
 
     override fun create(): DrawBackdropNode {
@@ -265,7 +272,8 @@ private class DrawBackdropNode(
     var onDrawBackdrop: DrawScope.(drawBackdrop: DrawScope.() -> Unit) -> Unit,
     var onDrawSurface: (DrawScope.() -> Unit)?,
     var onDrawFront: (DrawScope.() -> Unit)?,
-    var backdropScale: Float
+    var backdropScale: Float,
+    var frozen: () -> Boolean = { false }
 ) : LayoutModifierNode, DrawModifierNode, GlobalPositionAwareModifierNode, ObserverModifierNode, Modifier.Node() {
 
     private val effectScope =
@@ -273,6 +281,21 @@ private class DrawBackdropNode(
 
             override val shape: Shape get() = shapeProvider.innerShape
         }
+
+    private var recordedBackdropSize = androidx.compose.ui.unit.IntSize.Zero
+    private var thawScheduled = false
+
+    private fun scheduleThawRedraw() {
+        if (thawScheduled) return
+        thawScheduled = true
+        coroutineScope.launch {
+            while (frozen()) {
+                delay(16)
+            }
+            thawScheduled = false
+            this@DrawBackdropNode.invalidateDraw()
+        }
+    }
 
     private var graphicsLayer: GraphicsLayer? = null
 
@@ -321,16 +344,28 @@ private class DrawBackdropNode(
         if (layer != null) {
             val padding = padding
             val scale = backdropScale
-
-            recordLayer(
-                this@DrawBackdropNode,
-                layer,
-                size = IntSize(
-                    ((size.width * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1),
-                    ((size.height * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1)
-                ),
-                block = recordBackdropBlock
+            val recordSize = IntSize(
+                ((size.width * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1),
+                ((size.height * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1)
             )
+
+            val hasRecording = recordedBackdropSize != IntSize.Zero
+            val needsRecord = if (frozen() && hasRecording) {
+                scheduleThawRedraw()
+                false
+            } else {
+                true
+            }
+
+            if (needsRecord) {
+                recordLayer(
+                    this@DrawBackdropNode,
+                    layer,
+                    size = recordSize,
+                    block = recordBackdropBlock
+                )
+                recordedBackdropSize = recordSize
+            }
 
             layer.topLeft =
                 if (padding != 0f) IntOffset(-padding.toInt(), -padding.toInt())
