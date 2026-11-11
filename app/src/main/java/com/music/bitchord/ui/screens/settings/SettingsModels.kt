@@ -62,7 +62,6 @@ enum class SettingsChoiceKind(@param:StringRes val title: Int) {
     DOWNLOAD_QUALITY(R.string.download_quality),
     AUTOMIX_PERFORMANCE(R.string.automix_performance),
     BIT_PERFECT(R.string.bit_perfect_output),
-    FONT(R.string.font),
 }
 
 /** "3 months of listening" — the unit a backup is actually measured in. */

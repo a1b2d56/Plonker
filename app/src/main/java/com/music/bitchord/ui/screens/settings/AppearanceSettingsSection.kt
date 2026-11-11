@@ -4,6 +4,12 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import com.music.bitchord.ui.components.IosMotion
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,12 +22,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.data.lyrics.translationLanguageName
+import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.PlayerTheme
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.ui.components.IosSwitch
@@ -42,6 +50,7 @@ internal fun AppearanceSettingsGroup(
 ) {
     val theme by AppSettings.themeMode.collectAsStateWithLifecycle()
     val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
+    val reduceAnimation by AppSettings.reduceAnimation.collectAsStateWithLifecycle()
     val reduceDynamicBlur by AppSettings.reduceDynamicBlurSetting.collectAsStateWithLifecycle()
     val blurReducedBySystem by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
@@ -49,9 +58,9 @@ internal fun AppearanceSettingsGroup(
     val glassPerformance by AppSettings.glassPerformance.collectAsStateWithLifecycle()
     val progressiveBlur by AppSettings.progressiveBlur.collectAsStateWithLifecycle()
     val liquidGlassHaptics by AppSettings.liquidGlassHaptics.collectAsStateWithLifecycle()
+    val liquidGlassIntensity by AppSettings.liquidGlassIntensity.collectAsStateWithLifecycle()
     val liquidGlassSupported = isGlassSupported()
     val fullBleedArtwork by AppSettings.fullBleedArtwork.collectAsStateWithLifecycle()
-    val liquidGlassIntensity by AppSettings.liquidGlassIntensity.collectAsStateWithLifecycle()
     val fullBleedDetailArtwork by AppSettings.fullBleedDetailArtwork.collectAsStateWithLifecycle()
     val playerTheme by AppSettings.playerTheme.collectAsStateWithLifecycle()
     val animatedCanvas by AppSettings.animatedCanvas.collectAsStateWithLifecycle()
@@ -76,7 +85,17 @@ internal fun AppearanceSettingsGroup(
             }
                         val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
             val hapticFeedbackTitle = stringResource(R.string.haptic_feedback)
-                        val hapticFeedback by AppSettings.hapticFeedbackEnabled.collectAsStateWithLifecycle()
+            row(hapticFeedbackTitle, "vibration", "touch", "haptics") {
+                SettingsRow(
+                    icon = SfIcons.SmartButton,
+                    title = hapticFeedbackTitle,
+                    subtitle = stringResource(R.string.haptic_feedback_subtitle),
+                    trailing = {
+                        IosSwitch(
+                            checked = hapticFeedback,
+                            onCheckedChange = AppSettings::setHapticFeedbackEnabled,
+                        )
+                    },
                     onClick = { AppSettings.setHapticFeedbackEnabled(!hapticFeedback) },
                 )
             }
@@ -158,18 +177,6 @@ internal fun AppearanceSettingsGroup(
             // while Liquid Glass is on: they qualify the glass rather than standing
             // on their own. Progressive Blur has its own switch because it costs
             // frames of its own. Reduce dynamic blur turns it off.
-            if (liquidGlass && liquidGlassSupported) {
-                val glassPerformanceTitle = stringResource(R.string.glass_performance)
-                row(glassPerformanceTitle, "glass", "performance", "refraction", "frosted", "lag", divided = false) {
-                    SettingsSubRow(
-                        title = glassPerformanceTitle,
-                        checked = glassPerformance,
-                        onCheckedChange = AppSettings::setGlassPerformance,
-                    )
-                }
-                val progressiveBlurTitle = stringResource(R.string.progressive_blur)
-                row(progressiveBlurTitle, "blur", "status bar", "top", divided = false) {
-                    SettingsSubRow(
             val liquidGlassIntensityTitle = stringResource(R.string.liquid_glass_intensity)
             val glassPerformanceTitle = stringResource(R.string.glass_performance)
             val progressiveBlurTitle = stringResource(R.string.progressive_blur)
@@ -208,6 +215,18 @@ internal fun AppearanceSettingsGroup(
                             onCheckedChange = AppSettings::setLiquidGlassHaptics,
                         )
                     }
+                }
+            }
+            // Left out where the player won't honour it: a window too wide for
+            // the player to fill and too narrow to stand a page beside it keeps
+            // the sleeve either way. A docked pane is a phone's width, so it does
+            // honour it — see [fullBleedArtworkAvailable].
+            if (fullBleedArtworkAvailable(windowWidth)) {
+                val fullScreenCoverArtTitle = stringResource(R.string.full_screen_cover_art)
+                row(fullScreenCoverArtTitle, "artwork", "player") {
+                    SettingsRow(
+                        icon = SfIcons.Fullscreen,
+                        title = fullScreenCoverArtTitle,
                         subtitle = stringResource(R.string.full_screen_cover_art_subtitle),
                         trailing = {
                             IosSwitch(
@@ -274,33 +293,38 @@ internal fun AppearanceSettingsGroup(
             // is off. Defaults to off: a clip loops for as long as its track
             // plays, so on cellular this is not a one-time video cost but
             // that cost repeated on every loop — see AppSettings.canvasOverCellular.
-            if (animatedCanvas) {
-                val coverCellularTitle = stringResource(R.string.animated_cover_cellular)
-                row(coverCellularTitle, "canvas", "cellular", divided = false) {
-                    SettingsSubRow(
-                        title = coverCellularTitle,
-                        checked = canvasOverCellular,
-                        onCheckedChange = AppSettings::setCanvasOverCellular,
-                    )
-                }
-                val spotifyCanvasTitle = stringResource(R.string.integrate_spotify_canvas)
-                row(spotifyCanvasTitle, "spotify", "canvas", divided = false) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onSpotifyCanvasAuth)
-                            .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = spotifyCanvasTitle,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+            val coverCellularTitle = stringResource(R.string.animated_cover_cellular)
+            val spotifyCanvasTitle = stringResource(R.string.integrate_spotify_canvas)
+            row(coverCellularTitle, "canvas", "cellular", "spotify", divided = false) {
+                AnimatedVisibility(
+                    visible = animatedCanvas,
+                    enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                    exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+                ) {
+                    Column {
+                        RowDivider()
+                        SettingsSubRow(
+                            title = coverCellularTitle,
+                            checked = canvasOverCellular,
+                            onCheckedChange = AppSettings::setCanvasOverCellular,
                         )
-                        Chevron()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onSpotifyCanvasAuth)
+                                .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = spotifyCanvasTitle,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Chevron()
+                        }
                     }
                 }
             }
@@ -319,27 +343,34 @@ internal fun AppearanceSettingsGroup(
                     onClick = { AppSettings.setSignatureApiEnabled(!signatureApiEnabled) },
                 )
             }
-            if (signatureApiEnabled) {
-                val signatureUrlTitle = stringResource(R.string.artist_signatures_url)
-                row(signatureUrlTitle, "signature", "api", "url", divided = false) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onEditSignatureApi)
-                            .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = signatureApiUrl.ifBlank {
-                                stringResource(R.string.artist_signatures_unconfigured)
-                            },
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Chevron()
+            val signatureUrlTitle = stringResource(R.string.artist_signatures_url)
+            row(signatureUrlTitle, "signature", "api", "url", divided = false) {
+                AnimatedVisibility(
+                    visible = signatureApiEnabled,
+                    enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                    exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+                ) {
+                    Column {
+                        RowDivider()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onEditSignatureApi)
+                                .padding(start = ROW_INSET, end = ROW_INSET, top = 4.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = signatureApiUrl.ifBlank {
+                                    stringResource(R.string.artist_signatures_unconfigured)
+                                },
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Chevron()
+                        }
                     }
                 }
             }
@@ -363,51 +394,56 @@ internal fun AppearanceSettingsGroup(
             // Nothing to choose between while the feature is off, and the
             // sources are third-party services being reached on the user's
             // connection — which is the part worth being able to narrow.
-            if (syncedLyrics) {
-                val lyricsBlurTitle = stringResource(R.string.blur_unfocused_lyrics)
-                row(lyricsBlurTitle, "lyrics", "blur") {
-                    SettingsRow(
-                        icon = SfIcons.BlurOn,
-                        title = lyricsBlurTitle,
-                        subtitle = stringResource(R.string.blur_unfocused_lyrics_subtitle),
-                        trailing = {
-                            IosSwitch(
-                                checked = lyricsBlur,
-                                onCheckedChange = AppSettings::setLyricsBlur,
-                            )
-                        },
-                        onClick = { AppSettings.setLyricsBlur(!lyricsBlur) },
-                    )
-                }
-                val lyricsSourcesTitle = stringResource(R.string.lyrics_sources)
-                row(lyricsSourcesTitle, "lyrics", "lrclib", "musixmatch") {
-                    SettingsRow(
-                        icon = SfIcons.Language,
-                        title = lyricsSourcesTitle,
-                        subtitle = lyricsSources
-                            .sortedBy { it.ordinal }
-                            .joinToString(", ") { it.label }
-                            .ifEmpty { stringResource(R.string.no_lyrics_sources_enabled) },
-                        trailing = { Chevron() },
-                        onClick = onLyricsSources,
-                    )
-                }
-                val translationLanguageTitle = stringResource(R.string.translation_language)
-                row(translationLanguageTitle, "lyrics", "translate") {
-                    SettingsRow(
-                        icon = SfIcons.Translate,
-                        title = translationLanguageTitle,
-                        subtitle = if (translationLanguage.isBlank()) {
-                            stringResource(R.string.translation_language_subtitle)
-                        } else {
-                            translationLanguageName(
-                                translationLanguage,
-                                AppCompatDelegate.getApplicationLocales().get(0) ?: Locale.getDefault(),
-                            )
-                        },
-                        trailing = { Chevron() },
-                        onClick = onTranslationLanguage,
-                    )
+            val lyricsBlurTitle = stringResource(R.string.blur_unfocused_lyrics)
+            val lyricsSourcesTitle = stringResource(R.string.lyrics_sources)
+            val translationLanguageTitle = stringResource(R.string.translation_language)
+            row(lyricsBlurTitle, "lyrics", "blur", "sources", "translation", divided = false) {
+                AnimatedVisibility(
+                    visible = syncedLyrics,
+                    enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                    exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+                ) {
+                    Column {
+                        RowDivider()
+                        SettingsRow(
+                            icon = SfIcons.BlurOn,
+                            title = lyricsBlurTitle,
+                            subtitle = stringResource(R.string.blur_unfocused_lyrics_subtitle),
+                            trailing = {
+                                IosSwitch(
+                                    checked = lyricsBlur,
+                                    onCheckedChange = AppSettings::setLyricsBlur,
+                                )
+                            },
+                            onClick = { AppSettings.setLyricsBlur(!lyricsBlur) },
+                        )
+                        RowDivider()
+                        SettingsRow(
+                            icon = SfIcons.Language,
+                            title = lyricsSourcesTitle,
+                            subtitle = lyricsSources
+                                .sortedBy { it.ordinal }
+                                .joinToString(", ") { it.label }
+                                .ifEmpty { stringResource(R.string.no_lyrics_sources_enabled) },
+                            trailing = { Chevron() },
+                            onClick = onLyricsSources,
+                        )
+                        RowDivider()
+                        SettingsRow(
+                            icon = SfIcons.Translate,
+                            title = translationLanguageTitle,
+                            subtitle = if (translationLanguage.isBlank()) {
+                                stringResource(R.string.translation_language_subtitle)
+                            } else {
+                                translationLanguageName(
+                                    translationLanguage,
+                                    AppCompatDelegate.getApplicationLocales().get(0) ?: Locale.getDefault(),
+                                )
+                            },
+                            trailing = { Chevron() },
+                            onClick = onTranslationLanguage,
+                        )
+                    }
                 }
             }
             }
