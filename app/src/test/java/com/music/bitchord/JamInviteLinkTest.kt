@@ -575,5 +575,13 @@ class JamInviteLinkTest {
         assertEquals("Job A's late publication must be dropped", "https://server-b.example.com", currentEffective)
         assertEquals(ServerConnectionState.CustomOnline(25L), currentState)
     }
-}
 
+    @Test
+    fun `an invite under the app's current scheme is read like the old one`() {
+        val invite = JamInviteLink.parseInvite("plonker://party/ABC123?server=https%3A%2F%2Fmy-party.onrender.com")
+        assertEquals(JamInviteLink.parseInvite("bitchord://party/ABC123?server=https%3A%2F%2Fmy-party.onrender.com"), invite)
+        assertEquals("ABC123", invite?.code)
+        assertEquals("ABC123", JamInviteLink.parse("PLONKER://party?code=abc123"))
+        assertEquals(null, JamInviteLink.parse("other://party/ABC123"))
+    }
+}
