@@ -134,12 +134,6 @@ enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
 }
 
-
-/**
- * Which of the equaliser's two tabs is driving the sound.
- *
- * One at a time rather than both at once: they are two ways of describing the
- * same curve, and summing them would mean a tone pad sitting at dead centre
  * still quietly altering whatever the sliders said.
  */
 enum class EqualizerMode {
@@ -417,7 +411,6 @@ object AppSettings {
 
     /** Whether the queue is held in shuffled order (Mix button). */
     val shuffleEnabled = MutableStateFlow(false)
-
     /** Repeat mode for the player — Off, All, or One. */
     val repeatMode = MutableStateFlow(Player.REPEAT_MODE_OFF)
 
@@ -445,8 +438,6 @@ object AppSettings {
 
     /** Stop playback when the app is swiped away from the recent apps screen. */
     val stopOnTaskRemoved = MutableStateFlow(true)
-
-    /** Hides the volume slider on the main player, leaving the rest of the layout to reflow. */
     val hideVolumeBar = MutableStateFlow(false)
 
     /** Hides the device status bar (clock, battery, notifications) while the main player is open. */
@@ -518,6 +509,20 @@ object AppSettings {
     /**
      * Blurs what scrolls under the status bar and the top controls, easing out
      * just below them, instead of fading it to the page colour. A Liquid Glass
+    /**
+     * How strong the [liquidGlass] material is,
+     * [MIN_LIQUID_GLASS_INTENSITY]..[MAX_LIQUID_GLASS_INTENSITY], multiplied
+     * onto the glass engine's blur, refraction and vibrancy where the config
+     * is provided. 1 is the engine's own look; the floor is above zero because
+     * a zeroed blur and lens is not subtle glass but the flat fill. Lower is cheaper.
+     */
+    val liquidGlassIntensity = MutableStateFlow(1f)
+
+    fun setLiquidGlassIntensity(value: Float) {
+        val clamped = normalizeLiquidGlassIntensity(value)
+        liquidGlassIntensity.value = clamped
+        if (::prefs.isInitialized) prefs.edit().putFloat(KEY_LIQUID_GLASS_INTENSITY, clamped).apply()
+    }
      * option, honoured only while [liquidGlass] is on. Off by default: it costs
      * frames. Reduce dynamic blur overrides it.
      */
@@ -1035,9 +1040,6 @@ object AppSettings {
         onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
-        )
-        stopOnTaskRemoved.value = prefs.getBoolean(KEY_STOP_ON_TASK_REMOVED, true)
-        hideVolumeBar.value = prefs.getBoolean(KEY_HIDE_VOLUME_BAR, false)
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
         hideSongStatus.value = prefs.getBoolean(KEY_HIDE_SONG_STATUS, false)
         showQueueHistory.value = prefs.getBoolean(KEY_SHOW_QUEUE_HISTORY, false)
@@ -1047,7 +1049,6 @@ object AppSettings {
         hideRecents.value = prefs.getBoolean(KEY_HIDE_RECENTS, false)
         hideHomeVideos.value = prefs.getBoolean(KEY_HIDE_HOME_VIDEOS, false)
         hideTopPicks.value = prefs.getBoolean(KEY_HIDE_TOP_PICKS, false)
-        hideHomeMoods.value = prefs.getBoolean(KEY_HIDE_HOME_MOODS, false)
         squareVideoThumbnails.value = prefs.getBoolean(KEY_SQUARE_VIDEO_THUMBNAILS, false)
         VideoThumbnails.square = squareVideoThumbnails.value
         smartVersionAlignment.value = prefs.getBoolean(KEY_SMART_VERSION_ALIGNMENT, true)
@@ -1477,10 +1478,6 @@ object AppSettings {
         editor.apply()
     }
 
-    fun setOnboardingComplete() {
-        onboardingComplete.value = true
-        prefs.edit().putBoolean(KEY_ONBOARDING_COMPLETE, true).apply()
-    }
 
     fun setStopOnTaskRemoved(value: Boolean) {
         stopOnTaskRemoved.value = value
@@ -1500,11 +1497,6 @@ object AppSettings {
     fun setShowQueueHistory(value: Boolean) {
         showQueueHistory.value = value
         prefs.edit().putBoolean(KEY_SHOW_QUEUE_HISTORY, value).apply()
-    }
-
-    fun setSwipeToPlayNext(value: Boolean) {
-        swipeToPlayNext.value = value
-        prefs.edit().putBoolean(KEY_SWIPE_TO_PLAY_NEXT, value).apply()
     }
 
     fun setDontRepeatSuggestions(value: Boolean) {
@@ -2363,7 +2355,6 @@ object AppSettings {
     private const val KEY_GLASS_PERFORMANCE = "glass_performance"
     private const val KEY_PROGRESSIVE_BLUR = "progressive_blur"
     private const val KEY_LIQUID_GLASS_HAPTICS = "liquid_glass_haptics"
-    private const val KEY_LYRICS_BLUR = "lyrics_blur"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"
     private const val KEY_ANIMATED_CANVAS = "animated_canvas"
@@ -2373,7 +2364,6 @@ object AppSettings {
     private const val KEY_SIGNATURE_API_ENABLED = "signature_api_enabled"
     private const val KEY_SIGNATURE_API_URL = "signature_api_url"
     private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
-    private const val KEY_FULL_BLEED_DETAIL_ARTWORK = "full_bleed_detail_artwork"
     private const val KEY_PLAYER_THEME = "player_theme"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"

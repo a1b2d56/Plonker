@@ -119,6 +119,7 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
             // all — it is the fix for canvas clips re-fetching the same few
             // seconds of video from the network on every loop.
             CanvasCache.init(this)
+            com.music.bitchord.ui.components.backdrop.GlassShaderWarmup.warmUp()
             runCatching {
                 val cutoff = System.currentTimeMillis() - 24L * 3600_000L
                 cacheDir.listFiles()?.forEach { file ->
