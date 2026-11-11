@@ -221,6 +221,8 @@ fun SongActionsMenu(
         var drawnAny = false
         fun startsGroup(): Boolean = drawnAny.also { drawnAny = true }
         val canRate = isOffline || signedIn
+        val canLike = canRate && !fromPlayer
+        val canDislike = signedIn && !isOffline
         val shareAction = onShare?.takeIf { !isOffline }
 
         // Leads with the actions it is opened for most, as tiles: the rating
@@ -238,7 +240,7 @@ fun SongActionsMenu(
                 }
                 // No dislike for a device file: there is no recommendation
                 // feed on the device for one to steer.
-                if (signedIn && !isOffline) {
+                if (canDislike) {
                     IosMenuQuickAction(
                         icon = if (disliked) BrokenHeart.Fill else BrokenHeart.Outline,
                         label = stringResource(R.string.dislike),

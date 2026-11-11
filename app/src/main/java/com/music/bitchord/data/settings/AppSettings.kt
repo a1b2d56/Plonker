@@ -134,12 +134,6 @@ enum class ThemeMode(val label: String) {
     SYSTEM("System"), LIGHT("Light"), DARK("Dark")
 }
 
- * still quietly altering whatever the sliders said.
- */
-enum class EqualizerMode {
-    /** The tone pad: tilt, contour, and how wide each is. */
-    DYNAMIC,
-
     /** Seven sliders and a preset list. */
     MANUAL,
 }
@@ -417,7 +411,6 @@ object AppSettings {
     /** Put the playing track's codec, bitrate and sample rate on the player. */
     val showNerdStats = MutableStateFlow(false)
 
-    /** Show the output / Listen Together pill under the player's transport. */
     val showListenTogetherButton = MutableStateFlow(false)
 
     /** Freezes the main player's mesh gradient instead of letting it drift/crossfade. */
@@ -445,8 +438,6 @@ object AppSettings {
 
     /** Hides the "Playing from" / "Played by" caption at the top of the main player. */
     val hideSongStatus = MutableStateFlow(false)
-
-    val showQueueHistory = MutableStateFlow(false)
 
     /** Swiping a song row plays it next instead of adding it to the end of the queue. */
     val swipeToPlayNext = MutableStateFlow(false)
@@ -518,6 +509,20 @@ object AppSettings {
      */
     val liquidGlassIntensity = MutableStateFlow(1f)
 
+    /**
+     * How strong the [liquidGlass] material is,
+     * [MIN_LIQUID_GLASS_INTENSITY]..[MAX_LIQUID_GLASS_INTENSITY], multiplied
+     * onto the glass engine's blur, refraction and vibrancy where the config
+     * is provided. 1 is the engine's own look; the floor is above zero because
+     * a zeroed blur and lens is not subtle glass but the flat fill. Lower is cheaper.
+     */
+    val liquidGlassIntensity = MutableStateFlow(1f)
+
+    fun setLiquidGlassIntensity(value: Float) {
+        val clamped = normalizeLiquidGlassIntensity(value)
+        liquidGlassIntensity.value = clamped
+        if (::prefs.isInitialized) prefs.edit().putFloat(KEY_LIQUID_GLASS_INTENSITY, clamped).apply()
+    }
     fun setLiquidGlassIntensity(value: Float) {
         val clamped = normalizeLiquidGlassIntensity(value)
         liquidGlassIntensity.value = clamped
@@ -914,6 +919,43 @@ object AppSettings {
             wifi = audioQualityWifi.value,
             cellular = audioQualityCellular.value,
             metered = meteredConnection.value,
+    /** How long a network may be gone before the player stops streaming. */
+    private const val NETWORK_LOST_GRACE_MS = 750L
+    private val streamingAvailableFlow = MutableStateFlow(true)
+
+    /** Owns the delayed offline verdict; see [watchConnection]. */
+    private val networkScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Whether the listener asked for offline playback, whatever the radio says.
+     *
+     * A switch, not a mode that resolves itself: on stays on until it is turned
+     * off, network or no network. It exists for the case the detector cannot
+     * know about — a device with a working network and no internet behind it,
+     * which looks identical to being online right up until a stream fails.
+     */
+    private val offlineModeFlow = MutableStateFlow(false)
+    val offlineMode: StateFlow<Boolean> = offlineModeFlow.asStateFlow()
+
+    /**
+     * The one answer the player asks: are we offline?
+     *
+     * True when the switch is on, or when no network has been there for the
+     * grace period. Neither is sufficient alone: the switch does not know
+     * whether the internet is reachable, and the detector does not know what
+     * was asked for. Putting them here means no caller has to remember both.
+     */
+    val effectiveOffline: StateFlow<Boolean> =
+        combine(offlineModeFlow, streamingAvailableFlow) { manual, streaming -> manual || !streaming }
+            .stateIn(networkScope, SharingStarted.Eagerly, false)
+
+    fun setOfflineMode(value: Boolean) {
+        if (offlineModeFlow.value == value) return
+        offlineModeFlow.value = value
+        if (::prefs.isInitialized) prefs.edit().putBoolean(KEY_OFFLINE_MODE, value).apply()
+    }
+    val streamingAvailable: StateFlow<Boolean> = streamingAvailableFlow.asStateFlow()
+
             override = streamCeilingOverride.value,
         )
 
@@ -1035,9 +1077,6 @@ object AppSettings {
         showNerdStats.value = prefs.getBoolean(KEY_NERD_STATS, false)
         showListenTogetherButton.value = prefs.getBoolean(KEY_LISTEN_TOGETHER_BUTTON, false)
         reduceAnimation.value = prefs.getBoolean(KEY_REDUCE_ANIMATION, false)
-        hapticFeedbackEnabled.value = prefs.getBoolean(KEY_HAPTIC_FEEDBACK, true)
-        com.music.bitchord.ui.haptics.HapticSettings.enabled = hapticFeedbackEnabled.value
-        onboardingComplete.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETE, false)
         highPerformanceMode.value = prefs.getBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         performanceRefreshRate.value = normalizePerformanceRefreshRate(
         hideStatusBarInPlayer.value = prefs.getBoolean(KEY_HIDE_STATUS_BAR_IN_PLAYER, false)
@@ -1047,7 +1086,6 @@ object AppSettings {
         dontRepeatSuggestions.value = prefs.getBoolean(KEY_DONT_REPEAT_SUGGESTIONS, false)
         preferMusicOnly.value = prefs.getBoolean(KEY_PREFER_MUSIC_ONLY, false)
         hideRecents.value = prefs.getBoolean(KEY_HIDE_RECENTS, false)
-        hideHomeVideos.value = prefs.getBoolean(KEY_HIDE_HOME_VIDEOS, false)
         hideTopPicks.value = prefs.getBoolean(KEY_HIDE_TOP_PICKS, false)
         squareVideoThumbnails.value = prefs.getBoolean(KEY_SQUARE_VIDEO_THUMBNAILS, false)
         VideoThumbnails.square = squareVideoThumbnails.value
@@ -1287,14 +1325,52 @@ object AppSettings {
         refresh()
         runCatching {
             manager.registerDefaultNetworkCallback(
+        var pendingCheck: Job? = null
+
+        // A connected network is not the same thing as a working one. Wi-Fi
+        // with no internet behind it — the router is up, the line is down —
+        // keeps `activeNetwork` non-null, and a verdict that only asks "is
+        // there a network" calls that online. Streams then fail one by one
+        // while the detector insists it is fine. The system's own probe is the
+        // answer: VALIDATED is set only after it got an answer from the
+        // internet, so a captive portal and a dead line both read as offline.
+        val actuallyUp = {
+            runCatching {
+                val network = manager.activeNetwork ?: return@runCatching false
+                val capabilities = manager.getNetworkCapabilities(network)
+                    ?: return@runCatching false
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            }.getOrDefault(false)
+        }
+
+        // Believed immediately when a network is there; believed gone only after
+        // the grace period, and only if it is *still* gone by then. `activeNetwork`
+        // is null for a moment on every handover, and the player reads this to
+        // choose between a downloaded file and a stream — a verdict that
+        // flickers for 200ms mid-handover is how one queue came out as files and
+        // the next as streams.
+        //
+        // The wait has to be *scheduled*, not read from the clock inside the
+        // callback. Reading it there meant the verdict was only ever computed at
+        // the instant the callback ran, which is always inside the grace: with
+        // no network at all the only callback is the initial one, so the app
+        // believed it could stream forever and no downloaded file ever played.
+        val markStreaming = {
+            pendingCheck?.cancel()
+            pendingCheck = null
+            streamingAvailableFlow.value = true
+        }
+
                 object : ConnectivityManager.NetworkCallback() {
-                    override fun onAvailable(network: Network) = refresh()
-                    override fun onLost(network: Network) = refresh()
-                    override fun onCapabilitiesChanged(
-                        network: Network,
-                        capabilities: NetworkCapabilities,
-                    ) = refresh()
-                },
+            if (actuallyUp()) {
+                markStreaming()
+            } else {
+                pendingCheck?.cancel()
+                pendingCheck = networkScope.launch {
+                    delay(NETWORK_LOST_GRACE_MS)
+                    if (!actuallyUp()) streamingAvailableFlow.value = false
+                    pendingCheck = null
             )
         }
     }
@@ -1477,10 +1553,6 @@ object AppSettings {
         if (value) editor.putBoolean(KEY_HIGH_PERFORMANCE_MODE, false)
         editor.apply()
     }
-
-
-    fun setStopOnTaskRemoved(value: Boolean) {
-        stopOnTaskRemoved.value = value
         prefs.edit().putBoolean(KEY_STOP_ON_TASK_REMOVED, value).apply()
     }
 
@@ -1502,11 +1574,6 @@ object AppSettings {
     fun setDontRepeatSuggestions(value: Boolean) {
         dontRepeatSuggestions.value = value
         prefs.edit().putBoolean(KEY_DONT_REPEAT_SUGGESTIONS, value).apply()
-    }
-
-    fun setPreferMusicOnly(value: Boolean) {
-        preferMusicOnly.value = value
-        prefs.edit().putBoolean(KEY_PREFER_MUSIC_ONLY, value).apply()
     }
 
     fun setHideRecents(value: Boolean) {
@@ -2363,7 +2430,6 @@ object AppSettings {
     private const val KEY_PRIORITIZE_SPOTIFY_CANVAS = "prioritize_spotify_canvas"
     private const val KEY_SIGNATURE_API_ENABLED = "signature_api_enabled"
     private const val KEY_SIGNATURE_API_URL = "signature_api_url"
-    private const val KEY_FULL_BLEED_ARTWORK = "full_bleed_artwork"
     private const val KEY_PLAYER_THEME = "player_theme"
     private const val KEY_LEGACY_MESH_GRADIENT = "legacy_mesh_gradient"
     private const val KEY_LAST_PLAYER_SCREEN = "last_player_screen"
@@ -2373,7 +2439,6 @@ object AppSettings {
     private const val KEY_LYRICS_SOURCE_ORDER = "lyrics_source_order"
     private const val KEY_PRIORITIZE_SYLLABLE_SYNC = "prioritize_syllable_sync"
     private const val KEY_PAXSENIX_API_KEY = "paxsenix_api_key"
-    private const val KEY_REPLAY_GENRES = "replay_genres"
     private const val KEY_FILTER_NON_MUSIC_AUDIO = "filter_non_music_audio"
     private const val KEY_SHOW_CACHE_FOLDER = "show_cache_folder"
     private const val KEY_LOCAL_MUSIC_SORT = "local_music_sort"

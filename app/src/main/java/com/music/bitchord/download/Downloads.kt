@@ -450,6 +450,29 @@ object Downloads {
         return null
     }
 
+    fun savedFormat(videoId: String): String? = _savedMetadata.value[videoId]?.downloadFormat
+
+    fun snapshotSongs(): List<Song> {
+        val metaMap = _savedMetadata.value
+        val seenUris = mutableSetOf<String>()
+        return metaMap.values.mapNotNull { meta ->
+            if (!seenUris.add(meta.uri)) return@mapNotNull null
+            Song(
+                videoId = meta.videoId,
+                title = meta.title,
+                artist = meta.artist,
+                thumbnailUrl = meta.thumbnailUrl,
+                durationText = meta.durationText,
+                albumName = meta.albumName,
+                localUri = meta.uri,
+                downloadFormat = meta.downloadFormat,
+                localDateAddedSeconds = meta.dateAddedSeconds,
+                localDateModifiedSeconds = null,
+            )
+        }
+    }
+
+
     /** Delete the file saved for [videoId] and forget it. */
     suspend fun delete(context: Context, videoId: String): Boolean = withContext(Dispatchers.IO) {
         val uri = _saved.value[videoId]?.toUri() ?: return@withContext false

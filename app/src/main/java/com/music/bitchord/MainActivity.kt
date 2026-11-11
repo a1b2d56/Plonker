@@ -296,8 +296,6 @@ import com.music.bitchord.data.settings.LocalMusicSort
 import com.music.bitchord.ui.screens.SearchScreen
 import com.music.bitchord.data.settings.SongSort
 import com.music.bitchord.ui.onboarding.OnboardingScreen
-import com.music.bitchord.ui.replay.ReplayStories
-import com.music.bitchord.ui.replay.ReplayStoryPage
 import com.music.bitchord.ui.replay.rememberReplayState
 import com.music.bitchord.ui.theme.BitChordTheme
 import com.music.bitchord.ui.theme.rememberArtworkPalette
@@ -344,8 +342,7 @@ class MainActivity : AppCompatActivity() {
             val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
                         val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             val iosOverscrollFactory = rememberIosOverscrollFactory()
-            val performanceRefreshRate by AppSettings.performanceRefreshRate.collectAsStateWithLifecycle()
-            val composeView = LocalView.current
+                        val highPerformance by AppSettings.highPerformanceMode.collectAsStateWithLifecycle()
             LaunchedEffect(highPerformance, performanceRefreshRate, composeView) {
                 applyPerformanceMode(highPerformance, performanceRefreshRate, composeView)
             }
@@ -359,7 +356,7 @@ class MainActivity : AppCompatActivity() {
             BitChordTheme(darkTheme = darkTheme) {
                 // paints no background of its own. Everywhere a page is not
                 // showing artwork the recording is transparent, so the glass had
-                // nothing to blur there and you saw straight through it to the
+            BitChordTheme(darkTheme = darkTheme) {
                 // sharp page underneath: album art came through the bar blurred
                 // and text came through it untouched. The window's background is
                 // the floor the pages have always been drawn against, so it is
@@ -746,22 +743,6 @@ private fun BitChordApp(
      * covers it. Most things want [detail] — the one actually on screen.
      */
     val topDetail = detailStack.lastOrNull()
-    /** The release page on screen, or null when a route or a tab is. */
-    val detail = topDetail?.takeIf { visibleEntry == null }
-    // The reorder list lives on its playlist's page; leaving that page by any
-    // route — Back, a tab, another page over it — puts the list away with it.
-    LaunchedEffect(detail?.browseId) {
-        if (reorderTarget?.browseId != detail?.browseId) reorderTarget = null
-    }
-
-    SystemBarIcons(
-        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
-    )
-
-    val homeState by viewModel.home.collectAsStateWithLifecycle()
-    val hideRecents by AppSettings.hideRecents.collectAsStateWithLifecycle()
-    val hideHomeVideos by AppSettings.hideHomeVideos.collectAsStateWithLifecycle()
-    // Only what Home draws: Top Picks reads the unfiltered feed from the view model.
     val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents) {
         val loaded = homeState as? UiState.Success
         if (loaded != null && (hideHomeVideos || hideRecents)) {
@@ -792,14 +773,16 @@ private fun BitChordApp(
 
     LaunchedEffect(updateNotice) {
         if (updateNotice != null && !updateDialogShown) {
-            updateDialogShown = true
+        dark = !darkTheme && !showNowPlaying && route != AppRoute.Replay && replayStory == null && !onboardingVisible,
             showUpdateDialog = true
         }
     }
     val query by viewModel.query.collectAsStateWithLifecycle()
     val selectedMoodGenre by viewModel.selectedMoodGenre.collectAsStateWithLifecycle()
+    val offlineActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
+    val offlinePicksTitle = stringResource(R.string.shelf_quick_picks)
     val searchSource by viewModel.searchSource.collectAsStateWithLifecycle()
-    // Collected rather than read once, so addon rows in search re-dim the
+    val visibleHomeState = remember(homeState, hideHomeVideos, hideRecents, offlineActive, offlinePicksTitle) {
     // moment the quality setting, the connection or the watch's cap moves.
     val addonCeiling = AppSettings.ceilingFor(
         wifi = AppSettings.audioQualityWifi.collectAsStateWithLifecycle().value,
@@ -807,7 +790,33 @@ private fun BitChordApp(
         metered = AppSettings.meteredConnection.collectAsStateWithLifecycle().value,
         override = AppSettings.streamCeilingOverride.collectAsStateWithLifecycle().value,
     )
-    val signedIn by viewModel.signedIn.collectAsStateWithLifecycle()
+            loaded?.data
+        }
+        val online = if (baseShelves != null) UiState.Success(baseShelves) else homeState
+        if (!offlineActive) {
+            online
+        } else {
+            val picks = Downloads.snapshotSongs()
+                .sortedByDescending { it.localDateAddedSeconds ?: 0L }
+                .take(20)
+                .mapNotNull { song ->
+                    song.videoId.takeIf { it.isNotBlank() }?.let { videoId ->
+                        ShelfItem(
+                            title = song.title,
+                            subtitle = "Song • ${song.artist}",
+                            thumbnailUrl = song.thumbnailUrl,
+                            videoId = videoId,
+                            browseId = null,
+                        )
+                    }
+                }
+            if (picks.isEmpty()) {
+                online
+            } else {
+                UiState.Success(
+                    listOf(HomeShelf(title = offlinePicksTitle, items = picks)) + (baseShelves ?: emptyList())
+                )
+            }
     val incomingJamInvite by JamInviteLink.pending.collectAsStateWithLifecycle()
     var activeJamInviteCode by rememberSaveable { mutableStateOf<String?>(null) }
     var activeJamInviteServer by rememberSaveable { mutableStateOf<String?>(null) }
@@ -2414,7 +2423,6 @@ private fun BitChordApp(
         //
         // Back handlers answer newest-registered first, so the order below is
         // the order of precedence, lowest first: the page stack, then what is
-        // drawn over a page, then the alerts drawn over everything. Each sheet
         // and dialog further down registers its own handler as it opens, and
         // so outranks all of these while it is up.
         BackHandler(enabled = canGoBack, onBack = goBack)
@@ -2721,7 +2729,7 @@ private fun BitChordApp(
                             pageStates.SaveableStateProvider(key, pageContent)
                         }
                     }
-                }
+                                player = player, signedIn = signedIn,
 
                 // The top-bar footprint is transparent on every page so the
                 // shared app-level gradient is continuous; its controls float
@@ -2827,6 +2835,14 @@ private fun BitChordApp(
                     scrolled = {
                         when {
                             // The page leads with its own large "Replay", so the bar
+                val offlineBannerActive by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
+                com.music.bitchord.ui.components.OfflineBanner(
+                    visible = offlineBannerActive,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = com.music.bitchord.ui.components.topBarHeight()),
+                )
+
                             // stays out of the way until that has been scrolled off.
                             route == AppRoute.Replay -> replayScrolled
                             route != null -> true
@@ -3576,23 +3592,10 @@ private fun BitChordApp(
         }
 
         IosModalContainer(
-            visible = songSortMenuOpen,
-            onDismiss = { songSortMenuOpen = false },
-        ) {
-            FrostedSortMenu(
-                hazeState = hazeState,
-                selected = songSort,
-                onSelect = { option ->
-                    detail?.browseId?.let { AppSettings.setDetailSongSort(it, option) }
-                    songSortMenuOpen = false
-                },
-                // Flipping the date direction deliberately leaves the menu up:
-                // closing it here would cut the arrow's rotation animation off
-                // before it played, and the open menu lets the direction flip
                 // read against the list reordering behind the frost.
-                onFlipDateDirection = {
+        // ---- Update available (once per launch; held until the welcome is done) ----
                     detail?.browseId?.let { browseId ->
-                        val next = when (songSort) {
+            visible = showUpdateDialog && onboardingComplete && updateNotice != null,
                             SongSort.DATE_ADDED_DESC -> SongSort.DATE_ADDED_ASC
                             SongSort.DATE_ADDED_ASC -> SongSort.DATE_ADDED_DESC
                             else -> SongSort.DATE_ADDED_DESC
