@@ -2,6 +2,12 @@ package com.music.bitchord.ui.screens.settings
 
 import android.media.AudioFormat
 import androidx.compose.foundation.layout.Column
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import com.music.bitchord.ui.components.IosMotion
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -176,28 +182,42 @@ internal fun PlaybackSettingsGroup(
                 )
             }
         }
-        if (bitPerfectMode == BitPerfectMode.USB_DIRECT) {
-            val fixedVolumeTitle = stringResource(R.string.usb_allow_fixed_volume)
-            row(fixedVolumeTitle, "volume", "usb", "dac", divided = false) {
-                SettingsSubRow(
-                    title = fixedVolumeTitle,
-                    subtitle = stringResource(R.string.usb_allow_fixed_volume_subtitle),
-                    checked = usbAllowFixedVolume,
-                    onCheckedChange = { on ->
-                        if (on) onConfirmFixedVolume() else AppSettings.setUsbAllowFixedVolume(false)
-                    },
-                )
+        val fixedVolumeTitle = stringResource(R.string.usb_allow_fixed_volume)
+        row(fixedVolumeTitle, "volume", "usb", "dac", divided = false) {
+            AnimatedVisibility(
+                visible = bitPerfectMode == BitPerfectMode.USB_DIRECT,
+                enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+            ) {
+                Column {
+                    RowDivider()
+                    SettingsSubRow(
+                        title = fixedVolumeTitle,
+                        subtitle = stringResource(R.string.usb_allow_fixed_volume_subtitle),
+                        checked = usbAllowFixedVolume,
+                        onCheckedChange = { on ->
+                            if (on) onConfirmFixedVolume() else AppSettings.setUsbAllowFixedVolume(false)
+                        },
+                    )
+                }
             }
         }
-        if (bitPerfectMode != BitPerfectMode.OFF && bitPerfectMode.isSupported) {
-            val convertTitle = stringResource(R.string.convert_for_limited_dac)
-            row(convertTitle, "convert", "resample", "usb", "dac", "bitperfect", divided = false) {
-                SettingsSubRow(
-                    title = convertTitle,
-                    subtitle = stringResource(R.string.convert_for_limited_dac_subtitle),
-                    checked = convertForLimitedDac,
-                    onCheckedChange = AppSettings::setConvertForLimitedDac,
-                )
+        val convertTitle = stringResource(R.string.convert_for_limited_dac)
+        row(convertTitle, "convert", "resample", "usb", "dac", "bitperfect", divided = false) {
+            AnimatedVisibility(
+                visible = bitPerfectMode != BitPerfectMode.OFF && bitPerfectMode.isSupported,
+                enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+            ) {
+                Column {
+                    RowDivider()
+                    SettingsSubRow(
+                        title = convertTitle,
+                        subtitle = stringResource(R.string.convert_for_limited_dac_subtitle),
+                        checked = convertForLimitedDac,
+                        onCheckedChange = AppSettings::setConvertForLimitedDac,
+                    )
+                }
             }
         }
         val loudnessTitle = stringResource(R.string.loudness_normalization)
@@ -218,29 +238,45 @@ internal fun PlaybackSettingsGroup(
             }
         }
         val loudnessSpeakerTitle = stringResource(R.string.loudness_off_on_speaker)
-        row(loudnessSpeakerTitle, "loudness", "speaker", "normalize") {
-            BypassedByBitPerfect(bitPerfectReady) {
-                SettingsSubRow(
-                    title = loudnessSpeakerTitle,
-                    checked = loudnessOffOnSpeaker,
-                    onCheckedChange = AppSettings::setLoudnessOffOnSpeaker,
-                )
+        row(loudnessSpeakerTitle, "loudness", "speaker", "normalize", divided = false) {
+            AnimatedVisibility(
+                visible = loudnessNormalization,
+                enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+            ) {
+                Column {
+                    RowDivider()
+                    BypassedByBitPerfect(bitPerfectReady) {
+                        SettingsSubRow(
+                            title = loudnessSpeakerTitle,
+                            checked = loudnessOffOnSpeaker,
+                            onCheckedChange = AppSettings::setLoudnessOffOnSpeaker,
+                        )
+                    }
+                }
             }
         }
-        if (!smartFade) {
-            val crossfadeTitle = stringResource(R.string.crossfade)
-            row(crossfadeTitle, "fade", "gapless") {
-                BypassedByBitPerfect(bitPerfectReady) {
-                    SliderRow(
-                        icon = SfIcons.Waves,
-                        title = crossfadeTitle,
-                        subtitle = stringResource(R.string.crossfade_subtitle),
-                        value = if (crossfade == 0) stringResource(R.string.off) else "${crossfade}s",
-                        sliderValue = crossfade.toFloat(),
-                        onSliderValue = { AppSettings.setCrossfadeSeconds(it.roundToInt()) },
-                        valueRange = 0f..12f,
-                        steps = 11,
-                    )
+        val crossfadeTitle = stringResource(R.string.crossfade)
+        row(crossfadeTitle, "fade", "gapless", divided = false) {
+            AnimatedVisibility(
+                visible = !smartFade,
+                enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+            ) {
+                Column {
+                    RowDivider()
+                    BypassedByBitPerfect(bitPerfectReady) {
+                        SliderRow(
+                            icon = SfIcons.Waves,
+                            title = crossfadeTitle,
+                            subtitle = stringResource(R.string.crossfade_subtitle),
+                            value = if (crossfade == 0) stringResource(R.string.off) else "${crossfade}s",
+                            sliderValue = crossfade.toFloat(),
+                            onSliderValue = { AppSettings.setCrossfadeSeconds(it.roundToInt()) },
+                            valueRange = 0f..12f,
+                            steps = 11,
+                        )
+                    }
                 }
             }
         }
@@ -266,15 +302,24 @@ internal fun PlaybackSettingsGroup(
             }
         }
         val automixPerformanceTitle = stringResource(R.string.automix_performance)
-        row(automixPerformanceTitle, "cpu", "battery") {
-            BypassedByBitPerfect(bitPerfectReady) {
-                SettingsRow(
-                    icon = SfIcons.Tune,
-                    title = automixPerformanceTitle,
-                    subtitle = stringResource(R.string.automix_performance_subtitle),
-                    value = automixPerformance.localizedLabel(),
-                    onClick = { onOpenChoice(SettingsChoiceKind.AUTOMIX_PERFORMANCE) },
-                )
+        row(automixPerformanceTitle, "cpu", "battery", divided = false) {
+            AnimatedVisibility(
+                visible = smartFade,
+                enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+            ) {
+                Column {
+                    RowDivider()
+                    BypassedByBitPerfect(bitPerfectReady) {
+                        SettingsRow(
+                            icon = SfIcons.Tune,
+                            title = automixPerformanceTitle,
+                            subtitle = stringResource(R.string.automix_performance_subtitle),
+                            value = automixPerformance.localizedLabel(),
+                            onClick = { onOpenChoice(SettingsChoiceKind.AUTOMIX_PERFORMANCE) },
+                        )
+                    }
+                }
             }
         }
         val skipSilenceTitle = stringResource(R.string.skip_silence)

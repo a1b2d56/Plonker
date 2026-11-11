@@ -1,6 +1,13 @@
 package com.music.bitchord.ui.screens.settings
 
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Column
+import com.music.bitchord.ui.components.IosMotion
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -131,15 +138,22 @@ internal fun LocalMusicSettingsGroup(
                 onClick = onPickLocalFolder,
             )
         }
-        if (localMusicFolderUri.isNotBlank()) {
-            val useAllAudioFoldersTitle = stringResource(R.string.use_all_audio_folders)
-            row(useAllAudioFoldersTitle, "folder") {
-                SettingsRow(
-                    icon = SfIcons.LibraryMusic,
-                    title = useAllAudioFoldersTitle,
-                    subtitle = stringResource(R.string.use_all_audio_folders_subtitle),
-                    onClick = { AppSettings.setLocalMusicFolderUri("") },
-                )
+        val useAllAudioFoldersTitle = stringResource(R.string.use_all_audio_folders)
+        row(useAllAudioFoldersTitle, "folder", divided = false) {
+            AnimatedVisibility(
+                visible = localMusicFolderUri.isNotBlank(),
+                enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+            ) {
+                Column {
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.LibraryMusic,
+                        title = useAllAudioFoldersTitle,
+                        subtitle = stringResource(R.string.use_all_audio_folders_subtitle),
+                        onClick = { AppSettings.setLocalMusicFolderUri("") },
+                    )
+                }
             }
         }
         val filterNonMusicAudioTitle = stringResource(R.string.filter_non_music_audio)

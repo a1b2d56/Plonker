@@ -12,6 +12,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import com.music.bitchord.ui.components.IosMotion
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -106,25 +112,32 @@ internal fun PerformanceSettingsGroup(
                 },
             )
         }
-        if (highPerformanceMode) {
-            val refreshRateTitle = stringResource(R.string.refresh_rate)
-            row(refreshRateTitle, "hz", "frame rate") {
-                SettingsRow(
-                    icon = SfIcons.FrameRate,
-                    title = refreshRateTitle,
-                )
-                SegmentedControl(
-                    options = supportedRefreshRates.map { "$it Hz" },
-                    selectedIndex = supportedRefreshRates.indexOf(selectedPerformanceRefreshRate),
-                    onSelect = { index ->
-                        AppSettings.setPerformanceRefreshRate(supportedRefreshRates[index])
-                    },
-                    modifier = Modifier.padding(
-                        start = TEXT_INSET,
-                        end = ROW_INSET,
-                        bottom = 14.dp,
-                    ),
-                )
+        val refreshRateTitle = stringResource(R.string.refresh_rate)
+        row(refreshRateTitle, "hz", "frame rate", divided = false) {
+            AnimatedVisibility(
+                visible = highPerformanceMode,
+                enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
+                exit = shrinkVertically(IosMotion.cardSpring()) + fadeOut(),
+            ) {
+                Column {
+                    RowDivider()
+                    SettingsRow(
+                        icon = SfIcons.FrameRate,
+                        title = refreshRateTitle,
+                    )
+                    SegmentedControl(
+                        options = supportedRefreshRates.map { "$it Hz" },
+                        selectedIndex = supportedRefreshRates.indexOf(selectedPerformanceRefreshRate),
+                        onSelect = { index ->
+                            AppSettings.setPerformanceRefreshRate(supportedRefreshRates[index])
+                        },
+                        modifier = Modifier.padding(
+                            start = TEXT_INSET,
+                            end = ROW_INSET,
+                            bottom = 14.dp,
+                        ),
+                    )
+                }
             }
         }
     }
