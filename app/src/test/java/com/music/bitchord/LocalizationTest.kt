@@ -12,11 +12,16 @@ import javax.xml.parsers.DocumentBuilderFactory
 class LocalizationTest {
 
     @Test
-    fun supportedLanguages_containsVietnamese() {
-        val viLanguage = SUPPORTED_LANGUAGES.firstOrNull { it.tag == "vi" }
-        assertNotNull("Vietnamese language must be in SUPPORTED_LANGUAGES", viLanguage)
-        assertEquals(R.string.vietnamese, viLanguage?.nameRes)
-        assertEquals(R.string.vietnamese, languageDisplayNameRes("vi"))
+    fun supportedLanguages_containsEnglishGbAndUs() {
+        val gbLanguage = SUPPORTED_LANGUAGES.firstOrNull { it.tag == "en-GB" }
+        assertNotNull("English (GB) language must be in SUPPORTED_LANGUAGES", gbLanguage)
+        assertEquals(R.string.english_gb, gbLanguage?.nameRes)
+        assertEquals(R.string.english_gb, languageDisplayNameRes("en-GB"))
+
+        val usLanguage = SUPPORTED_LANGUAGES.firstOrNull { it.tag == "en-US" }
+        assertNotNull("English (US) language must be in SUPPORTED_LANGUAGES", usLanguage)
+        assertEquals(R.string.english_us, usLanguage?.nameRes)
+        assertEquals(R.string.english_us, languageDisplayNameRes("en-US"))
     }
 
     @Test
@@ -42,7 +47,8 @@ class LocalizationTest {
             if (name != null) configuredLocales.add(name)
         }
 
-        assertTrue("locales_config.xml must include 'vi'", configuredLocales.contains("vi"))
+        assertTrue("locales_config.xml must include 'en-GB'", configuredLocales.contains("en-GB"))
+        assertTrue("locales_config.xml must include 'en-US'", configuredLocales.contains("en-US"))
 
         for (lang in SUPPORTED_LANGUAGES) {
             assertTrue(

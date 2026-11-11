@@ -62,6 +62,8 @@ class LocaleStringsTest(private val tag: String) {
         internal fun tagToQualifier(tag: String): String = when (tag) {
             "zh-CN" -> "zh"
             "zh-TW" -> "zh-rTW"
+            "en-US" -> "en-rUS"
+            "en-GB" -> "en-rGB"
             else -> tag
         }
     }
