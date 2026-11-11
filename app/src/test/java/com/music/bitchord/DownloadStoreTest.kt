@@ -138,6 +138,32 @@ class DownloadStoreTest {
         assertEquals("xyz789.m4a", DownloadStore.fileNameFor(song("", "", "xyz789"), "m4a"))
     }
 
+    @Test
+    fun `an id with path characters in it cannot name a folder`() {
+        assertEquals("a b.m4a", DownloadStore.fileNameFor(song("", "", "a/b"), "m4a"))
+        assertEquals("track.m4a", DownloadStore.fileNameFor(song("", "", "///"), "m4a"))
+    }
+
+    @Test
+    fun `a long title is cut by bytes, so it still fits the filesystem`() {
+        val name = DownloadStore.fileNameFor(song("あ".repeat(300), "한".repeat(40)), "flac")
+        // 255 is the ceiling; a private download adds a leading dot and `.part`.
+        org.junit.Assert.assertTrue(name.toByteArray(Charsets.UTF_8).size + ".".length + ".part".length <= 255)
+        org.junit.Assert.assertTrue(name.endsWith(".flac"))
+        org.junit.Assert.assertTrue(name.length > 60)
+    }
+
+    @Test
+    fun `a cut never lands inside a character`() {
+        // Each note is a surrogate pair and four bytes.
+        val note = "🎵"
+        assertEquals(note.repeat(2), DownloadStore.limitBytes(note.repeat(5), 11))
+        assertEquals("ab", DownloadStore.limitBytes("abあ", 4))
+        assertEquals("abあ", DownloadStore.limitBytes("abあ", 5))
+        assertEquals("", DownloadStore.limitBytes("あ", 2))
+        assertEquals("short", DownloadStore.limitBytes("short", 200))
+    }
+
     // ---- What quality is kept ----------------------------------------------
 
     /**

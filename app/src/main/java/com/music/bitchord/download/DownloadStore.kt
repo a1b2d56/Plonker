@@ -91,8 +91,31 @@ object DownloadStore {
             artist.isEmpty() -> title
             title.isEmpty() -> artist
             else -> "$artist - $title"
-        }.ifEmpty { song.videoId }
-        return "${stem.take(MAX_STEM_CHARS).trimEnd()}.$extension"
+        }.ifEmpty { sanitise(song.videoId) }.ifEmpty { "track" }
+        return "${limitBytes(stem, MAX_STEM_BYTES).trimEnd()}.$extension"
+    }
+
+    /**
+     * [text] cut to at most [maxBytes] of UTF-8, never through the middle of a
+     * character. The filesystem's limit is in bytes, and a title in Japanese
+     * or Korean spends three of them on every character.
+     */
+    internal fun limitBytes(text: String, maxBytes: Int): String {
+        var bytes = 0
+        var end = 0
+        while (end < text.length) {
+            val codePoint = text.codePointAt(end)
+            val size = when {
+                codePoint < 0x80 -> 1
+                codePoint < 0x800 -> 2
+                codePoint < 0x10000 -> 3
+                else -> 4
+            }
+            if (bytes + size > maxBytes) break
+            bytes += size
+            end += Character.charCount(codePoint)
+        }
+        return text.substring(0, end)
     }
 
     /**
@@ -108,8 +131,11 @@ object DownloadStore {
     private val ILLEGAL = Regex("""[\\/:*?"<>|\x00-\x1F]""")
     private val WHITESPACE = Regex("""\s+""")
 
-    /** Long enough for anything real, short of the 255-byte filename ceiling. */
-    private const val MAX_STEM_CHARS = 120
+    /**
+     * Long enough for anything real, and short of the 255-byte filename
+     * ceiling with room left for the extension and a `.part` suffix.
+     */
+    private const val MAX_STEM_BYTES = 200
 
     /** What a file of some codec is called and what the store is told it is. */
     class Storable(val extension: String, val mimeType: String)

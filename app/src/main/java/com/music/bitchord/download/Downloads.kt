@@ -812,14 +812,20 @@ object Downloads {
         saved: (Map<String, String>) -> Map<String, String>,
         meta: (Map<String, SavedSongMetadata>) -> Map<String, SavedSongMetadata>,
     ) {
-        val savedMap = _saved.updateAndGet(saved)
-        val metaMap = _savedMetadata.updateAndGet(meta)
-        if (!::prefs.isInitialized) return
-        val payload = mapOf(
-            KEY_SAVED to json.encodeToString(serializer, savedMap),
-            KEY_SAVED_METADATA to json.encodeToString(metadataSerializer, metaMap),
-        )
-        indexWriter.submit(payload)
+        // The writer keeps whichever snapshot was submitted last, so taking
+        // the snapshot and submitting it have to be one step: two downloads
+        // finishing together could otherwise submit the older one second, and
+        // the newer track would be missing from disk until the next write.
+        synchronized(recordLock) {
+            val savedMap = _saved.updateAndGet(saved)
+            val metaMap = _savedMetadata.updateAndGet(meta)
+            if (!::prefs.isInitialized) return
+            val payload = mapOf(
+                KEY_SAVED to json.encodeToString(serializer, savedMap),
+                KEY_SAVED_METADATA to json.encodeToString(metadataSerializer, metaMap),
+            )
+            indexWriter.submit(payload)
+        }
     }
 
     private val recordLock = Any()

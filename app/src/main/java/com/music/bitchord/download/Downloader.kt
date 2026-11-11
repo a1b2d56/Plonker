@@ -117,6 +117,11 @@ object Downloader {
 
             response.use {
                 if (it.code !in 200..299) error("Download failed (HTTP ${it.code})")
+                // A plain 200 is the whole file from its first byte: a server
+                // or proxy that ignored the range. Past the first chunk that
+                // would write the opening of the track again at [position],
+                // and the result is the right length and unplayable.
+                if (it.code != 206 && position > 0) error("Download failed: the server ignored the requested range")
                 val body = it.body
                 val source = body.byteStream()
                 var readForChunk = 0L
