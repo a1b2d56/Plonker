@@ -150,6 +150,14 @@ object Downloads {
      */
     private val running = LinkedHashMap<String, Job?>()
 
+    /**
+     * The ids in [running] that [downloadNow] claimed rather than the service.
+     * They are not the service's to wait for or to give up: its workers go
+     * home without them, and its teardown leaves them running. Guarded by
+     * [lock].
+     */
+    private val batchClaims = HashSet<String>()
+
     fun init(context: Context) {
         prefs = context.getSharedPreferences("bitchord_settings", Context.MODE_PRIVATE)
         _saved.value = runCatching {
@@ -339,6 +347,7 @@ object Downloads {
                     false
                 } else {
                     running[id] = null
+                    batchClaims += id
                     true
                 }
             }
@@ -373,6 +382,7 @@ object Downloads {
         } finally {
             claimed.forEach { song ->
                 val id = song.videoId
+                synchronized(lock) { batchClaims -= id }
                 onIdle(id)
                 // A failure stays up to be read; a track this batch never got
                 // to the end of has nothing to report.
@@ -991,7 +1001,9 @@ object Downloads {
     }
 
     /** Whether anything is still queued or in flight — see [DownloadService]'s workers. */
-    internal fun busy(): Boolean = synchronized(lock) { pending.isNotEmpty() || running.isNotEmpty() }
+    internal fun busy(): Boolean = synchronized(lock) {
+        pending.isNotEmpty() || running.keys.any { it !in batchClaims }
+    }
 
     /**
      * The service is gone, so nothing is running any more.
@@ -1002,7 +1014,10 @@ object Downloads {
      * forever as already in flight.
      */
     internal fun onStopped() {
-        synchronized(lock) { running.clear() }
+        // Only the service's own claims. A playlist sync fetching in its own
+        // job has claims here too, and clearing those read to it as every one
+        // of its tracks having been called off by the listener.
+        synchronized(lock) { running.keys.retainAll(batchClaims) }
     }
 
     /**

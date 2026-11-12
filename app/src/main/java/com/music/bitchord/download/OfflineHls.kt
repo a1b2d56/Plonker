@@ -17,6 +17,34 @@ import java.io.File
  * plays the network stream, and therefore supports codecs MediaMuxer cannot
  * put in a fresh MP4 (notably FLAC and Dolby variants).
  */
+internal object OfflinePackage {
+    /** Where the package for [id] lives. The name is in every saved record, so it does not change. */
+    fun directory(context: Context, id: String): File =
+        File(File(context.filesDir, "offline-hls"), id.hashCode().toUInt().toString(16))
+
+    /**
+     * Builds a package in a directory beside [root] and puts it in [root]'s
+     * place only once [fill] has finished. A download that fails or is called
+     * off part-way therefore costs nothing: a copy saved earlier is still
+     * there, and still what its record points at.
+     */
+    inline fun replace(root: File, fill: (staging: File) -> Unit) {
+        val staging = File(root.parentFile, root.name + STAGING_SUFFIX)
+        staging.deleteRecursively()
+        if (!staging.mkdirs()) error("Could not create offline package")
+        try {
+            fill(staging)
+            root.deleteRecursively()
+            if (!staging.renameTo(root)) error("Could not finish offline package")
+        } catch (e: Throwable) {
+            staging.deleteRecursively()
+            throw e
+        }
+    }
+
+    const val STAGING_SUFFIX = ".part"
+}
+
 internal object OfflineHls {
     suspend fun save(
         context: Context,
@@ -27,10 +55,8 @@ internal object OfflineHls {
         lyrics: LyricsTag.Embeddable?,
         artwork: MediaTagger.Artwork?,
     ): Uri = withContext(Dispatchers.IO) {
-        val root = File(File(context.filesDir, "offline-hls"), id.hashCode().toUInt().toString(16))
-        root.deleteRecursively()
-        if (!root.mkdirs()) error("Could not create offline HLS package")
-        try {
+        val target = OfflinePackage.directory(context, id)
+        OfflinePackage.replace(target) { root ->
             fun request(target: String) = Request.Builder().url(target).apply {
                 headers.forEach { (name, value) -> header(name, value) }
             }.build()
@@ -70,10 +96,7 @@ internal object OfflineHls {
             File(root, "playlist.m3u8").writeText(localPlaylist)
             lyrics?.let { File(root, "lyrics.lrc").writeText(it.enhanced ?: it.plain.orEmpty()) }
             artwork?.let { File(root, "cover.${if (it.mime.contains("png")) "png" else "jpg"}").writeBytes(it.bytes) }
-            Uri.fromFile(File(root, "playlist.m3u8"))
-        } catch (e: Throwable) {
-            root.deleteRecursively()
-            throw e
         }
+        Uri.fromFile(File(target, "playlist.m3u8"))
     }
 }
