@@ -837,6 +837,7 @@
     <string name="listen_together_status_custom_online">Connesso al server personalizzato · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">Server personalizzato non raggiungibile · Riserva predefinita in uso (%1$d ms)</string>
     <string name="listen_together_status_all_offline">Sia il server personalizzato sia quello predefinito sono offline</string>
+    <string name="server_https_only">Questa versione si connette solo tramite https://. Usa un indirizzo https://.</string>
     <string name="listen_together_top_bar_fallback">Riserva · %1$s</string>
 
     <string name="vietnamese">Vietnamita</string>

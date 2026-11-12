@@ -752,6 +752,7 @@
     <string name="listen_together_status_custom_online">已连接到自定义服务器 · %1$d 毫秒</string>
     <string name="listen_together_status_custom_fallback">无法连接自定义服务器 · 正在使用默认备用（%1$d 毫秒）</string>
     <string name="listen_together_status_all_offline">自定义服务器和默认服务器均已离线</string>
+    <string name="server_https_only">此版本仅通过 https:// 连接。请使用 https:// 地址。</string>
     <string name="listen_together_top_bar_fallback">备用 · %1$s</string>
 
     <string name="vietnamese">越南语</string>

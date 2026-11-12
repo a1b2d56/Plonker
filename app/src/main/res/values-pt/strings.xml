@@ -777,6 +777,7 @@
     <string name="listen_together_status_custom_online">Conectado ao servidor personalizado · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">Servidor personalizado inacessível · Usando reserva padrão (%1$d ms)</string>
     <string name="listen_together_status_all_offline">O servidor personalizado e o padrão estão ambos offline</string>
+    <string name="server_https_only">Esta versão só se conecta por https://. Use um endereço https://.</string>
     <string name="listen_together_top_bar_fallback">Reserva · %1$s</string>
 
     <string name="vietnamese">Vietnamita</string>

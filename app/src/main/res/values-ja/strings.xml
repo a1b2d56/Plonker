@@ -752,6 +752,7 @@
     <string name="listen_together_status_custom_online">カスタムサーバーに接続中 · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">カスタムサーバーに接続できません · 既定のフォールバックを使用中（%1$d ms）</string>
     <string name="listen_together_status_all_offline">カスタムサーバーと既定のサーバーの両方がオフラインです</string>
+    <string name="server_https_only">このバージョンは https:// でのみ接続します。https:// のアドレスを使用してください。</string>
     <string name="listen_together_top_bar_fallback">フォールバック · %1$s</string>
 
     <string name="vietnamese">ベトナム語</string>

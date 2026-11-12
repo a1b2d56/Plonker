@@ -772,6 +772,7 @@
     <string name="listen_together_status_custom_online">Mit eigenem Server verbunden · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">Eigener Server nicht erreichbar · Standard-Fallback aktiv (%1$d ms)</string>
     <string name="listen_together_status_all_offline">Eigener Server und Standardserver sind beide offline</string>
+    <string name="server_https_only">Diese Version verbindet sich nur über https://. Verwende eine https://-Adresse.</string>
     <string name="listen_together_top_bar_fallback">Fallback · %1$s</string>
 
     <string name="vietnamese">Vietnamesisch</string>

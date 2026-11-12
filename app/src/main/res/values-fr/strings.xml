@@ -773,6 +773,7 @@
     <string name="listen_together_status_custom_online">Connecté au serveur personnalisé · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">Serveur personnalisé injoignable · Secours par défaut (%1$d ms)</string>
     <string name="listen_together_status_all_offline">Le serveur personnalisé et le serveur par défaut sont tous deux hors ligne</string>
+    <string name="server_https_only">Cette version ne se connecte qu’en https://. Utilisez une adresse https://.</string>
     <string name="listen_together_top_bar_fallback">Secours · %1$s</string>
 
     <string name="vietnamese">Vietnamien</string>
