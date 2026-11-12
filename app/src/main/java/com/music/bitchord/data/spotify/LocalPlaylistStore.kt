@@ -90,6 +90,12 @@ object LocalPlaylistStore {
         }
     }
 
+    /** Every playlist as one document, for a backup. */
+    fun exportJson(): String = encode(_playlists.value)
+
+    /** Replaces every playlist with [playlists], for a restore. */
+    fun replaceAll(playlists: List<LocalPlaylist>) = mutate { playlists }
+
     fun savePlaylist(title: String, songs: List<Song>): LocalPlaylist {
         lateinit var playlist: LocalPlaylist
         mutate { current ->
