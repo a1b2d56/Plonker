@@ -44,6 +44,9 @@ internal object SpotifyToken {
     private const val TAG = "SpotifyToken"
     private const val BRIDGE_NAME = "BitChordSpotifyTokenBridge"
     private const val HARVEST_TIMEOUT_MS = 20_000L
+
+    /** The origins the harvest loads, and so the only ones whose storage it may empty. */
+    private val SPOTIFY_ORIGINS = listOf("https://open.spotify.com", "https://accounts.spotify.com")
     private const val DEFAULT_TOKEN_LIFETIME_MS = 3_600_000L
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -142,9 +145,16 @@ internal object SpotifyToken {
         }
         // The player caches its token in web storage and skips a fresh
         // /api/token request if a live one is already sitting there, leaving
-        // the hook with nothing to see — wipe storage so every harvest forces
-        // a real mint.
-        runCatching { WebStorage.getInstance().deleteAllData() }
+        // the hook with nothing to see — so its storage is emptied before every
+        // harvest to force a real mint. Spotify's only: this used to be
+        // deleteAllData(), which also emptied the storage the YouTube Music and
+        // Discord sign-in pages keep in the same WebView profile. deleteOrigin
+        // takes the databases; local and session storage are cleared from
+        // inside the page by [HOOK_SCRIPT], which only ever runs on Spotify's
+        // own origin.
+        runCatching {
+            WebStorage.getInstance().let { storage -> SPOTIFY_ORIGINS.forEach(storage::deleteOrigin) }
+        }
 
         var webView: WebView? = null
         return try {
@@ -211,6 +221,12 @@ internal object SpotifyToken {
         (function () {
           if (window.__bitchordTokenHook) return;
           window.__bitchordTokenHook = true;
+          try {
+            if (/(^|\.)spotify\.com$/.test(location.hostname)) {
+              window.localStorage.clear();
+              window.sessionStorage.clear();
+            }
+          } catch (e) {}
           var report = function (body) {
             try { $BRIDGE_NAME.onTokenPayload(body); } catch (e) {}
           };
