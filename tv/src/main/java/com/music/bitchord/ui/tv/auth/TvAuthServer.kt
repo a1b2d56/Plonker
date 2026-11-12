@@ -141,6 +141,11 @@ object TvAuthServer {
                 }
 
                 var requestBody = ""
+                if (contentLength > 65_536) {
+                    writer.print("HTTP/1.1 413 Payload Too Large\r\n\r\n")
+                    writer.flush()
+                    return@Thread
+                }
                 if (contentLength > 0) {
                     val bodyChars = CharArray(contentLength)
                     var read = 0
@@ -149,7 +154,7 @@ object TvAuthServer {
                         if (count <= 0) break
                         read += count
                     }
-                    requestBody = String(bodyChars)
+                    requestBody = String(bodyChars, 0, read)
                 }
 
                 when {
@@ -262,7 +267,6 @@ object TvAuthServer {
     private fun sendJsonResponse(writer: PrintWriter, json: String) {
         writer.print("HTTP/1.1 200 OK\r\n")
         writer.print("Content-Type: application/json; charset=utf-8\r\n")
-        writer.print("Access-Control-Allow-Origin: *\r\n")
         writer.print("Content-Length: ${json.toByteArray().size}\r\n")
         writer.print("\r\n")
         writer.print(json)
@@ -450,10 +454,30 @@ function searchMusic() {
     items.forEach(item => {
       let div = document.createElement('div');
       div.className = 'result-item';
-      div.innerHTML = '<img class="result-thumb" src="' + (item.thumbnailUrl || '') + '" /><div class="result-text"><div class="result-title">' + item.title + '</div><div class="result-sub">' + item.subtitle + '</div></div>';
+      let img = document.createElement('img');
+      img.className = 'result-thumb';
+      img.src = item.thumbnailUrl || '';
+      let textDiv = document.createElement('div');
+      textDiv.className = 'result-text';
+      let titleDiv = document.createElement('div');
+      titleDiv.className = 'result-title';
+      titleDiv.textContent = item.title || '';
+      let subDiv = document.createElement('div');
+      subDiv.className = 'result-sub';
+      subDiv.textContent = item.subtitle || '';
+      textDiv.appendChild(titleDiv);
+      textDiv.appendChild(subDiv);
+      div.appendChild(img);
+      div.appendChild(textDiv);
       div.onclick = () => {
         fetch('/api/play?videoId=' + encodeURIComponent(item.videoId) + '&title=' + encodeURIComponent(item.title) + '&artist=' + encodeURIComponent(item.subtitle) + '&thumbnailUrl=' + encodeURIComponent(item.thumbnailUrl), { method: 'POST' });
-        container.innerHTML = '<div style="padding:10px;text-align:center;color:#00E5FF;">Playing ' + item.title + ' on TV!</div>';
+        container.textContent = '';
+        let msg = document.createElement('div');
+        msg.style.padding = '10px';
+        msg.style.textAlign = 'center';
+        msg.style.color = '#00E5FF';
+        msg.textContent = 'Playing ' + (item.title || '') + ' on TV!';
+        container.appendChild(msg);
       };
       container.appendChild(div);
     });
@@ -466,7 +490,9 @@ updateStatus();
 </html>
 """.trimIndent()
 
-    private fun getAuthHtml(error: String? = null): String = """
+    private fun getAuthHtml(error: String? = null): String {
+        val safeError = error?.replace("&", "&amp;")?.replace("<", "&lt;")?.replace(">", "&gt;")?.replace("\"", "&quot;")
+        return """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -508,7 +534,7 @@ textarea { width: 100%; height: 90px; background: rgba(0,0,0,0.5); border: 1px s
 <div class="card">
   <h2 style="font-size: 17px; font-weight: bold; margin-bottom: 8px;">Direct Session Submission</h2>
   <p style="font-size: 13px; color: #AAA; line-height: 1.4;">Paste your YouTube Music session cookie / headers to immediately log in on TV:</p>
-  ${if (error != null) "<div style='color:#FF375F;font-size:13px;margin-top:8px;'>$error</div>" else ""}
+  ${if (safeError != null) "<div style='color:#FF375F;font-size:13px;margin-top:8px;'>$safeError</div>" else ""}
   <form action="/submit" method="POST">
     <textarea name="cookie" placeholder="Paste SAPISID / Session Cookie here..."></textarea>
     <button type="submit" class="btn-primary">Connect Account to TV</button>
@@ -517,6 +543,7 @@ textarea { width: 100%; height: 90px; background: rgba(0,0,0,0.5); border: 1px s
 </body>
 </html>
 """.trimIndent()
+    }
 
     private fun getSuccessHtml(): String = """
 <!DOCTYPE html>

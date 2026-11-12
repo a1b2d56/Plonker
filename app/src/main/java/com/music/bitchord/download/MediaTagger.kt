@@ -349,6 +349,21 @@ object MediaTagger {
             // Both live under the app's own data directory, so this is a rename
             // within one filesystem and the file is never half-replaced.
             if (temp.renameTo(target)) return
+            val parent = target.parentFile ?: target
+            val tmp = File(parent, ".${target.name}.${System.nanoTime()}.tagtmp")
+            try {
+                temp.inputStream().use { source ->
+                    tmp.outputStream().use { sink ->
+                        source.copyTo(sink, COPY_BUFFER)
+                    }
+                }
+                if (tmp.renameTo(target)) {
+                    temp.delete()
+                    return
+                }
+            } finally {
+                tmp.delete()
+            }
         }
         temp.inputStream().use { source ->
             val sink = if (uri.scheme == "file") {
@@ -445,12 +460,24 @@ object MediaTagger {
     }.onFailure { Log.w(TAG, "could not read $uri for tagging: ${it.message}") }.getOrNull()
 
     private fun writeAll(context: Context, uri: Uri, bytes: ByteArray) {
-        runCatching {
-            if (uri.scheme == "file") {
-                File(requireNotNull(uri.path)).writeBytes(bytes)
-            } else {
-                context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+        if (uri.scheme == "file") {
+            val target = File(requireNotNull(uri.path))
+            val parent = target.parentFile ?: target
+            val tmp = File(parent, ".${target.name}.${System.nanoTime()}.tagtmp")
+            try {
+                tmp.writeBytes(bytes)
+                if (tmp.renameTo(target)) return
+                tmp.inputStream().use { input ->
+                    target.outputStream().use { output ->
+                        input.copyTo(output, COPY_BUFFER)
+                    }
+                }
+                return
+            } finally {
+                tmp.delete()
             }
-        }.onFailure { Log.w(TAG, "could not write tags to $uri: ${it.message}") }
+        }
+        context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+            ?: error("could not open $uri for writing tags")
     }
 }

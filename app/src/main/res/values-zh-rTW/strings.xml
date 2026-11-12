@@ -1445,4 +1445,9 @@
 
     <string name="english_gb">英文（英國）</string>
     <string name="english_us">英文（美國）</string>
+
+    <string name="playlist_create_failed">無法建立播放清單</string>
+    <string name="playlist_rename_failed">無法重新命名播放清單</string>
+    <string name="playlist_delete_failed">無法刪除播放清單</string>
+    <string name="playlist_update_failed">無法更新播放清單</string>
 </resources>

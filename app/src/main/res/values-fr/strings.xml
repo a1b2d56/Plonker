@@ -1469,4 +1469,9 @@
 
     <string name="english_gb">Anglais (Royaume-Uni)</string>
     <string name="english_us">Anglais (États-Unis)</string>
+
+    <string name="playlist_create_failed">Impossible de créer la playlist</string>
+    <string name="playlist_rename_failed">Impossible de renommer la playlist</string>
+    <string name="playlist_delete_failed">Impossible de supprimer la playlist</string>
+    <string name="playlist_update_failed">Impossible de mettre à jour la playlist</string>
 </resources>

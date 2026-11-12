@@ -1318,4 +1318,9 @@
 
     <string name="english_gb">영어 (영국)</string>
     <string name="english_us">영어 (미국)</string>
+
+    <string name="playlist_create_failed">재생목록을 만들지 못했습니다</string>
+    <string name="playlist_rename_failed">재생목록 이름을 바꾸지 못했습니다</string>
+    <string name="playlist_delete_failed">재생목록을 삭제하지 못했습니다</string>
+    <string name="playlist_update_failed">재생목록을 업데이트하지 못했습니다</string>
 </resources>

@@ -1440,4 +1440,9 @@
 
     <string name="english_gb">Inglés (Reino Unido)</string>
     <string name="english_us">Inglés (EE. UU.)</string>
+
+    <string name="playlist_create_failed">No se pudo crear la lista de reproducción</string>
+    <string name="playlist_rename_failed">No se pudo cambiar el nombre de la lista</string>
+    <string name="playlist_delete_failed">No se pudo eliminar la lista de reproducción</string>
+    <string name="playlist_update_failed">No se pudo actualizar la lista de reproducción</string>
 </resources>

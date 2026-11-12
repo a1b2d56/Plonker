@@ -142,7 +142,16 @@ object HiResMonochromeBackend {
         origins[packed] = origin
     }
 
-    fun originOf(packed: String): Origin? = origins[packed]
+    fun originOf(packed: String): Origin? {
+        origins[packed]?.let { return it }
+        if (packed.startsWith(PACK_PREFIX)) {
+            val id = packed.removePrefix(PACK_PREFIX)
+            if (id.isNotBlank()) {
+                return Origin(id, durationMs = null)
+            }
+        }
+        return null
+    }
 
     internal fun clearOrigins() {
         origins.clear()
@@ -277,6 +286,11 @@ object HiResMonochromeBackend {
         "orchestral", "piano",
     )
 
+    private val MODIFIER_REGEX = Regex(
+        """\b(?:${MODIFIERS.joinToString("|")})\b""",
+        RegexOption.IGNORE_CASE
+    )
+
     fun normalizeTitle(title: String): String {
         var t = title.replace(Regex("[áàäâã]"), "a")
             .replace(Regex("[éèëê]"), "e")
@@ -307,8 +321,7 @@ object HiResMonochromeBackend {
     }
 
     fun hasModifier(title: String): Boolean {
-        val lower = title.lowercase()
-        return MODIFIERS.any { it in lower }
+        return MODIFIER_REGEX.containsMatchIn(title)
     }
 
     /** A result is playable for a request when titles match and it adds no new modifier. */

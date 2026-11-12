@@ -138,6 +138,32 @@ class HiresDirectSourceTest {
     }
 
     @Test
+    fun `origins survive restart and cache clearing`() {
+        HiResMonochromeBackend.clearOrigins()
+        val origin = HiResMonochromeBackend.originOf("m:999888")
+        assertNotNull(origin)
+        assertEquals("999888", origin?.id)
+        assertNull(origin?.durationMs)
+    }
+
+    @Test
+    fun `hasModifier respects word boundaries and ignores embedded substrings`() {
+        // Words containing modifier substrings must NOT be treated as modifiers
+        assertTrue(!HiResMonochromeBackend.hasModifier("Alive"))
+        assertTrue(!HiResMonochromeBackend.hasModifier("Demons"))
+        assertTrue(!HiResMonochromeBackend.hasModifier("Credit"))
+        assertTrue(!HiResMonochromeBackend.hasModifier("Recovery"))
+        assertTrue(!HiResMonochromeBackend.hasModifier("Delivery"))
+
+        // Genuine modifiers MUST match
+        assertTrue(HiResMonochromeBackend.hasModifier("Creepin (Remix)"))
+        assertTrue(HiResMonochromeBackend.hasModifier("Song (Live at Wembley)"))
+        assertTrue(HiResMonochromeBackend.hasModifier("Acoustic Version"))
+        assertTrue(HiResMonochromeBackend.hasModifier("Track - Demo"))
+        assertTrue(HiResMonochromeBackend.hasModifier("Someone - Karaoke"))
+    }
+
+    @Test
     fun `health is ok when the catalogue answers`() = runBlocking {
         route("/search/tracks", """{"tracks":[]}""")
         assertTrue(source().health().isOk)
