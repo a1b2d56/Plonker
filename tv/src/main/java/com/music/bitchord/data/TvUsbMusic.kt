@@ -39,20 +39,32 @@ object TvUsbMusic {
         }.onFailure { Log.w(TAG, "Failed scanning /storage/ for USB drives: ${it.message}") }
 
         // Drives the app can reach through its own per-volume directories.
+        // The built-in volume is left to MediaStore, which already listed it.
         runCatching {
+            val primary = context.getExternalFilesDir(null)
             context.getExternalFilesDirs(null)?.forEach { externalDir ->
-                var root: File = externalDir ?: return@forEach
-                while (root.parentFile != null &&
-                    root.parentFile?.name != "storage" &&
-                    root.parentFile?.name != "Android"
-                ) {
-                    root = root.parentFile ?: break
-                }
+                if (externalDir == null || externalDir == primary) return@forEach
+                val root = volumeRootOf(externalDir) ?: return@forEach
                 if (root.canRead()) scan(context, root, songs, knownPaths, MAX_DEPTH)
             }
         }
 
         return songs.distinctBy { it.localPath ?: it.localUri ?: it.videoId }
+    }
+
+    /**
+     * The volume a per-app directory sits on: the folder that holds its
+     * `Android` directory. For `/storage/1A2B-3C4D/Android/data/<app>/files`
+     * that is `/storage/1A2B-3C4D`. Stopping one level short, at
+     * `Android/data`, rescanned the app's own folders and none of the music.
+     */
+    internal fun volumeRootOf(dir: File): File? {
+        var current: File? = dir
+        while (current != null) {
+            if (current.name == "Android") return current.parentFile
+            current = current.parentFile
+        }
+        return null
     }
 
     private fun scan(
@@ -68,7 +80,14 @@ object TvUsbMusic {
             if (file.isDirectory) {
                 scan(context, file, results, knownPaths, maxDepth - 1)
             } else if (file.isFile && file.extension.lowercase(Locale.ROOT) in audioExtensions) {
-                if (knownPaths.add(file.absolutePath)) {
+                // The same file can be reached under more than one name
+                // (`/storage/self/primary` is `/storage/emulated/0`), so it is
+                // known by where it really is as well as how it was reached.
+                val absolute = file.absolutePath
+                val real = runCatching { file.canonicalPath }.getOrDefault(absolute)
+                val newReal = knownPaths.add(real)
+                val newAbsolute = real == absolute || knownPaths.add(absolute)
+                if (newReal && newAbsolute) {
                     results.add(songFromFile(context, file))
                 }
             }
