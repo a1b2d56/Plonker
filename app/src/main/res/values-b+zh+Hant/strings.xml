@@ -751,6 +751,7 @@
     <string name="listen_together_status_custom_online">已連線到自定義伺服器 · %1$d 毫秒</string>
     <string name="listen_together_status_custom_fallback">無法連線自定義伺服器 · 正在使用預設備用（%1$d 毫秒）</string>
     <string name="listen_together_status_all_offline">自定義伺服器和預設伺服器均已離線</string>
+    <string name="server_https_only">此版本僅透過 https:// 連線。請使用 https:// 位址。</string>
     <string name="listen_together_top_bar_fallback">備用 · %1$s</string>
 
     <string name="vietnamese">越南語</string>

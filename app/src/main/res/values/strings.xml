@@ -1059,6 +1059,7 @@
     <string name="listen_together_status_custom_online">Connected to custom server · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">Custom server unreachable · Using default fallback (%1$d ms)</string>
     <string name="listen_together_status_all_offline">Both custom server and default server are offline</string>
+    <string name="server_https_only">This build only connects over https://. Use an https:// address.</string>
     <string name="listen_together_top_bar_fallback">Fallback · %1$s</string>
 
     <string name="vietnamese">Vietnamese</string>

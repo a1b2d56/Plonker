@@ -808,6 +808,7 @@
     <string name="listen_together_status_custom_online">Połączono z własnym serwerem · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">Własny serwer niedostępny · Używany domyślny zapasowy (%1$d ms)</string>
     <string name="listen_together_status_all_offline">Zarówno własny, jak i domyślny serwer są offline</string>
+    <string name="server_https_only">Ta wersja łączy się tylko przez https://. Użyj adresu https://.</string>
     <string name="listen_together_top_bar_fallback">Zapasowy · %1$s</string>
 
     <string name="vietnamese">Wietnamski</string>

@@ -802,6 +802,7 @@
     <string name="listen_together_status_custom_online">Conectado al servidor personalizado · %1$d ms</string>
     <string name="listen_together_status_custom_fallback">Servidor personalizado inaccesible · Usando respaldo predeterminado (%1$d ms)</string>
     <string name="listen_together_status_all_offline">El servidor personalizado y el predeterminado están desconectados</string>
+    <string name="server_https_only">Esta versión solo se conecta por https://. Usa una dirección https://.</string>
     <string name="listen_together_top_bar_fallback">Respaldo · %1$s</string>
 
     <string name="vietnamese">Vietnamita</string>

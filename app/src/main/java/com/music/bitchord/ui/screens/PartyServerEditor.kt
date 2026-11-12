@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.data.Cleartext
 import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -57,7 +58,9 @@ fun PartyServerEditor(hazeState: HazeState, onDismiss: () -> Unit) {
             is ServerUrlValidationResult.Invalid ->
                 status = context.getString(validation.error.toMessageRes()) to false
 
-            is ServerUrlValidationResult.Valid -> {
+            is ServerUrlValidationResult.Valid -> if (Cleartext.blocked(validation.normalizedUrl)) {
+                status = context.getString(R.string.server_https_only) to false
+            } else {
                 busy = true
                 status = null
                 scope.launch {
@@ -127,7 +130,9 @@ fun PartyServerEditor(hazeState: HazeState, onDismiss: () -> Unit) {
                 is ServerUrlValidationResult.Invalid ->
                     status = context.getString(validation.error.toMessageRes()) to false
 
-                is ServerUrlValidationResult.Valid -> {
+                is ServerUrlValidationResult.Valid -> if (Cleartext.blocked(validation.normalizedUrl)) {
+                    status = context.getString(R.string.server_https_only) to false
+                } else {
                     busy = true
                     status = null
                     scope.launch {
