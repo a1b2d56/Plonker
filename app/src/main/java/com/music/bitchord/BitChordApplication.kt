@@ -120,18 +120,6 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
             // seconds of video from the network on every loop.
             CanvasCache.init(this)
             com.music.bitchord.ui.components.backdrop.GlassShaderWarmup.warmUp()
-            runCatching {
-                val cutoff = System.currentTimeMillis() - 24L * 3600_000L
-                cacheDir.listFiles()?.forEach { file ->
-                    if (!file.isFile) return@forEach
-                    val name = file.name
-                    val stray = name.startsWith("tagging-") ||
-                        name.startsWith("manifest-") ||
-                        name.startsWith("webdav-upload") ||
-                        name.endsWith(".tmp")
-                    if (stray && file.lastModified() < cutoff) file.delete()
-                }
-            }
         }
         // Migration-safe: an old single cookie becomes the first encrypted
         // session, while newer installs restore the profile the listener chose.
@@ -203,10 +191,30 @@ class BitChordApplication : Application(), SingletonImageLoader.Factory, Configu
         // update is what made the whole folder disappear overnight whenever a
         // new build was installed. A build that really does change its keys or
         // its bytes says so through AudioCache's own cache format instead.
-        if (AppSettings.consumeVersionUpdate(BuildConfig.VERSION_CODE)) {
-            SingletonImageLoader.get(this).let { loader ->
-                loader.memoryCache?.clear()
-                loader.diskCache?.clear()
+        val clearImageCache = AppSettings.consumeVersionUpdate(BuildConfig.VERSION_CODE)
+        // Housekeeping nothing waits for, so it is not joined below: emptying a
+        // full image cache is thousands of file deletes, and doing that on the
+        // main thread held the first frame back by however long the disk took.
+        thread(name = "startup-cleanup", isDaemon = true) {
+            if (clearImageCache) {
+                runCatching {
+                    SingletonImageLoader.get(this).let { loader ->
+                        loader.memoryCache?.clear()
+                        loader.diskCache?.clear()
+                    }
+                }
+            }
+            runCatching {
+                val cutoff = System.currentTimeMillis() - 24L * 3600_000L
+                cacheDir.listFiles()?.forEach { file ->
+                    if (!file.isFile) return@forEach
+                    val name = file.name
+                    val stray = name.startsWith("tagging-") ||
+                        name.startsWith("manifest-") ||
+                        name.startsWith("webdav-upload") ||
+                        name.endsWith(".tmp")
+                    if (stray && file.lastModified() < cutoff) file.delete()
+                }
             }
         }
         // Initialize LastFM with saved settings if available
