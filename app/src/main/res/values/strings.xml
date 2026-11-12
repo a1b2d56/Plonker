@@ -1415,4 +1415,9 @@
         
     <string name="english_gb">English (GB)</string>
     <string name="english_us">English (US)</string>
+
+    <string name="playlist_create_failed">Couldn\'t create playlist</string>
+    <string name="playlist_rename_failed">Couldn\'t rename playlist</string>
+    <string name="playlist_delete_failed">Couldn\'t delete playlist</string>
+    <string name="playlist_update_failed">Couldn\'t update playlist</string>
 </resources>

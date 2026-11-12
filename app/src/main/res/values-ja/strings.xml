@@ -1446,4 +1446,9 @@
 
     <string name="english_gb">英語 (イギリス)</string>
     <string name="english_us">英語 (アメリカ)</string>
+
+    <string name="playlist_create_failed">プレイリストを作成できませんでした</string>
+    <string name="playlist_rename_failed">プレイリストの名前を変更できませんでした</string>
+    <string name="playlist_delete_failed">プレイリストを削除できませんでした</string>
+    <string name="playlist_update_failed">プレイリストを更新できませんでした</string>
 </resources>

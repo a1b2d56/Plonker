@@ -1143,7 +1143,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         ) + items.filterNot { it.browseId == created.browseId }
                     }
                 },
-                onFailure = {},
+                onFailure = {
+                    toast(R.string.playlist_create_failed)
+                },
             )
         }
     }
@@ -1234,7 +1236,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     } }
                 },
-                onFailure = {},
+                onFailure = {
+                    toast(R.string.playlist_update_failed)
+                },
             )
         }
     }
@@ -1275,7 +1279,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     } }
                     appendToOpenPlaylist(browseId, song, added[song.videoId])
                 },
-                onFailure = {},
+                onFailure = {
+                    toast(R.string.playlist_update_failed)
+                },
             )
         }
     }
@@ -1334,7 +1340,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     setPlaylistTitle(playlist, name)
                     libraryStale = true
                 },
-                onFailure = {},
+                onFailure = {
+                    toast(R.string.playlist_rename_failed)
+                },
             )
         }
     }
@@ -1405,7 +1413,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     navigator.onDetailStackShrunk(_detailStack.value.size)
                     libraryStale = true
                 },
-                onFailure = {},
+                onFailure = {
+                    toast(R.string.playlist_delete_failed)
+                },
             )
         }
     }
@@ -3671,7 +3681,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _playlistOwned.value = emptyMap()
         ownershipInFlight.clear()
         _songMenu.value = null
+        _detailStack.value = emptyList()
+        navigator.onDetailStackShrunk(0)
         loadHome()
+    }
+
+    private fun toast(resId: Int) {
+        viewModelScope.launch(Dispatchers.Main) {
+            android.widget.Toast.makeText(getApplication(), resId, android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun Throwable.friendly(): String = when {

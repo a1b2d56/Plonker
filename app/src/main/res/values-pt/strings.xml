@@ -1473,4 +1473,9 @@
 
     <string name="english_gb">Inglês (Reino Unido)</string>
     <string name="english_us">Inglês (Estados Unidos)</string>
+
+    <string name="playlist_create_failed">Não foi possível criar a playlist</string>
+    <string name="playlist_rename_failed">Não foi possível renomear a playlist</string>
+    <string name="playlist_delete_failed">Não foi possível excluir a playlist</string>
+    <string name="playlist_update_failed">Não foi possível atualizar a playlist</string>
 </resources>

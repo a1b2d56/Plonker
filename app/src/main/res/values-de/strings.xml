@@ -1468,4 +1468,9 @@
 
     <string name="english_gb">Englisch (Großbritannien)</string>
     <string name="english_us">Englisch (USA)</string>
+
+    <string name="playlist_create_failed">Playlist konnte nicht erstellt werden</string>
+    <string name="playlist_rename_failed">Playlist konnte nicht umbenannt werden</string>
+    <string name="playlist_delete_failed">Playlist konnte nicht gelöscht werden</string>
+    <string name="playlist_update_failed">Playlist konnte nicht aktualisiert werden</string>
 </resources>

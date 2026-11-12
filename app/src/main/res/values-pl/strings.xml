@@ -1508,4 +1508,9 @@
 
     <string name="english_gb">Angielski (Wielka Brytania)</string>
     <string name="english_us">Angielski (Stany Zjednoczone)</string>
+
+    <string name="playlist_create_failed">Nie udało się utworzyć playlisty</string>
+    <string name="playlist_rename_failed">Nie udało się zmienić nazwy playlisty</string>
+    <string name="playlist_delete_failed">Nie udało się usunąć playlisty</string>
+    <string name="playlist_update_failed">Nie udało się zaktualizować playlisty</string>
 </resources>

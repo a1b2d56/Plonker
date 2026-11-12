@@ -19,6 +19,7 @@ import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.playback.AudioCache
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -474,7 +475,7 @@ object Downloads {
 
 
     /** Delete the file saved for [videoId] and forget it. */
-    suspend fun delete(context: Context, videoId: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun delete(context: Context, videoId: String): Boolean = withContext(NonCancellable + Dispatchers.IO) {
         val uri = _saved.value[videoId]?.toUri() ?: return@withContext false
         val deleted = DownloadStore.delete(context, uri)
         forget(videoId)
