@@ -6,9 +6,9 @@ import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.model.SearchFilter
 import com.music.bitchord.data.model.SearchResult
 import com.music.bitchord.data.model.Song
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -20,7 +20,6 @@ import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
-import java.util.concurrent.atomic.AtomicBoolean
 
 data class TvRemoteStatus(
     val isPlaying: Boolean,
@@ -36,11 +35,13 @@ object TvAuthServer {
     private const val TAG = "TvAuthServer"
     private const val DEFAULT_PORT = 8765
 
+    /** Guards [serverSocket]: [start] runs on an IO thread, [stop] on whichever thread closes the dialog. */
+    private val lock = Any()
     private var serverSocket: ServerSocket? = null
-    private val isRunning = AtomicBoolean(false)
-    private val scope = CoroutineScope(Dispatchers.IO)
 
-    // Remote callbacks
+    // Remote callbacks. Nothing in the app assigns these yet, and until
+    // something does the remote's page and endpoints answer 404 — see
+    // [remoteAvailable].
     var statusProvider: (() -> TvRemoteStatus)? = null
     var onPlayPauseAction: (() -> Unit)? = null
     var onNextAction: (() -> Unit)? = null
@@ -48,6 +49,17 @@ object TvAuthServer {
     var onSeekAction: ((Long) -> Unit)? = null
     var onPlaySongAction: ((Song) -> Unit)? = null
     var onKeyAction: ((String) -> Unit)? = null
+
+    /**
+     * Whether the phone remote has anything to drive. Without a status
+     * provider and at least the transport wired up, its page would be a set of
+     * buttons that answer "success" and do nothing.
+     */
+    internal val remoteAvailable: Boolean
+        get() = statusProvider != null && onPlayPauseAction != null
+
+    /** The paths that belong to the phone remote rather than to sign-in. */
+    internal fun isRemotePath(path: String): Boolean = path == "/remote" || path.startsWith("/api/")
 
     fun getLocalIpAddress(): String? {
         try {
@@ -87,20 +99,28 @@ object TvAuthServer {
             } catch (_: Exception) {
                 ServerSocket(0)
             }
-            serverSocket = socket
-            isRunning.set(true)
+            // The dialog closed while the port was being opened. Its stop()
+            // has already run and found nothing, so this socket is nobody's:
+            // close it here rather than leave it listening with no owner.
+            if (!isActive) {
+                runCatching { socket.close() }
+                return@withContext null
+            }
+            synchronized(lock) { serverSocket = socket }
             val port = socket.localPort
 
-            Thread {
-                while (isRunning.get() && !socket.isClosed) {
+            // Each accept loop lives and dies with its own socket, not with a
+            // flag the next start() would set again underneath it.
+            Thread({
+                while (!socket.isClosed) {
                     try {
                         val client = socket.accept()
                         handleClient(client, onCookieReceived)
                     } catch (e: Exception) {
-                        if (!isRunning.get()) break
+                        if (socket.isClosed) break
                     }
                 }
-            }.start()
+            }, "tv-auth-accept").apply { isDaemon = true }.start()
 
             Pair(port, ip)
         } catch (e: Exception) {
@@ -110,11 +130,10 @@ object TvAuthServer {
     }
 
     fun stop() {
-        isRunning.set(false)
+        val socket = synchronized(lock) { serverSocket.also { serverSocket = null } }
         try {
-            serverSocket?.close()
+            socket?.close()
         } catch (_: Exception) {}
-        serverSocket = null
     }
 
     private fun handleClient(client: Socket, onCookieReceived: ((String) -> Unit)?) {
@@ -158,6 +177,12 @@ object TvAuthServer {
                 }
 
                 when {
+                    // 0. The remote, while nothing is wired to it.
+                    isRemotePath(path) && !remoteAvailable -> {
+                        writer.print("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+                        writer.flush()
+                    }
+
                     // 1. API: Get Current Status
                     path == "/api/status" -> {
                         val status = statusProvider?.invoke() ?: TvRemoteStatus(false, "No Song Playing", "BitChord TV", null, 0, 0)
@@ -201,7 +226,10 @@ object TvAuthServer {
                         if (q.isBlank()) {
                             sendJsonResponse(writer, "[]")
                         } else {
-                            scope.launch {
+                            // On this client's own thread: launched elsewhere,
+                            // the answer was written after the `finally` below
+                            // had already closed the connection.
+                            runBlocking {
                                 val results = YtMusicRepository.search(q, SearchFilter.SONGS).getOrDefault(emptyList())
                                 val arr = JSONArray()
                                 results.take(15).forEach { item ->
@@ -562,10 +590,18 @@ body { background: #08080B; color: #FFF; font-family: -apple-system, sans-serif;
 <div class="card">
   <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
   <h1 style="font-size: 22px; font-weight: bold; margin-bottom: 8px;">Paired Successfully!</h1>
-  <p style="font-size: 14px; color: #AAA;">Your BitChord TV is now connected. You can now use the mobile remote to control playback.</p>
-  <a href="/remote" class="btn">📱 Open TV Remote</a>
+  <p style="font-size: 14px; color: #AAA;">Your BitChord TV is now connected. @@REMOTE_NOTE@@</p>
+  @@REMOTE_LINK@@
 </div>
 </body>
 </html>
 """.trimIndent()
+        .replace(
+            "@@REMOTE_NOTE@@",
+            if (remoteAvailable) "You can now use the mobile remote to control playback." else "You can close this page.",
+        )
+        .replace(
+            "@@REMOTE_LINK@@",
+            if (remoteAvailable) "<a href=\"/remote\" class=\"btn\">📱 Open TV Remote</a>" else "",
+        )
 }
