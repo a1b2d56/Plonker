@@ -12,6 +12,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,6 +78,13 @@ interface RecognitionHistoryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: RecognitionHistoryEntry): Long
 
+    /** Newest first, once. */
+    @Query("SELECT * FROM recognition_history ORDER BY recognized_at DESC, id DESC")
+    suspend fun all(): List<RecognitionHistoryEntry>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(entries: List<RecognitionHistoryEntry>)
+
     @Query("DELETE FROM recognition_history WHERE id = :id")
     suspend fun delete(id: Long)
 
@@ -109,15 +117,32 @@ object RecognitionHistory {
     @Volatile
     private var database: RecognitionDatabase? = null
 
-    private fun dao(context: Context): RecognitionHistoryDao {
-        val db = database ?: synchronized(this) {
+    private fun database(context: Context): RecognitionDatabase =
+        database ?: synchronized(this) {
             database ?: Room.databaseBuilder(
                 context.applicationContext,
                 RecognitionDatabase::class.java,
                 "recognition_history.db",
             ).build().also { database = it }
         }
-        return db.history()
+
+    private fun dao(context: Context): RecognitionHistoryDao = database(context).history()
+
+    /** Every entry, newest first, for a backup. */
+    suspend fun exportAll(context: Context): List<RecognitionHistoryEntry> =
+        runCatching { dao(context).all() }.getOrDefault(emptyList())
+
+    /** Replaces the whole list with [entries], for a restore: all of it or none of it. */
+    suspend fun replaceAll(context: Context, entries: List<RecognitionHistoryEntry>) {
+        val db = database(context)
+        db.withTransaction {
+            db.history().clear()
+            // Row ids belong to the device that wrote them; the track key is
+            // what identifies a song.
+            db.history().insertAll(
+                entries.sortedByDescending { it.recognizedAt }.take(MAX_ENTRIES).map { it.copy(id = 0) },
+            )
+        }
     }
 
     fun entries(context: Context): Flow<List<RecognitionHistoryEntry>> = dao(context).observeAll()

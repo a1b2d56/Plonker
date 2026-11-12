@@ -3,6 +3,10 @@ package com.music.bitchord.data.stats
 import android.content.Context
 import android.net.Uri
 import com.music.bitchord.BuildConfig
+import com.music.bitchord.data.OfflinePlaylists
+import com.music.bitchord.data.spotify.LocalPlaylistStore
+import com.music.bitchord.recognition.RecognitionHistory
+import com.music.bitchord.recognition.RecognitionHistoryEntry
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.SearchHistory
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +74,9 @@ object Backup {
                     PrefValue.of(value)?.let { key to it }
                 }.toMap(),
                 listening = buckets,
+                localPlaylists = LocalPlaylistStore.exportJson(),
+                offlinePlaylists = OfflinePlaylists.exportJson(),
+                recognised = RecognitionHistory.exportAll(context).map(Recognised::of),
             )
             val text = json.encodeToString(BackupFile.serializer(), file)
             context.contentResolver.openOutputStream(target, "wt")
@@ -90,7 +97,7 @@ object Backup {
     suspend fun importFrom(context: Context, source: Uri): Result<Summary> = withContext(Dispatchers.IO) {
         runCatching {
             val text = context.contentResolver.openInputStream(source)
-                ?.use { it.readBytes().decodeToString() }
+                ?.use(::readCapped)
                 ?: error("Couldn't open that file")
             val file = runCatching { json.decodeFromString(BackupFile.serializer(), text) }
                 .getOrElse { error("That doesn't look like a BitChord backup") }
@@ -99,11 +106,27 @@ object Backup {
                 "That backup was written by a newer version of BitChord"
             }
 
-            ListeningStats.importAll(file.listening)
+            // Read before anything is replaced, for the same reason: a
+            // playlist document that can't be read refuses the whole file. A
+            // backup from before these were carried has none, and leaves what
+            // this device holds alone.
+            val localPlaylists = file.localPlaylists?.let {
+                LocalPlaylistStore.parse(it) ?: error("That backup's playlists can't be read")
+            }
+            val offlinePlaylists = file.offlinePlaylists?.let {
+                OfflinePlaylists.parse(it) ?: error("That backup's playlists can't be read")
+            }
+
+            check(ListeningStats.importAll(file.listening)) { "Couldn't write the listening history" }
             AppSettings.importPrefs(file.settings.mapValues { it.value.decoded() })
             // Shares AppSettings' preference file, so it has already been
             // overwritten by the line above — it just doesn't know yet.
             SearchHistory.reload()
+            localPlaylists?.let(LocalPlaylistStore::replaceAll)
+            offlinePlaylists?.let(OfflinePlaylists::replaceAll)
+            file.recognised?.let { songs ->
+                RecognitionHistory.replaceAll(context, songs.map(Recognised::entry))
+            }
             Summary(
                 months = file.listening.size,
                 settings = file.settings.size,
@@ -112,6 +135,27 @@ object Backup {
             )
         }
     }
+
+    /**
+     * The whole of [input] as text, refusing one too large to be a backup: the
+     * file is whatever the picker was pointed at, and reading a video into
+     * memory to find that out is a crash rather than an error message.
+     */
+    private fun readCapped(input: java.io.InputStream): String {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        var total = 0L
+        while (true) {
+            val read = input.read(buffer)
+            if (read < 0) break
+            total += read
+            require(total <= MAX_BACKUP_BYTES) { "That file is too large to be a BitChord backup" }
+            out.write(buffer, 0, read)
+        }
+        return out.toString("UTF-8")
+    }
+
+    private const val MAX_BACKUP_BYTES = 64L * 1024 * 1024
 
     /** What an import turned out to contain, for the line shown afterwards. */
     data class Summary(
@@ -139,7 +183,53 @@ object Backup {
         val exportedAt: String = "",
         val settings: Map<String, PrefValue> = emptyMap(),
         val listening: List<StoredBucket> = emptyList(),
+        /**
+         * The playlists imported from Spotify and the ones made of files on
+         * the device, each as the document its own store keeps, and the songs
+         * identified. Null in a backup written before these were carried,
+         * which an import reads as "nothing to say" rather than "none".
+         */
+        val localPlaylists: String? = null,
+        val offlinePlaylists: String? = null,
+        val recognised: List<Recognised>? = null,
     )
+
+    /** One identified song, as [RecognitionHistoryEntry] keeps it. */
+    @Serializable
+    data class Recognised(
+        val trackKey: String,
+        val title: String,
+        val artist: String,
+        val album: String? = null,
+        val artworkUrl: String? = null,
+        val videoId: String? = null,
+        val browseId: String? = null,
+        val recognizedAt: Long = 0,
+    ) {
+        fun entry() = RecognitionHistoryEntry(
+            trackKey = trackKey,
+            title = title,
+            artist = artist,
+            album = album,
+            artworkUrl = artworkUrl,
+            videoId = videoId,
+            browseId = browseId,
+            recognizedAt = recognizedAt,
+        )
+
+        companion object {
+            fun of(entry: RecognitionHistoryEntry) = Recognised(
+                trackKey = entry.trackKey,
+                title = entry.title,
+                artist = entry.artist,
+                album = entry.album,
+                artworkUrl = entry.artworkUrl,
+                videoId = entry.videoId,
+                browseId = entry.browseId,
+                recognizedAt = entry.recognizedAt,
+            )
+        }
+    }
 
     /** One preference, with the type it has to be restored as. */
     @Serializable

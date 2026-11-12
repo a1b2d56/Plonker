@@ -237,20 +237,30 @@ object OfflinePlaylists {
 
     private fun persist(list: List<OfflinePlaylist>) {
         runCatching {
-            val array = JSONArray()
-            list.forEach { playlist ->
-                val songs = JSONArray()
-                playlist.songs.forEach { songs.put(it.toJson()) }
-                array.put(
-                    JSONObject()
-                        .put("id", playlist.id)
-                        .put("title", playlist.title)
-                        .put("songs", songs),
-                )
-            }
-            prefs.edit().putString(KEY_PLAYLISTS, array.toString()).apply()
+            prefs.edit().putString(KEY_PLAYLISTS, encode(list)).apply()
         }.onFailure { DebugLog.w("BitChord", "Offline playlists not saved: ${it.message}") }
     }
+
+    internal fun encode(list: List<OfflinePlaylist>): String {
+        val array = JSONArray()
+        list.forEach { playlist ->
+            val songs = JSONArray()
+            playlist.songs.forEach { songs.put(it.toJson()) }
+            array.put(
+                JSONObject()
+                    .put("id", playlist.id)
+                    .put("title", playlist.title)
+                    .put("songs", songs),
+            )
+        }
+        return array.toString()
+    }
+
+    /** Every playlist as one document, for a backup. */
+    fun exportJson(): String = encode(_playlists.value)
+
+    /** Replaces every playlist with [list], for a restore. Liked stays first, and present. */
+    fun replaceAll(list: List<OfflinePlaylist>) = mutate { list }
 
     private fun Song.toJson(): JSONObject = JSONObject().apply {
         put("videoId", videoId)

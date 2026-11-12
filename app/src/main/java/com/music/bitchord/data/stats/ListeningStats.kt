@@ -95,6 +95,10 @@ object ListeningStats {
     @Volatile
     private var version = 0L
 
+    /** Counts imports; a write queued under an earlier one is dropped. See [write]. */
+    @Volatile
+    private var epoch = 0
+
     /** The last summary handed out, and what it was computed from. */
     private var cached: Cached? = null
 
@@ -244,12 +248,14 @@ object ListeningStats {
      * than re-serialising a month every time a track ticks over.
      */
     fun flush() {
-        pending()?.let { (key, snapshot) -> writer.launch { write(key, snapshot) } }
+        val at = epoch
+        pending()?.let { (key, snapshot) -> writer.launch { write(key, snapshot, at) } }
     }
 
     /** As [flush], for a caller that is about to read back what it wrote. */
     private suspend fun flushAndAwait() {
-        pending()?.let { (key, snapshot) -> writer.launch { write(key, snapshot) }.join() }
+        val at = epoch
+        pending()?.let { (key, snapshot) -> writer.launch { write(key, snapshot, at) }.join() }
     }
 
     /** The open month as bytes-to-be, or null when nothing has changed. */
@@ -275,7 +281,10 @@ object ListeningStats {
      * Written aside and renamed, so a kill mid-write leaves the previous
      * month rather than a truncated one.
      */
-    private suspend fun write(key: String, snapshot: StoredBucket) = writeLock.withLock {
+    private suspend fun write(key: String, snapshot: StoredBucket, at: Int) = writeLock.withLock {
+        // Taken before an import replaced everything: writing it now would put
+        // a month of the old history back over the restored one.
+        if (at != epoch) return@withLock
         runCatching {
             directory.mkdirs()
             val file = File(directory, "$key.json")
@@ -298,7 +307,8 @@ object ListeningStats {
         // has to reach disk before it is dropped on the floor.
         open?.let { previous ->
             val stale = previous.snapshot()
-            writer.launch { write(previous.key, stale) }
+            val at = epoch
+            writer.launch { write(previous.key, stale, at) }
         }
         val loaded = read(key) ?: StoredBucket(month = key)
         return OpenBucket.of(key, loaded).also {
@@ -441,24 +451,46 @@ object ListeningStats {
      * onto a new device, and two copies of the same month added together would
      * silently double every number on the page with no way to tell afterwards.
      */
-    fun importAll(buckets: List<StoredBucket>) {
-        if (!ready) return
-        synchronized(lock) {
-            open = null
-            dirty = false
-            directory.listFiles()?.forEach { it.delete() }
-            directory.mkdirs()
-            version++
-            cached = null
-            buckets.forEach { bucket ->
+    suspend fun importAll(buckets: List<StoredBucket>): Boolean {
+        if (!ready) return false
+        // Every month is written out beside the real directory first. Only
+        // when all of them are on disk is anything that exists touched, so a
+        // full disk or a kill part-way leaves the old history whole.
+        val staging = File(directory.parentFile, directory.name + ".import")
+        staging.deleteRecursively()
+        val staged = runCatching {
+            staging.mkdirs()
+            buckets.mapNotNull { bucket ->
                 val key = runCatching { YearMonth.parse(bucket.month).toString() }.getOrNull()
-                    ?: return@forEach
-                runCatching {
-                    File(directory, "$key.json")
-                        .writeText(json.encodeToString(StoredBucket.serializer(), bucket))
-                }.onFailure { Log.w(TAG, "Could not import bucket $key", it) }
+                    ?: return@mapNotNull null
+                File(staging, "$key.json").also {
+                    it.writeText(json.encodeToString(StoredBucket.serializer(), bucket))
+                }
+            }
+        }.getOrElse {
+            Log.w(TAG, "Could not stage the listening import", it)
+            staging.deleteRecursively()
+            return false
+        }
+        // Under the writer's lock as well as the state's, so a flush already
+        // in progress finishes before the swap rather than landing on top of it.
+        writeLock.withLock {
+            synchronized(lock) {
+                epoch++
+                open = null
+                dirty = false
+                directory.listFiles()?.forEach { it.delete() }
+                directory.mkdirs()
+                staged.forEach { file ->
+                    val target = File(directory, file.name)
+                    if (!file.renameTo(target)) file.copyTo(target, overwrite = true)
+                }
+                version++
+                cached = null
             }
         }
+        staging.deleteRecursively()
+        return true
     }
 
     // ── Shapes ──────────────────────────────────────────────────────────────
