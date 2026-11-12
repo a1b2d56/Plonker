@@ -89,6 +89,7 @@ import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.TvPinThrottle
 import com.music.bitchord.data.settings.TvSettings
 import kotlin.math.ceil
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import com.music.bitchord.ui.MainViewModel
 import com.music.bitchord.ui.configureTvSignInWebView
@@ -1030,13 +1031,18 @@ private fun TvPinDialog(
 private fun TvPhoneSignIn(viewModel: MainViewModel, onBack: () -> Unit) {
     var url by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
-    DisposableEffect(Unit) {
-        scope.launch {
+    // One coroutine owns the server from start to stop. As two (a launch and
+    // an onDispose), closing the dialog while the port was still being opened
+    // ran stop() first and left the server that then came up listening.
+    LaunchedEffect(Unit) {
+        try {
             TvAuthServer.start { cookie ->
                 scope.launch(Dispatchers.Main) { viewModel.onSignedIn(cookie) }
             }?.let { (port, ip) -> url = "http://$ip:$port/" }
+            awaitCancellation()
+        } finally {
+            TvAuthServer.stop()
         }
-        onDispose { TvAuthServer.stop() }
     }
 
     TvDialog(title = "Sign In with Your Phone", width = 576.dp, onDismissRequest = onBack) {
