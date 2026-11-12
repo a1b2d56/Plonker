@@ -77,10 +77,8 @@ internal object OfflineDash {
         // that everything which reads one reads both. The name is historical
         // and is left alone on purpose: it is a path already stored in the
         // download records of every device that has one.
-        val root = File(File(context.filesDir, "offline-hls"), id.hashCode().toUInt().toString(16))
-        root.deleteRecursively()
-        if (!root.mkdirs()) error("Could not create offline package")
-        try {
+        val target = OfflinePackage.directory(context, id)
+        OfflinePackage.replace(target) { root ->
             fun request(target: String) = Request.Builder().url(target).apply {
                 headers.forEach { (name, value) -> header(name, value) }
             }.build()
@@ -109,11 +107,8 @@ internal object OfflineDash {
             File(root, "playlist.m3u8").writeText(playlist(plan))
             lyrics?.let { File(root, "lyrics.lrc").writeText(it.enhanced ?: it.plain.orEmpty()) }
             artwork?.let { File(root, "cover.${if (it.mime.contains("png")) "png" else "jpg"}").writeBytes(it.bytes) }
-            Uri.fromFile(File(root, "playlist.m3u8"))
-        } catch (e: Throwable) {
-            root.deleteRecursively()
-            throw e
         }
+        Uri.fromFile(File(target, "playlist.m3u8"))
     }
 
     private fun localName(index: Int) = "segment-${index.toString().padStart(5, '0')}.m4s"
