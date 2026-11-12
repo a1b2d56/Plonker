@@ -35,11 +35,18 @@ import kotlinx.coroutines.launch
  *
  * [player] is read when needed, never captured: the session moves between
  * players at every crossfade.
+ *
+ * [volumeBusy] is whether something else is driving the players' volume right
+ * now: a crossfade or a version swap. The timer's fade stays off the volume
+ * for as long as it is, and the crossfade starts nothing new once the timer's
+ * fade is running ([SleepFade.running]), so the two never write over each
+ * other.
  */
 @UnstableApi
 internal class PlaybackHistoryAndSleepTimer(
     private val scope: CoroutineScope,
     private val player: () -> ExoPlayer?,
+    private val volumeBusy: () -> Boolean = { false },
 ) {
     /** Last sampled position of the playing track, in seconds. */
     private var lastPositionSeconds = 0L
@@ -65,17 +72,39 @@ internal class PlaybackHistoryAndSleepTimer(
         scope.launch {
             SleepTimer.deadline.collectLatest { deadline ->
                 if (deadline == null) return@collectLatest
+                // The player this fade turned down, so that one — and only
+                // that one — is turned back up afterwards.
+                var faded: ExoPlayer? = null
                 try {
                     val plan = SleepFade.plan(deadline - SystemClock.elapsedRealtime())
                     if (plan.waitMs > 0) {
                         delay(plan.waitMs)
                     }
 
-                    // Smooth volume fade-out curve over the plan's fade.
                     if (plan.fadeMs > 0) {
-                        val stepDelayMs = plan.fadeMs / SleepFade.STEPS
-                        for (i in (SleepFade.STEPS - 1) downTo 0) {
-                            player()?.volume = SleepFade.volumeAt(i)
+                        // From here the crossfade arms nothing new: a blend
+                        // into a track that is paused seconds later would only
+                        // fight this fade for the volume.
+                        SleepFade.running = true
+                        val endsAt = SystemClock.elapsedRealtime() + plan.fadeMs
+                        val stepDelayMs = (plan.fadeMs / SleepFade.STEPS).coerceAtLeast(1L)
+                        // When this fade got the volume to itself. A crossfade
+                        // already in flight keeps it until it lands; the fade
+                        // then runs from full over whatever time is left,
+                        // instead of dropping to where it would have been.
+                        var ownedSince = -1L
+                        while (true) {
+                            val now = SystemClock.elapsedRealtime()
+                            if (now >= endsAt) break
+                            if (volumeBusy()) {
+                                ownedSince = -1L
+                            } else {
+                                if (ownedSince < 0L) ownedSince = now
+                                player()?.let {
+                                    it.volume = SleepFade.gain(now, ownedSince, endsAt)
+                                    faded = it
+                                }
+                            }
                             delay(stepDelayMs)
                         }
                     }
@@ -83,8 +112,11 @@ internal class PlaybackHistoryAndSleepTimer(
                     player()?.pause()
                     SleepTimer.cancel()
                 } finally {
-                    // Always ensure volume is restored to full on completion or cancellation
-                    player()?.volume = 1.0f
+                    SleepFade.running = false
+                    // Back to full on completion or cancellation — unless a
+                    // crossfade or swap has the volume, in which case it is
+                    // mid-ramp and sets both players itself when it lands.
+                    if (!volumeBusy()) faded?.volume = 1.0f
                 }
             }
         }
@@ -383,6 +415,24 @@ internal object SleepFade {
     fun plan(remainingMs: Long): Plan {
         val fadeMs = minOf(MAX_FADE_MS, remainingMs.coerceAtLeast(0L) / 2)
         return Plan(waitMs = remainingMs - fadeMs, fadeMs = fadeMs)
+    }
+
+    /**
+     * Whether the timer's fade is running. Read by the crossfade, which starts
+     * no new transition while it is. Main thread only, like the players.
+     */
+    @Volatile
+    var running = false
+
+    /**
+     * The volume at [nowMs] of a fade that got the volume to itself at
+     * [fromMs] and must reach silence at [endMs]: full at [fromMs], linear to
+     * zero. A fade given no time at all is already silent.
+     */
+    fun gain(nowMs: Long, fromMs: Long, endMs: Long): Float {
+        val span = endMs - fromMs
+        if (span <= 0L) return 0f
+        return ((endMs - nowMs).toFloat() / span).coerceIn(0f, 1f)
     }
 
     /** The volume at [step], counted down from `STEPS - 1` to 0. */
