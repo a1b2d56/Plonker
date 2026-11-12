@@ -887,6 +887,14 @@ class CrossfadeController(
             refreshMarkerWhilePaused(player)
             return
         }
+        // The sleep timer is in its last seconds and fading this player out.
+        // Nothing is armed until it has paused or been cancelled: a transition
+        // begun now would set both players' volume every tick, over the top of
+        // that fade, into a track that is about to be paused anyway.
+        if (SleepFade.running) {
+            releaseHold()
+            return
+        }
         holdWanted = false
         planAutoTransition(player)
         if (!holdWanted && phase == Phase.IDLE) releaseHold()
