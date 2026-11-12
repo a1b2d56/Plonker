@@ -19,17 +19,16 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
@@ -37,8 +36,6 @@ import kotlin.random.Random
  * Shazam music recognition with built-in rate limiting and queue management
  */
 object Shazam {
-
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // Configuration
     private const val MAX_CONCURRENT_REQUESTS = 2
@@ -54,19 +51,25 @@ object Shazam {
     private const val MAX_QUEUE_SIZE = 50
 
     // Internal State
+
+    /**
+     * One permit per request on the wire, retries included. Callers wait for
+     * one in the order they asked, suspended rather than polling, and a caller
+     * that is cancelled gives its place up.
+     */
+    private val slots = Semaphore(MAX_CONCURRENT_REQUESTS)
+
+    /** Callers inside [recognize] not yet answered: waiting for a slot, or on the wire. */
+    private val pending = AtomicInteger(0)
+
     private val activeRequests = AtomicInteger(0)
-    
+
+    /** Guards [lastRequestTime]. Held for the spacing delay only, never across a request. */
+    private val rateMutex = Mutex()
+
     private var lastRequestTime = 0L
-    
-    private val requestMutex = Mutex()
-    
-    private val requestQueue = ConcurrentLinkedQueue<PendingRequest>()
-    
+
     private val resultCache = ConcurrentHashMap<String, CachedResult>()
-    
-    private var nextRequestId = 0L
-    
-    private var isProcessingQueue = false
 
     // HTTP Client Configuration
     private val client by lazy {
@@ -110,13 +113,35 @@ object Shazam {
             return Result.success(it)
         }
 
-        return enqueueRequest(signature, sampleDurationMs)
+        if (pending.incrementAndGet() > MAX_QUEUE_SIZE) {
+            pending.decrementAndGet()
+            return Result.failure(Exception("Request queue is full. Please wait."))
+        }
+        // Runs in the caller's own coroutine: no lock is held while Shazam
+        // answers, so MAX_CONCURRENT_REQUESTS is a real limit rather than one
+        // at a time, and cancelling the caller cancels the request.
+        return try {
+            slots.withPermit {
+                activeRequests.incrementAndGet()
+                try {
+                    executeRequest(signature, sampleDurationMs)
+                } finally {
+                    activeRequests.decrementAndGet()
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            pending.decrementAndGet()
+        }
     }
 
     /**
-     * Get number of pending requests in queue
+     * Get number of requests waiting for a slot
      */
-    fun getPendingRequestsCount(): Int = requestQueue.size
+    fun getPendingRequestsCount(): Int = (pending.get() - activeRequests.get()).coerceAtLeast(0)
 
     /**
      * Get number of active requests
@@ -131,77 +156,12 @@ object Shazam {
     }
 
     /**
-     * Cancel all pending requests
-     */
-    fun cancelPendingRequests() {
-        requestQueue.clear()
-    }
-
-    /**
-     * Cleanup resources
+     * Cleanup resources. A request still waiting belongs to its caller's
+     * coroutine and ends when that is cancelled.
      */
     fun cleanup() {
-        cancelPendingRequests()
         clearCache()
         client.close()
-    }
-
-    /**
-     * Enqueue request for processing
-     */
-    private suspend fun enqueueRequest(
-        signature: String,
-        sampleDurationMs: Long
-    ): Result<RecognitionResult> = requestMutex.withLock {
-        if (requestQueue.size >= MAX_QUEUE_SIZE) {
-            return Result.failure(Exception("Request queue is full. Please wait."))
-        }
-
-        val requestId = nextRequestId++
-        val request = PendingRequest(
-            id = requestId,
-            signature = signature,
-            sampleDurationMs = sampleDurationMs
-        )
-
-        requestQueue.offer(request)
-
-        if (!isProcessingQueue) {
-            isProcessingQueue = true
-            processQueue()
-        }
-
-        return request.awaitResult()
-    }
-
-    /**
-     * Process request queue
-     */
-    private suspend fun processQueue() {
-        while (true) {
-            val request = requestQueue.poll() ?: break
-
-            while (activeRequests.get() >= MAX_CONCURRENT_REQUESTS) {
-                delay(100)
-            }
-
-            activeRequests.incrementAndGet()
-
-            scope.launch {
-                try {
-                    val result = executeRequest(request.signature, request.sampleDurationMs)
-                    request.completeWith(result)
-                } catch (e: Exception) {
-                    request.completeWith(Result.failure(e))
-                } finally {
-                    activeRequests.decrementAndGet()
-                }
-            }
-
-            enforceRateLimit()
-        }
-
-        isProcessingQueue = false
     }
 
     /**
@@ -223,6 +183,8 @@ object Shazam {
                 cacheResult(cacheKey, result)
                 
                 return Result.success(result)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 lastException = e
 
@@ -301,15 +263,9 @@ object Shazam {
     /**
      * Enforce minimum time between requests
      */
-    private suspend fun enforceRateLimit() {
-        val currentTime = System.currentTimeMillis()
-        val timeSinceLastRequest = currentTime - lastRequestTime
-
-        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL_MS) {
-            val delayTime = MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest
-            delay(delayTime)
-        }
-
+    private suspend fun enforceRateLimit() = rateMutex.withLock {
+        val wait = MIN_REQUEST_INTERVAL_MS - (System.currentTimeMillis() - lastRequestTime)
+        if (wait > 0) delay(wait)
         lastRequestTime = System.currentTimeMillis()
     }
 
@@ -321,11 +277,14 @@ object Shazam {
     }
 
     /**
-     * Generate cache key
+     * Generate cache key: the signature's SHA-256. It was `hashCode()`, 32
+     * bits, and two different recordings that happened to share one were
+     * answered with each other's song for five minutes.
      */
-    private fun generateCacheKey(signature: String): String {
-        return signature.hashCode().toString()
-    }
+    internal fun generateCacheKey(signature: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(signature.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 
     /**
      * Get result from cache
@@ -420,31 +379,6 @@ object Shazam {
             isrc = track.isrc,
             youtubeVideoId = youtubeVideoId
         )
-    }
-
-    /**
-     * Pending request in queue
-     */
-    private class PendingRequest(
-        val id: Long,
-        val signature: String,
-        val sampleDurationMs: Long
-    ) {
-        private val mutex = Mutex()
-        private var result: Result<RecognitionResult>? = null
-        private var isCompleted = false
-
-        suspend fun awaitResult(): Result<RecognitionResult> {
-            while (!isCompleted) {
-                delay(50)
-            }
-            return result ?: Result.failure(Exception("Result not received"))
-        }
-
-        fun completeWith(result: Result<RecognitionResult>) {
-            this.result = result
-            this.isCompleted = true
-        }
     }
 
     /**
