@@ -101,7 +101,7 @@ object BoundedContextPersistence {
             pending = null
         }
         val encoded = encode(state) ?: return
-        synchronized(this) { write(state, encoded).commit() }
+        synchronized(this) { write(state, encoded).apply() }
     }
 
     private fun write(state: State, encoded: String): SharedPreferences.Editor =
@@ -151,7 +151,7 @@ object BoundedContextPersistence {
     fun clearImmediately() {
         generation += 1
         pending = null
-        prefs.edit().clear().commit()
+        prefs.edit().clear().apply()
     }
 
     /** Visible to JVM tests; the Android wrapper above remains the only writer. */

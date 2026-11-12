@@ -301,7 +301,11 @@ class PlaybackService : MediaLibraryService() {
     )
 
     /** What the listener's plays leave behind, and the sleep timer — see [PlaybackHistoryAndSleepTimer]. */
-    private val history = PlaybackHistoryAndSleepTimer(scope = scope, player = { player })
+    private val history = PlaybackHistoryAndSleepTimer(
+        scope = scope,
+        player = { player },
+        volumeBusy = { crossfade?.isTransitioning() == true || versionSync.active },
+    )
 
     /** What's playing, published to the listener's Discord profile — see [DiscordPresence]. */
     private val discord = DiscordPresence(context = this, scope = scope, player = { player })
@@ -1706,10 +1710,13 @@ class PlaybackService : MediaLibraryService() {
             return
         }
         val range = LastPlayed.window(player.mediaItemCount, player.currentMediaItemIndex)
+        if (range.isEmpty()) return
         persistedQueueStart = range.first
+        // Only the window that is kept: converting the whole queue here, on
+        // the main thread, was work thrown away for all but 76 of its tracks.
         LastPlayed.saveQueueImmediately(
-            songs = (0 until player.mediaItemCount).map { player.getMediaItemAt(it).toSong() },
-            index = player.currentMediaItemIndex,
+            songs = range.map { player.getMediaItemAt(it).toSong() },
+            index = player.currentMediaItemIndex - range.first,
             positionMs = player.currentPosition,
         )
         bounded.saveBoundedContextSnapshot(player, immediately = true)

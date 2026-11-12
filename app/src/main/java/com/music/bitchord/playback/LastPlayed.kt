@@ -52,9 +52,14 @@ object LastPlayed {
     }
 
     /**
-     * Atomically replaces the restart snapshot and waits until it reaches disk.
-     * Used at an explicit queue boundary, where restoring the queue from before
-     * that boundary would be worse than the small cost of a synchronous write.
+     * Replaces the restart snapshot, queue, index and position in one edit, at
+     * an explicit queue boundary. [songs] is the window [window] picked, and
+     * [index] the current track's place in it.
+     *
+     * The edit is visible to every later read and write at once and reaches
+     * disk behind the caller. It used to wait for the disk, on the main thread
+     * and inside a player callback; a queue is not worth a stalled frame, and
+     * the platform still flushes pending edits before the service is stopped.
      */
     fun saveQueueImmediately(songs: List<Song>, index: Int, positionMs: Long) {
         if (songs.isEmpty()) {
@@ -73,7 +78,7 @@ object LastPlayed {
             .putString(KEY_QUEUE, encoded)
             .putInt(KEY_INDEX, safeIndex - bounds.first)
             .putLong(KEY_POSITION, positionMs.coerceAtLeast(0L))
-            .commit()
+            .apply()
     }
 
     /** Update only cheap scalar state; this performs no queue conversion or JSON work. */
@@ -112,9 +117,9 @@ object LastPlayed {
         prefs.edit().clear().apply()
     }
 
-    /** Remove a stale queue before another one is installed. */
+    /** Remove a stale queue before another one is installed. Written behind the caller, like [clear]. */
     fun clearImmediately() {
-        prefs.edit().clear().commit()
+        prefs.edit().clear().apply()
     }
 
     @Serializable
