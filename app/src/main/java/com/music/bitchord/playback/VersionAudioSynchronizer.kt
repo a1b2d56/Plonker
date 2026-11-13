@@ -149,6 +149,9 @@ internal class VersionAudioSynchronizer(
             if (holdsSwitchBar) {
                 AppSettings.versionAlignmentInProgress.value = true
             }
+            // What a cancellation has to undo — see [abandonSwap].
+            var standby: ExoPlayer? = null
+            var landed = false
             try {
                 val startPosition = activePlayer.currentPosition
                 val alignmentOffsetMs = if (measureAlignment) {
@@ -205,6 +208,7 @@ internal class VersionAudioSynchronizer(
                     return@launch
                 }
 
+                standby = standbyPlayer
                 // Build replacement playlist for standby player
                 val newItems = (0 until activePlayer.mediaItemCount).map { i ->
                     if (i == currentIndex) targetMediaItem else activePlayer.getMediaItemAt(i)
@@ -342,6 +346,7 @@ internal class VersionAudioSynchronizer(
 
                 // Adopt incoming player cleanly
                 adoptPlayerForVersionSwap(outgoing = activePlayer, incoming = standbyPlayer)
+                landed = true
                 onSwapCommitted?.invoke()
             } finally {
                 loudness.setBlendTrim(1f)
@@ -349,12 +354,38 @@ internal class VersionAudioSynchronizer(
                     AppSettings.smartMixInProgress.value = false
                 }
             }
+            } catch (e: CancellationException) {
+                if (!landed) abandonSwap(activePlayer, standby, generation)
+                throw e
             } finally {
                 if (generation == versionSwapGeneration) {
                     AppSettings.versionAlignmentInProgress.value = false
                 }
             }
         }
+    }
+
+    /**
+     * Puts back what a swap cancelled part-way had set up. The loops above only
+     * clean up when they notice the track changed; a cancellation leaves them
+     * at whichever `delay` they were in, which used to mean the playing track
+     * stuck at its part-faded volume, the standby still running silently, and
+     * the service still told the next transition was this swap.
+     *
+     * A newer swap ([generation] no longer current) resets the standby and
+     * the marker itself, so only the volume is put back for it.
+     */
+    private fun abandonSwap(activePlayer: ExoPlayer, standby: ExoPlayer?, generation: Int) {
+        runCatching { activePlayer.volume = 1f }
+        if (generation != versionSwapGeneration) return
+        runCatching {
+            if (standby != null && standby !== player()) {
+                standby.stop()
+                standby.clearMediaItems()
+                standby.volume = 1f
+            }
+        }
+        markSwapping(null)
     }
 
     /**
