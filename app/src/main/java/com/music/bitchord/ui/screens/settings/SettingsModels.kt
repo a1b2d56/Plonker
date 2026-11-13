@@ -19,6 +19,7 @@ import com.music.bitchord.data.settings.DownloadQuality
 import com.music.bitchord.data.settings.PlayerTheme
 import com.music.bitchord.data.settings.ThemeMode
 import com.music.bitchord.playback.audio.bitperfect.BitPerfectOutput
+import com.music.bitchord.ui.icons.BitChordIcons
 import com.music.bitchord.ui.icons.SfIcons
 import java.util.Locale
 
@@ -30,6 +31,7 @@ import java.util.Locale
 enum class SettingsCategory(@param:StringRes val title: Int) {
     DOWNLOADS(R.string.downloads),
     PLAYBACK(R.string.playback),
+    LYRICS(R.string.lyrics),
     CONTENT_PREFERENCES(R.string.content_preferences),
     APPEARANCE(R.string.appearance),
     PERFORMANCE(R.string.performance),
@@ -44,6 +46,7 @@ enum class SettingsCategory(@param:StringRes val title: Int) {
         get() = when (this) {
             DOWNLOADS -> SfIcons.Download
             PLAYBACK -> SfIcons.PlayCircle
+            LYRICS -> BitChordIcons.SongLyrics
             CONTENT_PREFERENCES -> SfIcons.Video
             APPEARANCE -> SfIcons.Appearance
             PERFORMANCE -> SfIcons.Performance

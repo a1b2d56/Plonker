@@ -566,6 +566,14 @@ fun SettingsScreen(
             )
         }
 
+        if (shows(SettingsCategory.LYRICS)) {
+            LyricsSettingsGroup(
+                search = search,
+                onLyricsSources = onLyricsSources,
+                onTranslationLanguage = onTranslationLanguage,
+            )
+        }
+
         if (shows(SettingsCategory.CONTENT_PREFERENCES)) {
             ContentPreferencesSettingsGroup(search = search)
         }
@@ -577,8 +585,6 @@ fun SettingsScreen(
                 onOpenChoice = onOpenChoice,
                 onSpotifyCanvasAuth = onSpotifyCanvasAuth,
                 onEditSignatureApi = onEditSignatureApi,
-                onLyricsSources = onLyricsSources,
-                onTranslationLanguage = onTranslationLanguage,
             )
         }
 

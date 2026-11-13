@@ -104,7 +104,6 @@ internal fun PlaybackSettingsGroup(
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
-    val romanizedLyrics by AppSettings.romanizedLyrics.collectAsStateWithLifecycle()
     val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
     val playingDolbyAtmos = playingFormat?.isDolbyAtmos == true
 
@@ -375,23 +374,6 @@ internal fun PlaybackSettingsGroup(
                     onClick = onEqualizer,
                 )
             }
-        }
-        // Not sound, but it is how a song plays: the player's Romanize button
-        // is per song and forgets, and this is the same thing left on.
-        val romanizedLyricsTitle = stringResource(R.string.romanized_lyrics)
-        row(romanizedLyricsTitle, "lyrics", "romanize", "romanise", "romaji", "pinyin", "latin", "pronunciation") {
-            SettingsRow(
-                icon = SfIcons.Translate,
-                title = romanizedLyricsTitle,
-                subtitle = stringResource(R.string.romanized_lyrics_subtitle),
-                trailing = {
-                    IosSwitch(
-                        checked = romanizedLyrics,
-                        onCheckedChange = AppSettings::setRomanizedLyrics,
-                    )
-                },
-                onClick = { AppSettings.setRomanizedLyrics(!romanizedLyrics) },
-            )
         }
     }
 }
