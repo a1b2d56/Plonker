@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 
 import com.music.bitchord.ui.player.*
 import com.music.bitchord.ui.icons.BitChordIcons
+import com.music.bitchord.ui.icons.OpalineIcons
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -29,15 +30,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.CastConnected
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DirectionsCar
-import androidx.compose.material.icons.rounded.Earbuds
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.PhoneAndroid
 import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.Usb
@@ -555,16 +553,18 @@ private fun VolumeRow(routeKey: Any) {
 }
 
 private fun iconFor(device: AudioOutputDevice): ImageVector = when (device.kind) {
-    AudioOutputKind.PHONE -> Icons.Rounded.PhoneAndroid
+    AudioOutputKind.PHONE -> OpalineIcons.DevicePhone
     AudioOutputKind.WIRED -> Icons.Rounded.Headphones
     AudioOutputKind.USB -> Icons.Rounded.Usb
     // The same reading the output pill draws — see AudioOutputDevice.form.
     AudioOutputKind.BLUETOOTH -> when (device.form) {
-        BluetoothForm.BUDS -> Icons.Rounded.Earbuds
+        BluetoothForm.BUDS -> OpalineIcons.DeviceEarbuds
         BluetoothForm.HEADPHONES -> Icons.Rounded.Headphones
         BluetoothForm.SPEAKER -> Icons.Rounded.Speaker
         BluetoothForm.CAR -> Icons.Rounded.DirectionsCar
-        BluetoothForm.UNKNOWN -> Icons.Rounded.Bluetooth
+        // A Bluetooth device that will not say what it is: far more often
+        // a pair of buds than anything else.
+        BluetoothForm.UNKNOWN -> OpalineIcons.DeviceEarbuds
     }
     AudioOutputKind.HDMI -> Icons.Rounded.Tv
     AudioOutputKind.OTHER -> Icons.Rounded.Speaker
@@ -600,7 +600,7 @@ private fun PartyRow(inParty: Boolean, members: Int, onClick: () -> Unit) {
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Headphones,
+                imageVector = OpalineIcons.SearchDevice,
                 contentDescription = null,
                 tint = Color.White.copy(alpha = if (inParty) 1f else 0.7f),
                 modifier = Modifier.size(21.dp),

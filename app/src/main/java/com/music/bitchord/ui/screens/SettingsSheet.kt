@@ -5,6 +5,7 @@ import com.music.bitchord.ui.screens.settings.countOfMonths as settingsCountOfMo
 
 import com.music.bitchord.ui.components.IosMotion
 import androidx.compose.animation.animateContentSize
+import com.music.bitchord.ui.icons.OpalineIcons
 import com.music.bitchord.ui.icons.SfIcons
 import com.music.bitchord.ui.components.IosSlider
 import com.music.bitchord.wear.WatchInstaller
@@ -426,20 +427,25 @@ fun SettingsScreen(
                         onClick = onSources,
                     )
                 }
-                // One line on purpose: it qualifies the row above rather than
-                // being a setting of its own, so it reads as part of Sources.
                 val directSourceTitle = stringResource(R.string.direct_source_stream)
-                // Drawn like the animated-cover cellular line: no icon, no divider.
-                row(directSourceTitle, "addon", "direct", "prefetch", "read-ahead", divided = false) {
+                row(directSourceTitle, "addon", "direct", "prefetch", "read-ahead") {
                     // Off for the length of a party: holding every fetch until a
                     // track is about to play would leave this phone behind the
                     // others at each sync — see [DirectSourceGate.isActive].
-                    SettingsSubRow(
+                    val directSourceOn = directSourceStream && !party.inParty
+                    SettingsRow(
+                        icon = OpalineIcons.Recording,
                         title = directSourceTitle,
-                        checked = directSourceStream && !party.inParty,
-                        onCheckedChange = AppSettings::setDirectSourceStream,
                         subtitle = stringResource(R.string.direct_source_stream_in_party).takeIf { party.inParty },
                         enabled = !party.inParty,
+                        trailing = {
+                            IosSwitch(
+                                checked = directSourceOn,
+                                onCheckedChange = AppSettings::setDirectSourceStream,
+                                enabled = !party.inParty,
+                            )
+                        },
+                        onClick = { AppSettings.setDirectSourceStream(!directSourceOn) },
                     )
                 }
                 // Sits here because it overrides what the two rows beneath decide,
