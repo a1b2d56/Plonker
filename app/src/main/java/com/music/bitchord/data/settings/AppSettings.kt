@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import com.music.bitchord.playback.SingMethod
@@ -987,14 +988,11 @@ object AppSettings {
 
     /**
      * The one answer the player asks: are we offline?
-     *
-     * True when the switch is on, or when no network has been there for the
-     * grace period. Neither is sufficient alone: the switch does not know
-     * whether the internet is reachable, and the detector does not know what
-     * was asked for. Putting them here means no caller has to remember both.
+     * True when no network has been there for the grace period.
      */
     val effectiveOffline: StateFlow<Boolean> =
-        combine(offlineModeFlow, streamingAvailableFlow) { manual, streaming -> manual || !streaming }
+        streamingAvailableFlow
+            .map { !it }
             .stateIn(networkScope, SharingStarted.Eagerly, false)
 
     fun setOfflineMode(value: Boolean) {

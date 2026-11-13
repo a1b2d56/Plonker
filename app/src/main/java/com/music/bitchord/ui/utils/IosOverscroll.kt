@@ -17,14 +17,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.pointer.PointerEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.LayoutModifierNode
+import androidx.compose.ui.node.PointerInputModifierNode
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.Velocity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -38,8 +43,8 @@ private const val rubberBandConstant = 0.55f
 private const val fallbackContainerPx = 2_000f
 private const val maxBounceVelocity = 10_000f
 private const val highVelocityThreshold = 5_000f
-private const val normalBounceStiffness = 247f
-private const val fastBounceStiffness = 130f
+private const val normalBounceStiffness = 450f
+private const val fastBounceStiffness = 600f
 
 /**
  * Converts raw pull distance to UIKit's self-limiting rubber-band curve.
@@ -58,7 +63,9 @@ private fun rubberBand(rawDistance: Float, containerPx: Float): Float {
  * It replaces Android's stretch/glow with a UIScrollView-like rubber band during a
  * drag, then critically damps the content back to its resting position on release.
  */
-private class IosOverscrollEffect : OverscrollEffect {
+private class IosOverscrollEffect(
+    private val scope: CoroutineScope,
+) : OverscrollEffect {
     private val rawPullX = mutableFloatStateOf(0f)
     private val rawPullY = mutableFloatStateOf(0f)
     private var containerWidthPx = 0f
@@ -70,6 +77,32 @@ private class IosOverscrollEffect : OverscrollEffect {
 
     override val isInProgress: Boolean
         get() = rawPullX.floatValue != 0f || rawPullY.floatValue != 0f
+
+    /** Halts all bounce motion the moment a finger lands on the container. */
+    fun onTouchDown() {
+        stopSettling()
+        // If the spring was already nearly home (< 25px pull), snap directly to rest
+        // so resting content does not slide under a user's tap or hold gesture.
+        if (abs(rawPullX.floatValue) < 25f) rawPullX.floatValue = 0f
+        if (abs(rawPullY.floatValue) < 25f) rawPullY.floatValue = 0f
+    }
+
+    /** Settles any remaining stretch back to zero when touch is released without drag. */
+    fun onTouchUp() {
+        if (isInProgress && settleJobs.isEmpty()) {
+            scope.launch {
+                coroutineScope {
+                    val jobs = listOf(
+                        launch { settle(rawPullX, 0f) },
+                        launch { settle(rawPullY, 0f) },
+                    )
+                    settleJobs = jobs
+                    jobs.forEach { it.join() }
+                    if (settleJobs === jobs) settleJobs = emptyList()
+                }
+            }
+        }
+    }
 
     override fun applyToScroll(
         delta: Offset,
@@ -169,6 +202,8 @@ private class IosOverscrollEffect : OverscrollEffect {
             containerWidthPx = width
             containerHeightPx = height
         },
+        onTouchDown = ::onTouchDown,
+        onTouchUp = ::onTouchUp,
     )
 }
 
@@ -176,7 +211,9 @@ private class IosOverscrollNode(
     private val offsetX: () -> Float,
     private val offsetY: () -> Float,
     private val onMeasured: (Float, Float) -> Unit,
-) : Modifier.Node(), LayoutModifierNode {
+    private val onTouchDown: () -> Unit,
+    private val onTouchUp: () -> Unit,
+) : Modifier.Node(), LayoutModifierNode, PointerInputModifierNode {
     override fun MeasureScope.measure(
         measurable: Measurable,
         constraints: Constraints,
@@ -193,13 +230,30 @@ private class IosOverscrollNode(
             }
         }
     }
+
+    override fun onPointerEvent(
+        pointerEvent: PointerEvent,
+        pass: PointerEventPass,
+        bounds: IntSize,
+    ) {
+        if (pass == PointerEventPass.Initial) {
+            when (pointerEvent.type) {
+                PointerEventType.Press -> onTouchDown()
+                PointerEventType.Release -> onTouchUp()
+            }
+        }
+    }
+
+    override fun onCancelPointerInput() {
+        onTouchUp()
+    }
 }
 
 private class IosOverscrollFactory(
     private val density: Density,
     private val scope: CoroutineScope,
 ) : OverscrollFactory {
-    override fun createOverscrollEffect(): OverscrollEffect = IosOverscrollEffect()
+    override fun createOverscrollEffect(): OverscrollEffect = IosOverscrollEffect(scope)
 
     override fun equals(other: Any?): Boolean =
         other is IosOverscrollFactory && other.density == density && other.scope === scope

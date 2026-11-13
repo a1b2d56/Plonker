@@ -21,15 +21,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.Icon
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,7 +51,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -195,12 +193,8 @@ fun LyricsSourcesDialog(
             )
 
             AlertRule()
-            AlertAction(
-                label = stringResource(
-                    if (paxSenixApiKey.isBlank()) R.string.paxsenix_api_key_missing
-                    else R.string.paxsenix_api_key_configured,
-                ),
-                emphasised = false,
+            PaxSenixApiKeyRow(
+                configured = paxSenixApiKey.isNotBlank(),
                 onClick = { showPaxSenixKeyDialog = true },
             )
             AlertRule()
@@ -222,34 +216,114 @@ fun LyricsSourcesDialog(
 
     if (showPaxSenixKeyDialog) {
         var input by remember(paxSenixApiKey) { mutableStateOf(paxSenixApiKey) }
-        AlertDialog(
-            onDismissRequest = { showPaxSenixKeyDialog = false },
-            title = { Text(stringResource(R.string.paxsenix_api_key)) },
-            text = {
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        imeAction = ImeAction.Done,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+        PaxSenixApiKeyAlert(
+            hazeState = hazeState,
+            keyInput = input,
+            onKeyInputChange = { input = it },
+            onSave = {
+                AppSettings.setPaxSenixApiKey(input)
+                showPaxSenixKeyDialog = false
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    AppSettings.setPaxSenixApiKey(input)
-                    showPaxSenixKeyDialog = false
-                }) { Text(stringResource(R.string.save)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPaxSenixKeyDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
+            onDismiss = { showPaxSenixKeyDialog = false },
         )
+    }
+}
+
+@OptIn(ExperimentalHazeMaterialsApi::class)
+@Composable
+private fun PaxSenixApiKeyAlert(
+    hazeState: HazeState,
+    keyInput: String,
+    onKeyInputChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+    animatedScope: AnimatedVisibilityScope? = null,
+) {
+    AlertScaffold(hazeState = hazeState, onDismiss = onDismiss, animatedScope = animatedScope) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 19.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = stringResource(R.string.paxsenix_api_key),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, fontWeight = FontWeight.W600),
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = stringResource(R.string.paxsenix_api_key_missing),
+                modifier = Modifier.padding(top = 4.dp, bottom = 14.dp),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp, lineHeight = 17.sp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center,
+            )
+            PillTextField(
+                value = keyInput,
+                onValueChange = onKeyInputChange,
+                placeholder = stringResource(R.string.api_token),
+                isPassword = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { onSave() }),
+            )
+        }
+        val dismiss = LocalAlertDismiss.current ?: onDismiss
+        AlertRule()
+        AlertAction(label = stringResource(R.string.save), emphasised = true, onClick = onSave)
+        AlertRule()
+        AlertAction(label = stringResource(R.string.cancel), emphasised = false, onClick = dismiss)
+    }
+}
+
+@Composable
+private fun PaxSenixApiKeyRow(configured: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = ACTION_HEIGHT)
+            .background(
+                if (pressed) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.09f) else Color.Transparent,
+            )
+            .clickable(
+                indication = null,
+                interactionSource = interactionSource,
+                onClick = onClick,
+            )
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.paxsenix_api_key),
+                style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = stringResource(
+                    if (configured) R.string.paxsenix_api_key_configured
+                    else R.string.paxsenix_api_key_missing,
+                ),
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 15.sp),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        if (configured) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = stringResource(R.string.enabled),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(19.dp),
+            )
+        }
     }
 }
 
