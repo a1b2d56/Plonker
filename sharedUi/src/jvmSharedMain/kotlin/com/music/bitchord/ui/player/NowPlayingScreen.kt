@@ -173,6 +173,7 @@ import com.music.bitchord.ui.LyricsProviderState
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
 import com.music.bitchord.ui.icons.BitChordIcons
+import com.music.bitchord.ui.icons.OpalineIcons
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.canvas.CanvasSource
 import com.music.bitchord.data.lyrics.LyricLine
@@ -3447,7 +3448,7 @@ fun NowPlayingScreen(
                             if (signedIn || song.localUri != null) {
                                 val liked = likeStatus == LikeStatus.LIKE
                                 CircleGlyph(
-                                    icon = if (liked) BitChordIcons.PlayerStarFilled else BitChordIcons.PlayerStar,
+                                    icon = if (liked) OpalineIcons.LikeFilled else OpalineIcons.Like,
                                     contentDescription = stringResource(
                                         if (liked) Res.string.remove_from_liked else Res.string.like,
                                     ),
@@ -3475,7 +3476,7 @@ fun NowPlayingScreen(
                                     showRevertCue -> Icons.AutoMirrored.Rounded.Undo
                                     lyricsShareGlyphVisible && lyricPicker.picking -> Icons.Rounded.Close
                                     lyricsShareGlyphVisible -> Icons.Rounded.IosShare
-                                    else -> BitChordIcons.PlayerEllipsis
+                                    else -> OpalineIcons.MoreCircle
                                 },
                                 contentDescription = stringResource(
                                     when {
