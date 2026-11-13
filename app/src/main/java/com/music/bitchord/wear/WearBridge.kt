@@ -771,7 +771,18 @@ class WearCommandService : WearableListenerService() {
                 var ran = false
                 pending.addListener(
                     {
-                        if (ran) return@addListener
+                        if (ran) {
+                            // Connected after this caller had given up. Nobody
+                            // is left to schedule the release, and without one
+                            // the controller stayed bound for good.
+                            if (future === pending) {
+                                main.removeCallbacks(release)
+                                main.postDelayed(release, IDLE_RELEASE_MS)
+                            } else {
+                                MediaController.releaseFuture(pending)
+                            }
+                            return@addListener
+                        }
                         ran = true
                         val controller = pending.connected()
                         if (controller == null) {
