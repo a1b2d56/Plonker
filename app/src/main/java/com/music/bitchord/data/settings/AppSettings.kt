@@ -28,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
@@ -1384,15 +1385,28 @@ object AppSettings {
         // keeps `activeNetwork` non-null, and a verdict that only asks "is
         // there a network" calls that online. Streams then fail one by one
         // while the detector insists it is fine. The system's own probe is the
-        // answer: VALIDATED is set only after it got an answer from the
+        // first answer: VALIDATED is set only after it got an answer from the
         // internet, so a captive portal and a dead line both read as offline.
+        //
+        // It is not the only answer, because that probe asks Google and some
+        // working networks block exactly that. A network the system has not
+        // vouched for is asked directly instead — see [Reachability].
+        val probeLock = Any()
+        var probe: Job? = null
+        var probedNetwork: Network? = null
+        var probedReachable: Boolean? = null
+
         val actuallyUp = {
             runCatching {
                 val network = manager.activeNetwork ?: return@runCatching false
                 val capabilities = manager.getNetworkCapabilities(network)
                     ?: return@runCatching false
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                Reachability.online(
+                    internet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                    validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                    captivePortal = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL),
+                    reachable = synchronized(probeLock) { probedReachable.takeIf { probedNetwork == network } },
+                )
             }.getOrDefault(false)
         }
 
@@ -1414,7 +1428,7 @@ object AppSettings {
             streamingAvailableFlow.value = true
         }
 
-        val refresh = {
+        val verdict = {
             if (actuallyUp()) {
                 markStreaming()
             } else {
@@ -1425,6 +1439,50 @@ object AppSettings {
                     pendingCheck = null
                 }
             }
+        }
+
+        // Starts, keeps or drops the direct probe to match the active network.
+        // One loop per unvalidated network: it stops at the first connection
+        // that succeeds and otherwise asks again every [Reachability.RETRY_MS],
+        // since a line that comes up behind such a network changes no
+        // capability and so fires no callback.
+        val watchReachability = {
+            synchronized(probeLock) {
+                val network = runCatching { manager.activeNetwork }.getOrNull()
+                val capabilities = network?.let { runCatching { manager.getNetworkCapabilities(it) }.getOrNull() }
+                val wanted = network != null && capabilities != null && Reachability.needsProbe(
+                    internet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                    validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                    captivePortal = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL),
+                )
+                if (!wanted) {
+                    probe?.cancel()
+                    probe = null
+                    probedNetwork = null
+                    probedReachable = null
+                } else if (probedNetwork != network) {
+                    probe?.cancel()
+                    probedNetwork = network
+                    probedReachable = null
+                    probe = networkScope.launch(Dispatchers.IO) {
+                        while (isActive) {
+                            val reachable = Reachability.probe(network!!)
+                            val current = synchronized(probeLock) {
+                                (probedNetwork == network).also { if (it) probedReachable = reachable }
+                            }
+                            if (!current) return@launch
+                            verdict()
+                            if (reachable) return@launch
+                            delay(Reachability.RETRY_MS)
+                        }
+                    }
+                }
+            }
+        }
+
+        val refresh = {
+            watchReachability()
+            verdict()
             meteredConnection.value = runCatching {
                 if (manager.activeNetwork == null) null else manager.isActiveNetworkMetered
             }.getOrNull()
