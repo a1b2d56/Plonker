@@ -479,8 +479,8 @@ fun <T : Any> IosMenuPopover(
                 if (reduceMotion) {
                     tween(durationMillis = 120, easing = LinearEasing)
                 } else {
-                    // Critically damped: it settles without overshooting.
-                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 600f)
+                    // Critically damped and snappy: settles quickly without overshooting or cancelling taps.
+                    spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1200f)
                 },
             )
         } else {
@@ -532,7 +532,11 @@ fun <T : Any> IosMenuPopover(
             Box(
                 Modifier
                     // Taps between rows land on the panel, not the scrim under it.
-                    .pointerInput(Unit) {}
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    )
                     .iosMenuPanel(
                         translucent = true,
                         backdrop = backdrop,
@@ -597,7 +601,7 @@ fun <T : Any> IosMenuPopover(
             alpha = p.coerceIn(0f, 1f)
             if (!reduceMotion) {
                 transformOrigin = TransformOrigin(1f, if (hangsDown) 0f else 1f)
-                val scale = lerp(0.88f, 1f, p)
+                val scale = lerp(0.96f, 1f, p)
                 scaleX = scale
                 scaleY = scale
             }

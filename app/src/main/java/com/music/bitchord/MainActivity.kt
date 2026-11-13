@@ -2604,27 +2604,16 @@ private fun BitChordApp(
                     modifier = Modifier
                         .hazeSource(hazeState)
                         .then(
-                            if (glassActive) {
-                                Modifier
-                                    // Not under "reduce dynamic blur": nothing
-                                    // samples the layer then, and recording a
-                                    // whole page into one for no reader is the
-                                    // cost that setting exists to remove.
-                                    .then(
-                                        if (glassSamplesBackdrop) {
-                                            Modifier.layerBackdrop(appBackdrop)
-                                        } else {
-                                            Modifier
-                                        },
-                                    )
-                                    // Every page's scroll passes through here, so
-                                    // the glass bar collapses on all of them
-                                    // without each one having to know about it.
-                                    .nestedScroll(navBarScroll)
+                            if (glassSamplesBackdrop) {
+                                Modifier.layerBackdrop(appBackdrop)
                             } else {
                                 Modifier
                             },
-                        ),
+                        )
+                        // Every page's scroll passes through here, so
+                        // the navigation bar collapses on all of them
+                        // without each one having to know about it.
+                        .nestedScroll(navBarScroll),
                     label = "content",
                 ) { destination ->
                     // Every branch below reads `destination` rather than the
@@ -3026,7 +3015,7 @@ private fun BitChordApp(
                     }
                 }
 
-                if (glassActive) Column(
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .widthIn(max = FLOATING_BAR_MAX_WIDTH)
@@ -3034,10 +3023,9 @@ private fun BitChordApp(
                         .onSizeChanged { floatingBarsHeight.intValue = it.height },
                 ) {
                     QueueActionNoticeHost(queueNotice)
-                    // Liquid glass replaces the two stacked bars with the single
-                    // component they are stacked to imitate: the now playing
-                    // controls dock into the tab bar rather than riding above it,
-                    // and the pair folds together on scroll. See [GlassNavBar].
+                    // The now playing controls dock into the tab bar and fold
+                    // together on scroll — as a capsule between the selected tab
+                    // and Search — in both Liquid Glass and standard haze modes.
                     GlassNavBar(
                         tabs = tabs,
                         selectedIndex = selectedTab,
@@ -3061,67 +3049,8 @@ private fun BitChordApp(
                         onBlockedControl = showHostOnlyNotice,
                         dock = activeDock,
                         pull = playerSheetMotion.takeIf { !reducePlayerMotion },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                } else Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        // Capped and centred rather than run to the page's edges
-                        // — see [FLOATING_BAR_MAX_WIDTH]. It sits on the Column
-                        // rather than on each bar so the two are held to the same
-                        // width and keep the shared left and right edge they have
-                        // on a phone. Before fillMaxWidth, so the fill has
-                        // already been bounded by the time it is applied.
-                        .widthIn(max = FLOATING_BAR_MAX_WIDTH)
-                        .fillMaxWidth()
-                        .onSizeChanged { floatingBarsHeight.intValue = it.height },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    QueueActionNoticeHost(queueNotice)
-                    AnimatedVisibility(
-                        visible = player.song != null,
-                        enter = slideInVertically(
-                            initialOffsetY = { it },
-                            animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f),
-                        ) + fadeIn(tween(200)),
-                        exit = slideOutVertically(
-                            targetOffsetY = { it },
-                            animationSpec = spring(dampingRatio = 0.85f, stiffness = 420f),
-                        ) + fadeOut(tween(200)),
-                    ) {
-                        player.song?.let { song ->
-                            Column {
-                                MiniPlayer(
-                                    song = song,
-                                    isPlaying = player.isPlaying,
-                                    isLoading = playPauseBusy,
-                                    hazeState = hazeState,
-                                    onPlayPause = {
-                                        togglePlayPause()
-                                    },
-                                    onNext = { controller?.seekToNextMediaItem() },
-                                    onPrevious = { controller?.seekToPrevious() },
-                                    onExpand = if (reducePlayerMotion) {
-                                        { showNowPlaying = true }
-                                    } else {
-                                        playerSheetMotion::open
-                                    },
-                                    onDismissPlayback = dismissPlayback,
-                                    controlsLocked = controlsLocked,
-                                    onBlockedControl = showHostOnlyNotice,
-                                    dock = activeDock,
-                                    pull = playerSheetMotion.takeIf { !reducePlayerMotion },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                                Spacer(Modifier.height(8.dp))
-                            }
-                        }
-                    }
-                    AppTabBar(
-                        tabs = tabs,
-                        selectedIndex = selectedTab,
                         hazeState = hazeState,
-                        onTabSelected = onTabSelected,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }

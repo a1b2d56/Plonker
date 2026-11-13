@@ -60,6 +60,7 @@ import com.music.bitchord.R
 import com.music.bitchord.data.model.ROW_ART_PX
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
+import dev.chrisbanes.haze.HazeState
 import com.music.bitchord.ui.components.floatingtabbar.FloatingTabBar
 import com.music.bitchord.ui.components.floatingtabbar.FloatingTabBarDefaults
 import com.music.bitchord.ui.components.floatingtabbar.FloatingTabBarScrollConnection
@@ -113,15 +114,18 @@ fun GlassNavBar(
     dock: PlayerDock? = null,
     /** Dragging the bar's player up into the full player. */
     pull: MiniPlayerPull? = null,
+    hazeState: HazeState? = null,
     modifier: Modifier = Modifier,
 ) {
     // Held for the same reason [tabs] is. The glass factory below closes over
     // this shape, and a fresh RoundedCornerShape each pass means a fresh factory
     // lambda, which the tab bar sees as a changed argument and recomposes on.
     val pillShape = remember { RoundedCornerShape(percent = 50) }
-    val contentColor = glassContentColor()
-    val selectedColor = contentColor
-    val unselectedColor = contentColor.copy(alpha = 0.65f)
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val contentColor = if (useGlass) glassContentColor() else MaterialTheme.colorScheme.onSurface
+    val selectedColor = if (useGlass) contentColor else MaterialTheme.colorScheme.primary
+    val unselectedColor = if (useGlass) contentColor.copy(alpha = 0.65f) else MaterialTheme.colorScheme.onSurfaceVariant
+    val indicatorColor = if (useGlass) glassIndicatorColor() else MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
     val haptics = rememberHaptics()
     val liquidHaptics = rememberLiquidGlassHaptics()
 
@@ -137,10 +141,11 @@ fun GlassNavBar(
     // order, which is where the shape wants it anyway.
     val standaloneIndex = tabs.lastIndex
 
-    // A factory, not a value — see the note in FloatingTabBar's header. Each of
-    // the three surfaces gets its own glass modifier and so its own shape cache.
-    // The theme's own glass tint, as the liquid top bar has it — no white wash.
-    val glassSurface: @Composable () -> Modifier = { Modifier.liquidGlass(shape = pillShape) }
+    // Samples the backdrop through liquidGlass when on; falls back to the frosted
+    // haze or container surface when off, preserving the folding capsule layout in both.
+    val glassSurface: @Composable () -> Modifier = {
+        Modifier.tabBarSurface(shape = pillShape, hazeState = hazeState)
+    }
 
     var lastSong by remember { mutableStateOf(song) }
     LaunchedEffect(song) {
@@ -204,16 +209,13 @@ fun GlassNavBar(
         colors = FloatingTabBarDefaults.colors(
             backgroundColor = Color.Transparent,
             accessoryBackgroundColor = Color.Transparent,
-            indicatorColor = glassIndicatorColor(),
+            indicatorColor = indicatorColor,
         ),
-        // Flat, because the glass is not. Every surface here already draws its
-        // own [Shadow.Default] as part of the backdrop pass, and the library's
-        // Modifier.shadow on top of that is a second offscreen layer and a
-        // second shadow render for each of them — three at rest, six mid-fold,
-        // paying twice for a shadow you can only see once.
+        // Flat on glass, because the glass draws its own shadow as part of the
+        // backdrop pass. Standard elevation when glass is off gives the floating pill depth.
         elevations = FloatingTabBarDefaults.elevations(
-            inlineElevation = 0.dp,
-            expandedElevation = 0.dp,
+            inlineElevation = if (useGlass) 0.dp else 4.dp,
+            expandedElevation = if (useGlass) 0.dp else 8.dp,
         ),
         // Expanded, this is meant to be the plain [AppTabBar] with a
         // different material — same outer width, same pill inset, same tab

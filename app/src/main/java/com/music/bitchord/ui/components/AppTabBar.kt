@@ -340,14 +340,14 @@ fun AppTabBar(
  */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
-private fun Modifier.tabBarSurface(shape: CornerBasedShape, hazeState: HazeState): Modifier {
+internal fun Modifier.tabBarSurface(shape: CornerBasedShape, hazeState: HazeState? = null): Modifier {
     val container = MaterialTheme.colorScheme.surface
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     return clip(shape).then(
         when {
             useGlass -> Modifier.liquidGlass(shape)
-            reduceDynamicBlur -> Modifier
+            reduceDynamicBlur || hazeState == null -> Modifier
                 .background(container)
                 .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
             else -> Modifier
