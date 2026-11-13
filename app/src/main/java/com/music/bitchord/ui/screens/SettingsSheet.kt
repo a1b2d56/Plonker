@@ -448,37 +448,7 @@ fun SettingsScreen(
                         onClick = { AppSettings.setDirectSourceStream(!directSourceOn) },
                     )
                 }
-                // Sits here because it overrides what the two rows beneath decide,
-                // and next to them so the relationship is visible: this says which
-                // copy plays, they say how good the streamed one may be.
-                //
-                // The badge carries the reason it is on — the switch, or the radio —
-                // because "Offline mode" alone leaves open the question that
-                // matters when a stream is not playing: did I ask for this, or did
-                // the app decide?
-                val offlineTitle = stringResource(R.string.offline_mode)
-                val offlineSubtitle = stringResource(R.string.offline_mode_subtitle)
-                val offlineOn by AppSettings.offlineMode.collectAsStateWithLifecycle()
-                val detectedOffline by AppSettings.effectiveOffline.collectAsStateWithLifecycle()
-                row(offlineTitle, offlineSubtitle, "downloads", "no internet", "local files") {
-                    SettingsRow(
-                        icon = SfIcons.CloudOff,
-                        title = offlineTitle,
-                        subtitle = offlineSubtitle,
-                        badge = when {
-                            offlineOn -> stringResource(R.string.in_use)
-                            detectedOffline -> stringResource(R.string.offline_mode_detected)
-                            else -> null
-                        },
-                        trailing = {
-                            IosSwitch(
-                                checked = offlineOn,
-                                onCheckedChange = AppSettings::setOfflineMode,
-                            )
-                        },
-                        onClick = { AppSettings.setOfflineMode(!offlineOn) },
-                    )
-                }
+
                 val onWifiTitle = stringResource(R.string.on_wifi)
                 row(onWifiTitle, "wi-fi", "streaming quality") {
                     SettingsRow(

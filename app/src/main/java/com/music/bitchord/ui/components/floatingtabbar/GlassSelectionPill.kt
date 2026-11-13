@@ -127,6 +127,9 @@ internal class GlassPillMotion(
     /** "Reduce animation": every move lands at once, with no lift. */
     var reduceMotion: Boolean = false
 
+    /** Whether the pill is allowed to lift and render 3D glass lens material. */
+    var canLift: Boolean = true
+
     private var travelPos = initialIndex.toDouble()
     private var travelVel = 0.0
     private var travelTarget = travelPos
@@ -162,12 +165,12 @@ internal class GlassPillMotion(
         }
         index = next
         travelActive = true
-        lifted = true
+        lifted = canLift && !reduceMotion
         // Retarget from wherever the pill is; the spring keeps its velocity.
         travelFrom = travelPos
         travelTarget = next.toDouble()
         travelSign = signOfTravel(travelTarget - travelFrom)
-        isFlat = false
+        isFlat = !canLift
         start()
     }
 
@@ -197,13 +200,13 @@ internal class GlassPillMotion(
     fun startDrag() {
         dragging = true
         travelActive = false
-        lifted = !reduceMotion
+        lifted = canLift && !reduceMotion
         // The hand takes the deformation back off the travel.
         travelSign = 0.0
         dragFollow = travelPos
         dragTarget = travelPos
         travelVel = 0.0
-        isFlat = false
+        isFlat = !canLift
         start()
     }
 
@@ -277,10 +280,10 @@ internal class GlassPillMotion(
         }
 
         // 3) The lift, held for the journey and released on landing.
-        if (!dragging && (travelSettled || travelProgress() >= HANDOVER_START)) {
+        if (!canLift || (!dragging && (travelSettled || travelProgress() >= HANDOVER_START))) {
             lifted = false
         }
-        val liftTarget = if (lifted) 1.0 else 0.0
+        val liftTarget = if (canLift && lifted) 1.0 else 0.0
         stepLift(liftXPos, liftXVel, liftTarget, dt, LIFT_STIFFNESS, LIFT_DAMPING_X).let {
             liftXPos = it.first; liftXVel = it.second
         }
@@ -329,7 +332,7 @@ internal class GlassPillMotion(
             travelSignEased = 0.0
         }
         publish()
-        isFlat = settled
+        isFlat = if (!canLift) true else settled
         return !settled
     }
 

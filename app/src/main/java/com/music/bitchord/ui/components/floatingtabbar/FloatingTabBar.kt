@@ -123,11 +123,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.ui.components.GlassSpring
 import com.music.bitchord.ui.components.LocalGlassExport
+import com.music.bitchord.ui.components.LocalLiquidGlassEnabled
 import com.music.bitchord.ui.components.backdrop.backdrops.layerBackdrop
 import com.music.bitchord.ui.components.backdrop.backdrops.rememberLayerBackdrop
 import com.music.bitchord.ui.components.isGlassSupported
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** Hoisted so the default is one stable lambda rather than a new one per call. */
@@ -781,11 +783,11 @@ private fun SharedTransitionScope.ExpandedTabs(
     val haptics = rememberHaptics()
 
     val coroutineScope = rememberCoroutineScope()
+    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
+    val glassPill = useGlass && !reduceDynamicBlur
     val pill = remember { GlassPillMotion(coroutineScope, selectedTabIndex.coerceAtLeast(0)) }
     pill.reduceMotion = reduceAnimation
-    // The lens samples the recorded page, and "reduce dynamic blur" stops that
-    // recording. There the flat pill carries the whole motion on its own.
-    val glassPill = isGlassSupported() && !reduceDynamicBlur
+    pill.canLift = glassPill
     val barGlass = rememberLayerBackdrop()
     val tabRow = rememberLayerBackdrop()
 
@@ -876,14 +878,27 @@ private fun SharedTransitionScope.ExpandedTabs(
                     .animateContentSize()
             ) {
                 if (showPill && (!glassPill || pill.isFlat)) {
+                    val pillPlacementModifier = if (glassPill) {
+                        Modifier.pillPlacement(
+                            center = { pillCenterInRow(pill.position) },
+                            size = { pill.liveSize(restSize, liftedSize) },
+                        )
+                    } else {
+                        Modifier.pillPlacement(
+                            center = { pillCenterInRow(pill.position) },
+                            size = {
+                                val lag = abs(pill.index.toFloat() - pill.position).coerceIn(0f, 1f)
+                                val w = restSize.width * (1f + lag * 0.16f)
+                                val h = restSize.height * (1f - lag * 0.16f * 0.5f)
+                                Size(w, h)
+                            },
+                        )
+                    }
                     FlatSelectionPill(
                         color = colors.indicatorColor,
                         modifier = Modifier
                             .matchParentSize()
-                            .pillPlacement(
-                                center = { pillCenterInRow(pill.position) },
-                                size = { pill.liveSize(restSize, liftedSize) },
-                            ),
+                            .then(pillPlacementModifier),
                     )
                 }
 
@@ -1087,23 +1102,7 @@ private fun Tab(
 private fun Modifier.animateEnterExitAccessory(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope
-): Modifier = with(sharedTransitionScope) {
-    with(animatedVisibilityScope) {
-        val animatedAlpha by transition.animateFloat { targetState ->
-            when (targetState) {
-                EnterExitState.Visible -> 1f
-                else -> 0f
-            }
-        }
-
-        this@animateEnterExitAccessory
-            .renderInSharedTransitionScopeOverlay()
-            .graphicsLayer(
-                compositingStrategy = CompositingStrategy.ModulateAlpha,
-                alpha = animatedAlpha
-            )
-    }
-}
+): Modifier = this
 
 /**
  * A custom modifier that provides smooth enter/exit animations with fade and blur effects.
