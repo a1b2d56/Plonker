@@ -380,8 +380,9 @@
     <string name="disable_blend_effects">Disable blend effects</string>
     <string name="disable_blend_effects_subtitle">Shows player icons, text and dark menus in plain white instead of tinting them with the artwork</string>
     <string name="liquid_glass">Liquid Glass</string>
-    <string name="liquid_glass_subtitle">Clearer glass on the bars in place of frost. Android 12+ only.</string>
+    <string name="liquid_glass_subtitle">Real refracting glass on the floating nav bar. Android 12+ only; uses more GPU.</string>
     <string name="progressive_blur">Progressive Blur</string>
+    <string name="glass_performance">Better Performance for Glass</string>
     <string name="liquid_glass_unavailable">Requires Android 12 or newer</string>
     <string name="full_screen_cover_art">Full-screen cover art</string>
     <string name="player_theme">Player theme</string>
@@ -1359,7 +1360,7 @@
     <string name="sing_method_band_note" translatable="false">Cuts only 150 Hz to 10 kHz and lets drum hits through. Leaves a faint thinning from the crossover phase.</string>
     <string name="sing_method_gate_note" translatable="false">The same band, rebuilt as a true bandpass, with a voice detector that leaves instrumentals alone and side makeup that replaces the removed energy.</string>
     <string name="liquid_glass_intensity" translatable="false">Liquid Glass intensity</string>
-    <string name="liquid_glass_intensity_subtitle" translatable="false">How far the glass blurs what is behind it</string>
+    <string name="liquid_glass_intensity_subtitle" translatable="false">Scales the blur and refraction; lower is cheaper to render, which fixes glass stutter on low-end devices</string>
     <string name="sing_title" translatable="false">Sing</string>
     <string name="sing_subtitle" translatable="false">Turn the lead vocal down and sing over the track</string>
     <string name="sing_level_percent" translatable="false">Vocals at %1$d%%</string>

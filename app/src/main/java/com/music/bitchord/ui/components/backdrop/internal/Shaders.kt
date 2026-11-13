@@ -128,7 +128,16 @@ half4 main(float2 coord) {
     float2 refractedCoord = coord + d * grad;
     float dispersionIntensity = chromaticAberration * ((centeredCoord.x * centeredCoord.y) / (halfSize.x * halfSize.y));
     float2 dispersedCoord = d * grad * dispersionIntensity;
-    
+
+    // Vendored addition: the seven samples below are spread along
+    // dispersedCoord and their weights sum to one per channel, so where the
+    // spread is under a quarter of a pixel they are seven reads of the same
+    // texel. That is most of the rim: the dispersion grows toward the corners
+    // and is nothing along the shape's axes.
+    if (dot(dispersedCoord, dispersedCoord) < 0.0625) {
+        return content.eval(refractedCoord);
+    }
+
     half4 color = half4(0.0);
     
     half4 red = content.eval(refractedCoord + dispersedCoord);

@@ -148,9 +148,10 @@ internal const val SQUASH = 0.5f
  * follows a finger dragged along the pill. On Search the capsule fades out of
  * the pill and the circle fills instead.
  *
- * The layout is the same whatever the material. Each surface is frosted off
- * [hazeState], clearer with a lit rim under Liquid Glass, and filled solid
- * under "reduce dynamic blur". Nothing here moves with the page's scroll.
+ * This is the bar while Liquid Glass is off: each surface is frosted off
+ * [hazeState], or filled solid under "reduce dynamic blur", and nothing here
+ * moves with the page's scroll. With Liquid Glass on, MainActivity draws
+ * [GlassNavBar] instead, which has the same split and folds as the page scrolls.
  */
 @Composable
 fun AppTabBar(
@@ -345,7 +346,7 @@ private fun Modifier.tabBarSurface(shape: CornerBasedShape, hazeState: HazeState
     val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     return clip(shape).then(
         when {
-            useGlass -> Modifier.liquidGlass(shape, hazeState)
+            useGlass -> Modifier.liquidGlass(shape)
             reduceDynamicBlur -> Modifier
                 .background(container)
                 .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)

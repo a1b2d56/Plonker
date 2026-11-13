@@ -498,7 +498,7 @@ private fun artworkPageSurface(
         .clip(shape)
         .then(
             when {
-                useLiquidGlass -> Modifier.liquidGlass(shape, hazeState ?: LocalGlassHaze.current)
+                useLiquidGlass -> Modifier.liquidGlass(shape)
                 reduceDynamicBlur || hazeState == null -> Modifier.background(container)
                 else -> Modifier.optimizedHazeEffect(
                     state = hazeState,
