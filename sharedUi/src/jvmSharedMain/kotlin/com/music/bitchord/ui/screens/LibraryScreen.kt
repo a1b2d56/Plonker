@@ -65,6 +65,7 @@ import com.music.bitchord.ui.icons.BitChordIcons
 import com.music.bitchord.ui.components.LIBRARY_GRID_SPACING
 import com.music.bitchord.ui.components.MessageState
 import com.music.bitchord.ui.components.PAGE_GUTTER
+import com.music.bitchord.ui.components.PillSegmentedControl
 import com.music.bitchord.ui.components.PullToRefresh
 import com.music.bitchord.ui.components.SHELF_CARD_WIDTH
 import com.music.bitchord.ui.components.libraryGrid
@@ -333,42 +334,24 @@ private fun LibrarySegmentBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        labels.forEachIndexed { index, label ->
-            val value = LibrarySegment.entries[index]
-            val chosen = value == selected
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (chosen) {
-                    MaterialTheme.colorScheme.onBackground
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                maxLines = 1,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(
-                        if (chosen) {
-                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.10f)
-                        } else {
-                            Color.Transparent
-                        },
-                    )
-                    .clickable { onSelect(value) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        }
-        Spacer(Modifier.weight(1f))
+        // The track the selection slides along; it scrolls when the labels
+        // outgrow it, as in a longer language.
+        PillSegmentedControl(
+            options = labels,
+            selectedIndex = LibrarySegment.entries.indexOf(selected),
+            onSelect = { onSelect(LibrarySegment.entries[it]) },
+            modifier = Modifier.weight(1f),
+        )
         Icon(
             imageVector = BitChordIcons.Plus,
             contentDescription = stringResource(Res.string.new_playlist),
             tint = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier
-                .size(32.dp)
+                .size(36.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.onBackground.copy(alpha = 0.10f))
                 .clickable(onClick = onCreate)
-                .padding(7.dp),
+                .padding(8.dp),
         )
     }
 }
