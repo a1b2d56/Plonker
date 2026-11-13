@@ -3448,7 +3448,7 @@ fun NowPlayingScreen(
                             if (signedIn || song.localUri != null) {
                                 val liked = likeStatus == LikeStatus.LIKE
                                 CircleGlyph(
-                                    icon = if (liked) OpalineIcons.LikeFilled else OpalineIcons.Like,
+                                    icon = if (liked) OpalineIcons.FavoritesFill else OpalineIcons.Favorites,
                                     contentDescription = stringResource(
                                         if (liked) Res.string.remove_from_liked else Res.string.like,
                                     ),

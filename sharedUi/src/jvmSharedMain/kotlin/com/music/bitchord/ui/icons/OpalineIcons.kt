@@ -1,6 +1,7 @@
 package com.music.bitchord.ui.icons
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -11,7 +12,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Icons taken from Opaline's icon set (Apache-2.0, a derivative of Miuix),
- * path data unchanged, plus the two hearts the player's like button draws.
+ * path data unchanged.
  *
  * Tint is applied by [androidx.compose.material3.Icon]; the lighter parts of
  * the two-tone device glyphs are the same ink at a lower alpha, so they follow
@@ -128,39 +129,36 @@ object OpalineIcons {
     }
 
     /** The player's like button, not liked: the heart in outline. */
-    val Like: ImageVector by lazy { heart("listen_music_un_like", filled = false) }
-
-    /** The player's like button, liked: the same heart, filled. */
-    val LikeFilled: ImageVector by lazy { heart("listen_music_like", filled = true) }
-
-    /**
-     * The heart of `ic_listen_music_like` / `ic_listen_music_un_like`.
-     *
-     * Those drawables are a 28-unit disc with the heart inside it. The player
-     * already draws the disc — it is what carries the artwork's blend — so only
-     * the heart is taken, in a window cut from the middle of the original that
-     * leaves it the same share of the button it had of its own disc.
-     */
-    private fun heart(name: String, filled: Boolean): ImageVector =
+    val Favorites: ImageVector by lazy {
         ImageVector.Builder(
-            name = name, defaultWidth = 24.dp, defaultHeight = 24.dp,
-            viewportWidth = HEART_WINDOW, viewportHeight = HEART_WINDOW,
+            name = "opaline_favorites", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 1326f, viewportHeight = 1326f,
         ).apply {
-            group(
-                translationX = -(HEART_DISC - HEART_WINDOW) / 2f,
-                translationY = -(HEART_DISC - HEART_WINDOW) / 2f,
-            ) {
+            // Drawn y-up, as the font it was cut from is.
+            group(scaleY = -1f, translationY = 1326f) {
                 addPath(
-                    pathData = addPathNodes("M18.98 14.51c0.55-0.57 0.85-1.33 0.85-2.12s-0.3-1.55-0.85-2.12c-0.27-0.27-0.59-0.5-0.94-0.65-0.36-0.15-0.74-0.22-1.12-0.22-0.39 0-0.77 0.07-1.12 0.22-0.36 0.15-0.68 0.38-0.95 0.65l-0.83 0.9-0.87-0.9c-0.27-0.27-0.6-0.5-0.95-0.64-0.35-0.16-0.73-0.23-1.12-0.23-0.38 0-0.76 0.07-1.12 0.23C9.61 9.78 9.3 10 9.02 10.27c-0.55 0.57-0.85 1.33-0.85 2.12 0 0.8 0.3 1.55 0.85 2.12l4.96 5.1 5-5.1Z"),
-                    fill = if (filled) ink else null,
-                    stroke = ink,
-                    strokeLineWidth = 1.07f,
-                    strokeLineMiter = 10f,
+                    pathData = addPathNodes("M686.5 1092.5 L680.5 1087.5 L670.5 1078.5 Q663.5 1071.5 655.5 1078.5 Q653.5 1081.5 641.5 1091.5 Q599.5 1124.5 547.5 1143.5 Q495.5 1162.5 437.5 1162.5 Q348.5 1162.5 273.5 1119.0 Q198.5 1075.5 154.5 1001.0 Q110.5 926.5 110.5 837.5 Q110.5 742.5 158.5 666.5 Q214.5 571.5 340.0 444.5 Q465.5 317.5 596.5 200.5 Q610.5 188.5 622.0 180.0 Q633.5 171.5 643.5 168.5 Q665.5 163.5 684.5 169.5 Q693.5 171.5 705.5 180.5 Q717.5 189.5 731.5 201.5 Q857.5 314.5 978.0 435.5 Q1098.5 556.5 1159.5 652.5 Q1215.5 735.5 1215.5 837.5 Q1215.5 926.5 1171.5 1001.0 Q1127.5 1075.5 1053.0 1119.0 Q978.5 1162.5 889.5 1162.5 Q831.5 1162.5 779.0 1144.0 Q726.5 1125.5 686.5 1092.5 Z M1099.5 837.5 Q1099.5 772.5 1063.5 717.5 Q1017.5 647.5 933.5 558.5 Q849.5 469.5 789.5 412.5 Q703.5 331.5 674.5 307.5 Q667.5 300.5 663.5 300.5 Q659.5 300.5 652.5 307.5 Q611.5 342.5 529.5 421.5 Q317.5 624.5 257.5 727.5 Q239.5 758.5 233.5 783.0 Q227.5 807.5 227.5 837.5 Q227.5 894.5 255.5 942.5 Q283.5 990.5 332.0 1018.5 Q380.5 1046.5 437.5 1046.5 Q481.5 1046.5 521.0 1029.0 Q560.5 1011.5 589.5 980.5 Q603.5 965.5 614.5 955.5 Q625.5 945.5 635.5 941.5 Q663.5 929.5 691.5 941.5 Q700.5 945.5 710.5 954.0 Q720.5 962.5 737.5 980.5 Q765.5 1011.5 805.0 1029.0 Q844.5 1046.5 889.5 1046.5 Q946.5 1046.5 995.0 1018.5 Q1043.5 990.5 1071.5 942.5 Q1099.5 894.5 1099.5 837.5 Z"),
+                    fill = ink,
+                    pathFillType = PathFillType.EvenOdd,
                 )
             }
         }.build()
+    }
 
-    /** The originals' viewport, and the square of it the heart is drawn from. */
-    private const val HEART_DISC = 28f
-    private const val HEART_WINDOW = 15.6f
+    /** The player's like button, liked: the same heart, filled. */
+    val FavoritesFill: ImageVector by lazy {
+        ImageVector.Builder(
+            name = "opaline_favorites_fill", defaultWidth = 24.dp, defaultHeight = 24.dp,
+            viewportWidth = 1326f, viewportHeight = 1326f,
+        ).apply {
+            // Drawn y-up, as the font it was cut from is.
+            group(scaleY = -1f, translationY = 1326f) {
+                addPath(
+                    pathData = addPathNodes("M686.5 1092.5 L680.5 1087.5 L670.5 1078.5 Q663.5 1071.5 655.5 1078.5 Q653.5 1081.5 641.5 1091.5 Q599.5 1124.5 547.5 1143.5 Q495.5 1162.5 437.5 1162.5 Q348.5 1162.5 273.5 1119.0 Q198.5 1075.5 154.5 1001.0 Q110.5 926.5 110.5 837.5 Q110.5 742.5 158.5 666.5 Q214.5 571.5 340.0 444.5 Q465.5 317.5 596.5 200.5 Q610.5 188.5 622.0 180.0 Q633.5 171.5 643.5 168.5 Q665.5 163.5 684.5 169.5 Q693.5 171.5 705.5 180.5 Q717.5 189.5 731.5 201.5 Q857.5 314.5 978.0 435.5 Q1098.5 556.5 1159.5 652.5 Q1215.5 735.5 1215.5 837.5 Q1215.5 926.5 1171.5 1001.0 Q1127.5 1075.5 1053.0 1119.0 Q978.5 1162.5 889.5 1162.5 Q831.5 1162.5 779.0 1144.0 Q726.5 1125.5 686.5 1092.5 Z"),
+                    fill = ink,
+                )
+            }
+        }.build()
+    }
+
 }
