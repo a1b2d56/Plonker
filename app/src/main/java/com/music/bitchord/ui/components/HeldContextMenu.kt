@@ -200,17 +200,16 @@ fun <T : Any> HeldContextMenu(
             Box(
                 Modifier
                     .then(if (reduceMotion) Modifier else Modifier.shadow(20.dp, cardShape, clip = false))
-                    .pointerInput(Unit) {}
                     .clip(cardShape)
                     .background(plate)
                     .border(0.5.dp, hairline, cardShape)
-                    .then(
-                        if (onPreviewClick != null) {
-                            Modifier.clickable(enabled = open) { onPreviewClick(menuItem) }
-                        } else {
-                            Modifier
-                        },
-                    )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = open,
+                    ) {
+                        onPreviewClick?.invoke(menuItem)
+                    }
                     .padding(platePadding),
             ) {
                 heldItem.image?.let { image ->
@@ -225,7 +224,10 @@ fun <T : Any> HeldContextMenu(
             Column(
                 Modifier
                     // Taps between rows land on the menu, not the scrim under it.
-                    .pointerInput(Unit) {}
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {}
                     // The same frosted plate the held item sits on, so the
                     // item and its menu read as one thing lifted off the page.
                     .iosMenuPanel(fillOverride = plate, rimOverride = hairline)

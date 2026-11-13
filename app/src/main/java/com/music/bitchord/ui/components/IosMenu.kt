@@ -341,9 +341,6 @@ fun IosMenuRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (pressed) colors.pressed else Color.Transparent)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -356,6 +353,9 @@ fun IosMenuRow(
                     Modifier
                 },
             )
+            .padding(horizontal = 8.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (pressed) colors.pressed else Color.Transparent)
             .heightIn(min = 44.dp)
             .padding(start = 12.dp, end = 14.dp, top = 11.dp, bottom = 11.dp),
         verticalAlignment = Alignment.CenterVertically,

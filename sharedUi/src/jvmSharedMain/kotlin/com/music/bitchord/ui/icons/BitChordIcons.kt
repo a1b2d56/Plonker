@@ -50,42 +50,7 @@ object BitChordIcons {
         }.build()
     }
 
-    val LyricsQuote: ImageVector by lazy {
-        ImageVector.Builder(
-            name = "bc_lyrics_quote", defaultWidth = 24.dp, defaultHeight = 24.dp,
-            viewportWidth = 24f, viewportHeight = 24f,
-        ).apply {
-            path(
-                stroke = stroke, strokeLineWidth = 2f,
-                strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round,
-            ) {
-                moveTo(6f, 3.5f)
-                lineTo(18f, 3.5f)
-                quadTo(21f, 3.5f, 21f, 6.5f)
-                lineTo(21f, 15f)
-                quadTo(21f, 18f, 18f, 18f)
-                lineTo(10f, 18f)
-                lineTo(6f, 21f)
-                lineTo(6f, 18f)
-                quadTo(3f, 18f, 3f, 15f)
-                lineTo(3f, 6.5f)
-                quadTo(3f, 3.5f, 6f, 3.5f)
-                close()
-            }
-            path(fill = stroke) {
-                for (x in listOf(7.6f, 12.8f)) {
-                    moveTo(x, 8f)
-                    lineTo(x + 3f, 8f)
-                    lineTo(x + 3f, 11.1f)
-                    quadTo(x + 3f, 13.2f, x + 0.5f, 13.7f)
-                    lineTo(x + 0.5f, 12.3f)
-                    quadTo(x + 1.7f, 12f, x + 1.7f, 11f)
-                    lineTo(x, 11f)
-                    close()
-                }
-            }
-        }.build()
-    }
+    val LyricsQuote: ImageVector get() = PlayerLyrics
 
     val Play: ImageVector by lazy {
         ImageVector.Builder(
@@ -941,7 +906,7 @@ object BitChordIcons {
         }.build()
     }
 
-    /** A rounded quote bubble with two marks: the lyrics button. */
+    /** Apple SF / Opaline style rounded quote bubble with twin marks: the lyrics button. */
     val PlayerLyrics: ImageVector by lazy {
         ImageVector.Builder(
             name = "bc_player_lyrics",
@@ -950,26 +915,27 @@ object BitChordIcons {
         ).apply {
             path(
                 stroke = stroke,
-                strokeLineWidth = 1.7f,
+                strokeLineWidth = 2.05f,
                 strokeLineCap = StrokeCap.Round,
                 strokeLineJoin = StrokeJoin.Round,
             ) {
-                moveTo(7.2f, 4.4f)
-                lineTo(16.8f, 4.4f)
-                quadTo(20.6f, 4.4f, 20.6f, 8.2f)
-                lineTo(20.6f, 14.4f)
-                quadTo(20.6f, 18.2f, 16.8f, 18.2f)
-                lineTo(10.8f, 18.2f)
-                lineTo(6.9f, 21.6f)
-                lineTo(6.9f, 18.2f)
-                quadTo(3.4f, 18.2f, 3.4f, 14.4f)
-                lineTo(3.4f, 8.2f)
-                quadTo(3.4f, 4.4f, 7.2f, 4.4f)
+                moveTo(7.5f, 4.5f)
+                lineTo(16.5f, 4.5f)
+                quadTo(20.5f, 4.5f, 20.5f, 8.5f)
+                lineTo(20.5f, 13.5f)
+                quadTo(20.5f, 17.5f, 16.5f, 17.5f)
+                lineTo(10.5f, 17.5f)
+                lineTo(6.2f, 20.8f)
+                quadTo(5.5f, 21.3f, 5.5f, 20.3f)
+                lineTo(5.5f, 17.5f)
+                quadTo(3.5f, 17.5f, 3.5f, 13.5f)
+                lineTo(3.5f, 8.5f)
+                quadTo(3.5f, 4.5f, 7.5f, 4.5f)
                 close()
             }
             path(fill = stroke) {
-                quoteMark(7.6f)
-                quoteMark(12.4f)
+                quoteMark(8.4f)
+                quoteMark(13.6f)
             }
         }.build()
     }
@@ -1231,14 +1197,14 @@ object BitChordIcons {
     }
 
     private fun PathBuilder.quoteMark(x: Float) {
-        moveTo(x + 0.5f, 9.0f)
-        curveTo(x + 2.2f, 9.0f, x + 2.6f, 10.0f, x + 2.6f, 10.9f)
-        curveTo(x + 2.6f, 12.3f, x + 1.7f, 13.4f, x + 0.5f, 14.2f)
-        lineTo(x - 0.2f, 13.4f)
-        curveTo(x + 0.8f, 12.7f, x + 1.2f, 12.0f, x + 1.2f, 11.3f)
-        lineTo(x + 0.5f, 11.3f)
-        curveTo(x - 0.3f, 11.3f, x - 0.3f, 10.5f, x - 0.3f, 10.1f)
-        curveTo(x - 0.3f, 9.4f, x + 0.1f, 9.0f, x + 0.5f, 9.0f)
+        moveTo(x + 0.6f, 8.4f)
+        curveTo(x + 1.8f, 8.4f, x + 2.3f, 9.2f, x + 2.3f, 10.2f)
+        curveTo(x + 2.3f, 11.5f, x + 1.4f, 12.8f, x - 0.2f, 13.6f)
+        lineTo(x - 0.7f, 12.8f)
+        curveTo(x + 0.5f, 12.1f, x + 0.9f, 11.4f, x + 0.9f, 10.7f)
+        lineTo(x + 0.5f, 10.7f)
+        curveTo(x - 0.4f, 10.7f, x - 0.6f, 9.9f, x - 0.6f, 9.4f)
+        curveTo(x - 0.6f, 8.7f, x - 0.1f, 8.4f, x + 0.6f, 8.4f)
         close()
     }
 

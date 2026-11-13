@@ -75,7 +75,7 @@
                         android:layout_height="@dimen/widget_button_pill"
                         android:contentDescription="@string/like"
                         android:padding="9dp"
-                        android:src="@drawable/ic_widget_star" />
+                        android:src="@drawable/ic_heart" />
 
                     <FrameLayout
                         android:layout_width="0dp"

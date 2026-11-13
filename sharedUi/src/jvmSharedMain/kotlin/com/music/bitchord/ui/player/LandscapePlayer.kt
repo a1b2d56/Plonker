@@ -1,6 +1,7 @@
 package com.music.bitchord.ui.player
 
 import com.music.bitchord.sharedui.resources.*
+import com.music.bitchord.ui.icons.OpalineIcons
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.AnimatedContent
@@ -470,7 +471,7 @@ internal fun LandscapeCredits(
         if (signedIn || song.localUri != null) {
             val liked = likeStatus == LikeStatus.LIKE
             CircleGlyph(
-                icon = if (liked) BitChordIcons.StarFilled else BitChordIcons.Star,
+                icon = if (liked) OpalineIcons.FavoritesFill else OpalineIcons.Favorites,
                 contentDescription = stringResource(
                     if (liked) Res.string.remove_from_liked else Res.string.like,
                 ),
@@ -481,7 +482,7 @@ internal fun LandscapeCredits(
             Spacer(Modifier.width(8.dp))
         }
         CircleGlyph(
-            icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.MoreHoriz,
+            icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else OpalineIcons.MoreCircle,
             contentDescription = stringResource(Res.string.more),
             onClick = onOpenMenu,
             modifier = Modifier.menuAnchor(),
