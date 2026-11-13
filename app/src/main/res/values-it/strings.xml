@@ -256,7 +256,7 @@
     <string name="disable_blend_effects">Disattiva effetti di fusione</string>
     <string name="disable_blend_effects_subtitle">Mostra icone, testo e menu scuri del player in bianco pieno invece di colorarli con la copertina</string>
     <string name="liquid_glass">Liquid Glass</string>
-    <string name="liquid_glass_subtitle">Vetro rifrangente reale sulla barra di navigazione flottante. Solo Android 12+; usa più GPU.</string>
+    <string name="liquid_glass_subtitle">Vetro più trasparente sulle barre al posto di quello satinato. Solo Android 12+.</string>
     <string name="liquid_glass_unavailable">Richiede Android 12 o versioni successive</string>
     <string name="full_screen_cover_art">Copertina a tutto schermo</string>
     <string name="animated_cover_art">Copertina animata</string>
@@ -1354,7 +1354,6 @@
     <string name="direct_source_stream">Streaming diretto dalla fonte</string>
     <string name="find_your_mood">Trova il tuo mood</string>
     <string name="progressive_blur">Sfocatura progressiva</string>
-    <string name="glass_performance">Prestazioni migliori per il vetro</string>
     <string name="remove_from_history">Rimuovi dalla cronologia</string>
     <string name="remove_from_history_failed">Impossibile rimuovere dalla cronologia</string>
     <string name="addon_blocked_title">Impossibile riprodurre questo brano</string>

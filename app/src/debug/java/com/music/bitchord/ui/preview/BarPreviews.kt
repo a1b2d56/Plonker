@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.ui.components.BottomFadeScrim
 import com.music.bitchord.ui.components.BottomTab
-import com.music.bitchord.ui.components.FloatingBottomBar
+import com.music.bitchord.ui.components.AppTabBar
 import com.music.bitchord.ui.components.FrostedTopBar
 import com.music.bitchord.ui.components.MiniPlayer
 import com.music.bitchord.ui.components.TopFadeBlur
@@ -166,7 +166,7 @@ private fun ChromeStack(scrolled: Boolean, withMiniPlayer: Boolean) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
-            FloatingBottomBar(
+            AppTabBar(
                 tabs = PreviewTabs,
                 selectedIndex = 0,
                 onTabSelected = {},

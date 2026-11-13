@@ -55,7 +55,6 @@ internal fun AppearanceSettingsGroup(
     val blurReducedBySystem by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val disableBlendEffects by AppSettings.disableBlendEffects.collectAsStateWithLifecycle()
     val liquidGlass by AppSettings.liquidGlass.collectAsStateWithLifecycle()
-    val glassPerformance by AppSettings.glassPerformance.collectAsStateWithLifecycle()
     val progressiveBlur by AppSettings.progressiveBlur.collectAsStateWithLifecycle()
     val liquidGlassHaptics by AppSettings.liquidGlassHaptics.collectAsStateWithLifecycle()
     val liquidGlassIntensity by AppSettings.liquidGlassIntensity.collectAsStateWithLifecycle()
@@ -178,10 +177,9 @@ internal fun AppearanceSettingsGroup(
             // on their own. Progressive Blur has its own switch because it costs
             // frames of its own. Reduce dynamic blur turns it off.
             val liquidGlassIntensityTitle = stringResource(R.string.liquid_glass_intensity)
-            val glassPerformanceTitle = stringResource(R.string.glass_performance)
             val progressiveBlurTitle = stringResource(R.string.progressive_blur)
             val liquidGlassHapticsTitle = stringResource(R.string.liquid_glass_haptics)
-            row(liquidGlassIntensityTitle, "glass", "intensity", "performance", "progressive", "blur", "haptics", divided = false) {
+            row(liquidGlassIntensityTitle, "glass", "intensity", "progressive", "blur", "haptics", divided = false) {
                 AnimatedVisibility(
                     visible = liquidGlass && liquidGlassSupported,
                     enter = expandVertically(IosMotion.cardSpring()) + fadeIn(),
@@ -198,11 +196,6 @@ internal fun AppearanceSettingsGroup(
                             onSliderValue = { AppSettings.setLiquidGlassIntensity(it) },
                             valueRange = AppSettings.MIN_LIQUID_GLASS_INTENSITY..AppSettings.MAX_LIQUID_GLASS_INTENSITY,
                             steps = 8,
-                        )
-                        SettingsSubRow(
-                            title = glassPerformanceTitle,
-                            checked = glassPerformance,
-                            onCheckedChange = AppSettings::setGlassPerformance,
                         )
                         SettingsSubRow(
                             title = progressiveBlurTitle,

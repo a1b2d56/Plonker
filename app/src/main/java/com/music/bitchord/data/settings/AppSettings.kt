@@ -548,14 +548,13 @@ object AppSettings {
      */
     val disableBlendEffects = MutableStateFlow(false)
 
-    /** Real backdrop-sampled glass (blur, lens refraction) on the floating nav bar, Android 12+ only. */
+    /** Clear glass in place of frost on the tab bar, the mini player and the top controls, Android 12+ only. */
     val liquidGlass = MutableStateFlow(false)
     /**
      * How strong the [liquidGlass] material is,
      * [MIN_LIQUID_GLASS_INTENSITY]..[MAX_LIQUID_GLASS_INTENSITY], multiplied
-     * onto the glass engine's blur, refraction and vibrancy where the config
-     * is provided. 1 is the engine's own look; the floor is above zero because
-     * a zeroed blur and lens is not subtle glass but the flat fill. Lower is cheaper.
+     * onto the glass's blur. 1 is its own look; the floor is above zero because
+     * a zeroed blur is not subtle glass but a tinted window.
      */
     val liquidGlassIntensity = MutableStateFlow(1f)
 
@@ -564,13 +563,6 @@ object AppSettings {
         liquidGlassIntensity.value = clamped
         if (::prefs.isInitialized) prefs.edit().putFloat(KEY_LIQUID_GLASS_INTENSITY, clamped).apply()
     }
-
-    /**
-     * Frosts the glass instead of refracting it, for phones the lens shader is too
-     * much for: the bar's rim, shadow, tint and motion all stay. A Liquid Glass
-     * option, honoured only while [liquidGlass] is on.
-     */
-    val glassPerformance = MutableStateFlow(false)
 
     /**
      * Blurs what scrolls under the status bar and the top controls, easing out
@@ -1160,7 +1152,6 @@ object AppSettings {
         reduceDynamicBlurSetting.value = prefs.getBoolean(KEY_REDUCE_BLUR, false)
         disableBlendEffects.value = prefs.getBoolean(KEY_DISABLE_BLEND_EFFECTS, false)
         liquidGlass.value = prefs.getBoolean(KEY_LIQUID_GLASS, false)
-        glassPerformance.value = prefs.getBoolean(KEY_GLASS_PERFORMANCE, false)
         progressiveBlur.value = prefs.getBoolean(KEY_PROGRESSIVE_BLUR, false)
         liquidGlassHaptics.value = prefs.getBoolean(KEY_LIQUID_GLASS_HAPTICS, true)
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
@@ -1777,11 +1768,6 @@ object AppSettings {
     fun setLiquidGlass(value: Boolean) {
         liquidGlass.value = value
         prefs.edit().putBoolean(KEY_LIQUID_GLASS, value).apply()
-    }
-
-    fun setGlassPerformance(value: Boolean) {
-        glassPerformance.value = value
-        prefs.edit().putBoolean(KEY_GLASS_PERFORMANCE, value).apply()
     }
 
     fun setProgressiveBlur(value: Boolean) {
@@ -2610,7 +2596,6 @@ object AppSettings {
         value.coerceIn(MIN_LIQUID_GLASS_INTENSITY, MAX_LIQUID_GLASS_INTENSITY)
 
     private const val KEY_LIQUID_GLASS = "liquid_glass"
-    private const val KEY_GLASS_PERFORMANCE = "glass_performance"
     private const val KEY_PROGRESSIVE_BLUR = "progressive_blur"
     private const val KEY_LIQUID_GLASS_HAPTICS = "liquid_glass_haptics"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"

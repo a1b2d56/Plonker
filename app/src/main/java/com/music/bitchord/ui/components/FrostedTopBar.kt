@@ -498,7 +498,7 @@ private fun artworkPageSurface(
         .clip(shape)
         .then(
             when {
-                useLiquidGlass -> Modifier.liquidGlass(shape)
+                useLiquidGlass -> Modifier.liquidGlass(shape, hazeState ?: LocalGlassHaze.current)
                 reduceDynamicBlur || hazeState == null -> Modifier.background(container)
                 else -> Modifier.optimizedHazeEffect(
                     state = hazeState,
@@ -506,7 +506,7 @@ private fun artworkPageSurface(
                 )
             },
         )
-        // Keep the same explicit hairline as FloatingBottomBar. Liquid glass
+        // Keep the same explicit hairline as AppTabBar. Liquid glass
         // also has its refractive highlight, but the navbar retains this edge
         // so these surfaces do as well.
         .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
