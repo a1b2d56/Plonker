@@ -214,7 +214,10 @@ fun LyricsSourcesDialog(
         }
     }
 
-    if (showPaxSenixKeyDialog) {
+    IosModalContainer(
+        visible = showPaxSenixKeyDialog,
+        onDismiss = { showPaxSenixKeyDialog = false },
+    ) {
         var input by remember(paxSenixApiKey) { mutableStateOf(paxSenixApiKey) }
         PaxSenixApiKeyAlert(
             hazeState = hazeState,
@@ -225,6 +228,7 @@ fun LyricsSourcesDialog(
                 showPaxSenixKeyDialog = false
             },
             onDismiss = { showPaxSenixKeyDialog = false },
+            animatedScope = this,
         )
     }
 }

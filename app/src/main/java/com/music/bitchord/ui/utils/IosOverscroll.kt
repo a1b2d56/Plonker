@@ -81,10 +81,8 @@ private class IosOverscrollEffect(
     /** Halts all bounce motion the moment a finger lands on the container. */
     fun onTouchDown() {
         stopSettling()
-        // If the spring was already nearly home (< 25px pull), snap directly to rest
-        // so resting content does not slide under a user's tap or hold gesture.
-        if (abs(rawPullX.floatValue) < 25f) rawPullX.floatValue = 0f
-        if (abs(rawPullY.floatValue) < 25f) rawPullY.floatValue = 0f
+        rawPullX.floatValue = 0f
+        rawPullY.floatValue = 0f
     }
 
     /** Settles any remaining stretch back to zero when touch is released without drag. */
@@ -147,12 +145,12 @@ private class IosOverscrollEffect(
         stopSettling()
         if (!isInProgress && leftover == Velocity.Zero) return
 
-        coroutineScope {
-            val jobs = listOf(
-                launch { settle(rawPullX, leftover.x) },
-                launch { settle(rawPullY, leftover.y) },
-            )
-            settleJobs = jobs
+        val jobs = listOf(
+            scope.launch { settle(rawPullX, leftover.x) },
+            scope.launch { settle(rawPullY, leftover.y) },
+        )
+        settleJobs = jobs
+        scope.launch {
             jobs.forEach { it.join() }
             if (settleJobs === jobs) settleJobs = emptyList()
         }
@@ -191,8 +189,15 @@ private class IosOverscrollEffect(
             ),
         ) { value, _ ->
             // A frame already in flight when a drag cancels us must not stomp the drag.
-            if (job?.isActive != false) pull.floatValue = value
+            if (job?.isActive != false) {
+                if (abs(value) < 0.5f) {
+                    pull.floatValue = 0f
+                } else {
+                    pull.floatValue = value
+                }
+            }
         }
+        pull.floatValue = 0f
     }
 
     override val node: DelegatableNode = IosOverscrollNode(
