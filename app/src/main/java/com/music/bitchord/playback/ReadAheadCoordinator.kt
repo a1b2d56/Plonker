@@ -20,6 +20,8 @@ import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
@@ -227,7 +229,9 @@ internal class ReadAheadCoordinator(
         if (musicOnlyLookups[video.videoId]?.isActive == true) return
         musicOnlyLookups[video.videoId] = scope.launch {
             val audio = withTimeoutOrNull(MusicOnlyPlayback.ANSWER_TIMEOUT_MS) {
-                runCatching { YtMusicRepository.resolveAudio(video) }.getOrNull()
+                runCatching { YtMusicRepository.resolveAudio(video) }
+                    .onFailure { currentCoroutineContext().ensureActive() }
+                    .getOrNull()
             }
             musicOnlyLookups.remove(video.videoId)
             if (audio == null || audio.videoId == video.videoId) {
