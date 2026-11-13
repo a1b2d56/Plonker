@@ -467,10 +467,14 @@ internal class SessionPlayer(
         super.seekToDefaultPosition()
     }
 
+    // The watch's "skip to" arrives here. It is a queue jump like any other,
+    // so it takes the same route as [seekTo] with an index: the crossfade is
+    // told, the receiver is asked when it has the track, and a later row goes
+    // through the one jump plan instead of straight to the player.
     override fun seekToDefaultPosition(mediaItemIndex: Int) {
-        if (locked()) return
-        onUserIntent()
-        super.seekToDefaultPosition(mediaItemIndex)
+        val onReceiver = cast.active && mediaItemIndex == wrappedPlayer.currentMediaItemIndex
+        // The receiver takes a real position; "wherever this item starts" is 0 for it.
+        seekTo(mediaItemIndex, if (onReceiver) 0L else C.TIME_UNSET)
     }
 
     override fun setMediaItems(mediaItems: List<MediaItem>, resetPosition: Boolean) {
