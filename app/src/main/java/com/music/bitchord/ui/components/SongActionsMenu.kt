@@ -487,7 +487,7 @@ fun SongActionsMenu(
 }
 
     CompositionLocalProvider(LocalActionRowStyle provides ActionRowStyle.Menu) {
-        Column(modifier.fillMaxWidth().animateContentSize().verticalScroll(scrollState)) {
+        Column(modifier.fillMaxWidth().verticalScroll(scrollState)) {
             // The player's menu has the sleep timer and speed, and animates its subpages smoothly.
             AnimatedContent(
                 targetState = currentSubmenu,
