@@ -852,7 +852,7 @@
 
     <string name="liquid_glass">液態玻璃 （Liquid Glass）</string>
 
-    <string name="liquid_glass_subtitle">浮動導航欄上的折射玻璃效果。僅限 Android 12+；會佔用更多 GPU。</string>
+    <string name="liquid_glass_subtitle">在各列上以更通透的玻璃取代磨砂效果。僅限 Android 12+。</string>
 
     <string name="liquid_glass_unavailable">需要 Android 12 或更高版本</string>
 
@@ -1392,7 +1392,6 @@
     <string name="direct_source_stream">直接從來源串流</string>
     <string name="find_your_mood">尋找你的心情</string>
     <string name="progressive_blur">漸進模糊</string>
-    <string name="glass_performance">提升玻璃效能</string>
     <string name="remove_from_history">從歷史記錄中移除</string>
     <string name="remove_from_history_failed">無法從歷史記錄中移除</string>
     <string name="addon_blocked_title">無法播放這首歌</string>

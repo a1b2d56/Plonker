@@ -114,7 +114,7 @@ fun TopFadeBlur(
  * The uniform glass used by ordinary top bars.
  *
  * Unlike [TopFadeBlur], this occupies only the status-bar inset and the 52dp
- * bar itself. Its material is deliberately identical to [FloatingBottomBar]'s
+ * bar itself. Its material is deliberately identical to [AppTabBar]'s
  * non-liquid-glass surface: the same regular Haze material, the same surface
  * colour and the same reduced-resolution sampling supplied by
  * [optimizedHazeEffect]. [FrostedTopBar] draws the hairline at its lower edge.
