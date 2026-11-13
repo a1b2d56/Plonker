@@ -1452,4 +1452,6 @@
     <string name="playlist_rename_failed">プレイリストの名前を変更できませんでした</string>
     <string name="playlist_delete_failed">プレイリストを削除できませんでした</string>
     <string name="playlist_update_failed">プレイリストを更新できませんでした</string>
+    <string name="romanized_lyrics">歌詞のローマ字表示</string>
+    <string name="romanized_lyrics_subtitle">ラテン文字以外の歌詞の下に、ローマ字の読みを表示します</string>
 </resources>

@@ -1479,4 +1479,6 @@
     <string name="playlist_rename_failed">Não foi possível renomear a playlist</string>
     <string name="playlist_delete_failed">Não foi possível excluir a playlist</string>
     <string name="playlist_update_failed">Não foi possível atualizar a playlist</string>
+    <string name="romanized_lyrics">Letras romanizadas</string>
+    <string name="romanized_lyrics_subtitle">Mostra a pronúncia em letras latinas sob as letras escritas noutro alfabeto</string>
 </resources>

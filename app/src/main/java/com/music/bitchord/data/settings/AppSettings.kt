@@ -586,6 +586,13 @@ object AppSettings {
     /** Blurs unfocused lyric lines, keeping the active line sharp. */
     val lyricsBlur = MutableStateFlow(true)
 
+    /**
+     * Shows the romanization of every lyric sheet that has one, without being
+     * asked per song. The player's own Romanize button still turns it off, or a
+     * translation on, for the song that is playing.
+     */
+    val romanizedLyrics = MutableStateFlow(false)
+
     /** Positive values delay synced lyrics; negative values bring them forward. */
     val lyricsOffsetMs = MutableStateFlow(0)
 
@@ -1164,6 +1171,7 @@ object AppSettings {
         progressiveBlur.value = prefs.getBoolean(KEY_PROGRESSIVE_BLUR, false)
         liquidGlassHaptics.value = prefs.getBoolean(KEY_LIQUID_GLASS_HAPTICS, true)
         lyricsBlur.value = prefs.getBoolean(KEY_LYRICS_BLUR, true)
+        romanizedLyrics.value = prefs.getBoolean(KEY_ROMANIZED_LYRICS, false)
         lyricsOffsetMs.value = prefs.getInt(KEY_LYRICS_OFFSET_MS, 0)
             .coerceIn(MIN_LYRICS_OFFSET_MS, MAX_LYRICS_OFFSET_MS)
         translationLanguage.value = prefs.getString(KEY_TRANSLATION_LANGUAGE, "").orEmpty()
@@ -1818,6 +1826,11 @@ object AppSettings {
     fun setLyricsBlur(value: Boolean) {
         lyricsBlur.value = value
         prefs.edit().putBoolean(KEY_LYRICS_BLUR, value).apply()
+    }
+
+    fun setRomanizedLyrics(value: Boolean) {
+        romanizedLyrics.value = value
+        prefs.edit().putBoolean(KEY_ROMANIZED_LYRICS, value).apply()
     }
 
     fun setLyricsOffsetMs(value: Int) {
@@ -2614,6 +2627,7 @@ object AppSettings {
     private const val KEY_PROGRESSIVE_BLUR = "progressive_blur"
     private const val KEY_LIQUID_GLASS_HAPTICS = "liquid_glass_haptics"
     private const val KEY_LYRICS_BLUR = "lyrics_blur"
+    private const val KEY_ROMANIZED_LYRICS = "romanized_lyrics"
     private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
     private const val KEY_TRANSLATION_LANGUAGE = "translation_language"
     private const val KEY_ANIMATED_CANVAS = "animated_canvas"

@@ -1474,4 +1474,6 @@
     <string name="playlist_rename_failed">Playlist konnte nicht umbenannt werden</string>
     <string name="playlist_delete_failed">Playlist konnte nicht gelöscht werden</string>
     <string name="playlist_update_failed">Playlist konnte nicht aktualisiert werden</string>
+    <string name="romanized_lyrics">Romanisierte Songtexte</string>
+    <string name="romanized_lyrics_subtitle">Zeigt die Aussprache in lateinischen Buchstaben unter Songtexten in anderer Schrift</string>
 </resources>
