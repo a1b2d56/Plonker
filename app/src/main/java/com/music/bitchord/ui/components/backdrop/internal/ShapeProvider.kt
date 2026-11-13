@@ -50,4 +50,15 @@ internal class ShapeProvider(val shapeBlock: () -> Shape) {
             return _outline!!
         }
     }
+
+    // Vendored addition. A provider is made afresh on every call to
+    // drawBackdrop, and with no equality of its own that made the shadow, the
+    // highlight and the backdrop elements unequal to their predecessors on
+    // every recomposition: each one then rebuilt its effect chain and redrew
+    // its layers for a surface that had not changed. Equal while the block is
+    // the same instance, so an unchanged surface is left alone.
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is ShapeProvider && other.shapeBlock === shapeBlock)
+
+    override fun hashCode(): Int = System.identityHashCode(shapeBlock)
 }

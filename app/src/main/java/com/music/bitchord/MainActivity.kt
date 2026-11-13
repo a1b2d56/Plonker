@@ -58,6 +58,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -207,11 +209,15 @@ import com.music.bitchord.ui.components.FloatingBarsTapGuard
 import com.music.bitchord.ui.components.BottomTab
 import com.music.bitchord.ui.components.FLOATING_BAR_MAX_WIDTH
 import com.music.bitchord.ui.components.AppTabBar
+import com.music.bitchord.ui.components.GlassNavBar
+import com.music.bitchord.ui.components.floatingtabbar.rememberFloatingTabBarScrollConnection
 import com.music.bitchord.ui.components.FrostedTopBar
 import com.music.bitchord.ui.components.LastfmLoginAlert
-import com.music.bitchord.ui.components.LocalGlassHaze
+import com.music.bitchord.ui.components.LocalAppBackdrop
 import com.music.bitchord.ui.components.LocalLiquidGlassEnabled
 import com.music.bitchord.ui.components.LocalUiMotion
+import com.music.bitchord.ui.components.backdrop.backdrops.LayerBackdrop
+import com.music.bitchord.ui.components.backdrop.backdrops.layerBackdrop
 import com.music.bitchord.ui.components.backdrop.backdrops.rememberLayerBackdrop
 import com.music.bitchord.ui.components.backdrop.backdrops.rememberSnapshotBackdrop
 import com.music.bitchord.ui.components.backdrop.backdrops.snapshotBackdropSource
@@ -350,14 +356,28 @@ class MainActivity : AppCompatActivity() {
                 ThemeMode.DARK -> true
             }
             BitChordTheme(darkTheme = darkTheme) {
-                // What every frosted or glass surface in the window blurs: the
-                // pages, recorded once by the `hazeSource` on the page host.
-                val glassHaze = remember { HazeState() }
+                // The glass surfaces sample this layer, and a layer records only
+                // what is drawn into it — which, for BitChord, is a page that
+                // paints no background of its own. Everywhere a page is not
+                // showing artwork the recording is transparent, so the glass had
+                // nothing to blur there and you saw straight through it to the
+                // sharp page underneath: album art came through the bar blurred
+                // and text came through it untouched. The window's background is
+                // the floor the pages have always been drawn against, so it is
+                // laid down here too and the recording is opaque like the screen.
+                val windowBackground = MaterialTheme.colorScheme.background
+                val paintBackdrop: ContentDrawScope.() -> Unit = remember(windowBackground) {
+                    {
+                        drawRect(windowBackground)
+                        drawContent()
+                    }
+                }
+                val appBackdrop = rememberLayerBackdrop(onDraw = paintBackdrop)
                 CompositionLocalProvider(
                     LocalOverscrollFactory provides iosOverscrollFactory,
                     LocalLiquidGlassEnabled provides liquidGlassEnabled,
                     LocalUiMotion provides !reduceAnimationRoot,
-                    LocalGlassHaze provides glassHaze,
+                    LocalAppBackdrop provides appBackdrop,
                 ) {
                 // The window's width, measured rather than asked for.
                 //
@@ -375,6 +395,7 @@ class MainActivity : AppCompatActivity() {
                         darkTheme = darkTheme,
                         windowWidth = maxWidth,
                         windowHeight = maxHeight,
+                        appBackdrop = appBackdrop,
                     )
                 }
                 }
@@ -444,15 +465,27 @@ private fun BitChordApp(
      * would fire in portrait too if it only ever asked about width.
      */
     windowHeight: Dp,
+    appBackdrop: LayerBackdrop,
     viewModel: MainViewModel = viewModel(),
 ) {
     val context = LocalContext.current
-    val hazeState = LocalGlassHaze.current ?: remember { HazeState() }
-    // Liquid Glass changes the bars' material and nothing else: the same
-    // surfaces, sampling the same recording of the page as the frosted ones.
+    val hazeState = remember { HazeState() }
+    // Recording the backdrop layer costs a draw pass, so it only runs when a
+    // liquid-glass surface (the nav bar or artwork-page back button) can sample it.
     val glassActive = LocalLiquidGlassEnabled.current && isGlassSupported()
+    // "Reduce dynamic blur" keeps the glass bar's *shape* — the folding
+    // now-playing-and-tabs component is a layout, not an effect, and dropping
+    // back to the two stacked bars would be answering a question about material
+    // with a different screen. What it drops is the sampling: the surfaces fill
+    // solid (see [Modifier.liquidGlass]) and the whole-page layer recording
+    // below goes with them, which is the part that costs a draw pass.
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val progressiveBlur by AppSettings.progressiveBlur.collectAsStateWithLifecycle()
+    val glassSamplesBackdrop = glassActive && !reduceDynamicBlur
+    // What folds [GlassNavBar] between its expanded and inline shapes. Held here
+    // rather than inside the bar because the page's scroll is what drives it,
+    // and the page is a sibling of the bar rather than a child.
+    val navBarScroll = rememberFloatingTabBarScrollConnection()
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     // Explore loads the first time it's shown, not at launch beside Home.
     LaunchedEffect(selectedTab) {
@@ -2569,7 +2602,29 @@ private fun BitChordApp(
                         }
                     },
                     modifier = Modifier
-                        .hazeSource(hazeState),
+                        .hazeSource(hazeState)
+                        .then(
+                            if (glassActive) {
+                                Modifier
+                                    // Not under "reduce dynamic blur": nothing
+                                    // samples the layer then, and recording a
+                                    // whole page into one for no reader is the
+                                    // cost that setting exists to remove.
+                                    .then(
+                                        if (glassSamplesBackdrop) {
+                                            Modifier.layerBackdrop(appBackdrop)
+                                        } else {
+                                            Modifier
+                                        },
+                                    )
+                                    // Every page's scroll passes through here, so
+                                    // the glass bar collapses on all of them
+                                    // without each one having to know about it.
+                                    .nestedScroll(navBarScroll)
+                            } else {
+                                Modifier
+                            },
+                        ),
                     label = "content",
                 ) { destination ->
                     // Every branch below reads `destination` rather than the
@@ -2971,7 +3026,44 @@ private fun BitChordApp(
                     }
                 }
 
-                Column(
+                if (glassActive) Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .widthIn(max = FLOATING_BAR_MAX_WIDTH)
+                        .fillMaxWidth()
+                        .onSizeChanged { floatingBarsHeight.intValue = it.height },
+                ) {
+                    QueueActionNoticeHost(queueNotice)
+                    // Liquid glass replaces the two stacked bars with the single
+                    // component they are stacked to imitate: the now playing
+                    // controls dock into the tab bar rather than riding above it,
+                    // and the pair folds together on scroll. See [GlassNavBar].
+                    GlassNavBar(
+                        tabs = tabs,
+                        selectedIndex = selectedTab,
+                        onTabSelected = onTabSelected,
+                        scrollConnection = navBarScroll,
+                        song = player.song,
+                        isPlaying = player.isPlaying,
+                        isLoading = playPauseBusy,
+                        onPlayPause = {
+                            togglePlayPause()
+                        },
+                        onNext = { controller?.seekToNextMediaItem() },
+                        onPrevious = { controller?.seekToPrevious() },
+                        onExpand = if (reducePlayerMotion) {
+                            { showNowPlaying = true }
+                        } else {
+                            playerSheetMotion::open
+                        },
+                        onDismissPlayback = dismissPlayback,
+                        controlsLocked = controlsLocked,
+                        onBlockedControl = showHostOnlyNotice,
+                        dock = activeDock,
+                        pull = playerSheetMotion.takeIf { !reducePlayerMotion },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         // Capped and centred rather than run to the page's edges

@@ -478,7 +478,6 @@ fun MiniPlayer(
     // a pill instead of a rounded rectangle. Same idiom as [AppTabBar]
     // directly below it, so the two shapes are the same family.
     val shape = RoundedCornerShape(percent = 50)
-    val useGlass = LocalLiquidGlassEnabled.current && isGlassSupported()
     Box(
         modifier = modifier
             .padding(horizontal = BAR_GUTTER)
@@ -500,20 +499,16 @@ fun MiniPlayer(
             )
             .clip(shape)
             .then(
-                when {
-                    // The tab bar's material, so the two read as one piece.
-                    useGlass -> Modifier.liquidGlass(shape, hazeState)
-                    reduceDynamicBlur -> Modifier
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(0.5.dp, Color.White.copy(alpha = 0.10f), shape)
-                    else -> Modifier
-                        .optimizedHazeEffect(
-                            state = hazeState,
-                            style = HazeMaterials.thin(MaterialTheme.colorScheme.surface),
-                        )
-                        .border(0.5.dp, Color.White.copy(alpha = 0.10f), shape)
+                if (reduceDynamicBlur) {
+                    Modifier.background(MaterialTheme.colorScheme.surface)
+                } else {
+                    Modifier.optimizedHazeEffect(
+                        state = hazeState,
+                        style = HazeMaterials.thin(MaterialTheme.colorScheme.surface),
+                    )
                 },
             )
+            .border(0.5.dp, Color.White.copy(alpha = 0.10f), shape)
             // Deliberately silent: the whole bar is the target, so it catches
             // stray taps meant for the page behind it, and the sheet rising is
             // its own confirmation. The glyphs on it still buzz.

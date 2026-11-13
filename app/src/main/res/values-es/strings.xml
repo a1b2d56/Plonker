@@ -226,7 +226,7 @@
     <string name="disable_blend_effects">Desactivar efectos de fusión</string>
     <string name="disable_blend_effects_subtitle">Muestra los iconos, el texto y los menús oscuros del reproductor en blanco, sin teñirlos con la portada</string>
     <string name="liquid_glass">Liquid Glass</string>
-    <string name="liquid_glass_subtitle">Cristal más transparente en las barras en lugar del esmerilado. Solo Android 12+.</string>
+    <string name="liquid_glass_subtitle">Cristal refractante real en la barra de navegación flotante. Solo Android 12+; usa más GPU.</string>
     <string name="liquid_glass_unavailable">Requiere Android 12 o posterior</string>
     <string name="full_screen_cover_art">Portada a pantalla completa</string>
     <string name="animated_cover_art">Portada animada</string>
@@ -1387,6 +1387,7 @@
     <string name="direct_source_stream">Transmisión directa desde la fuente</string>
     <string name="find_your_mood">Encuentra tu estado de ánimo</string>
     <string name="progressive_blur">Desenfoque progresivo</string>
+    <string name="glass_performance">Mejor rendimiento del cristal</string>
     <string name="remove_from_history">Quitar del historial</string>
     <string name="remove_from_history_failed">No se pudo quitar del historial</string>
     <string name="addon_blocked_title">No se puede reproducir esta canción</string>

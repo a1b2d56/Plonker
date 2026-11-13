@@ -1,8 +1,11 @@
 /*
- * The rim highlight used by [lightweightLiquidGlass] and [liquidGlassRim] is
- * Kyant0/backdrop's (Apache-2.0), vendored at
- * [com.music.bitchord.ui.components.backdrop]. The glass surface itself,
- * [liquidGlass], is drawn with Haze, the blur the rest of the app's bars use.
+ * The glass rendering itself is Kyant0/backdrop (Apache-2.0), vendored at
+ * [com.music.bitchord.ui.components.backdrop] — see that package for the
+ * upstream attribution. This file is the integration glue, adapted from
+ * EchoMusicApp/Echo-Music's GlassEffectConfig/Modifier.liquidGlass
+ * (GPL-3.0), cut down from Echo's full per-component/vibrancy-slider config
+ * to the single on/off switch BitChord exposes in Settings. It is used by the
+ * floating nav bar and, while enabled, the app-wide floating top controls.
  */
 package com.music.bitchord.ui.components
 
@@ -12,66 +15,95 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.ui.components.backdrop.Backdrop
+import com.music.bitchord.ui.components.backdrop.BackdropEffectScope
+import com.music.bitchord.ui.components.backdrop.backdrops.LayerBackdrop
+import com.music.bitchord.ui.components.backdrop.drawBackdrop
+import com.music.bitchord.ui.components.backdrop.effects.blur
+import com.music.bitchord.ui.components.backdrop.effects.colorControls
+import com.music.bitchord.ui.components.backdrop.effects.lens
 import com.music.bitchord.ui.components.backdrop.highlight.Highlight
 import com.music.bitchord.ui.components.backdrop.highlight.HighlightElement
 import com.music.bitchord.ui.components.backdrop.internal.ShapeProvider
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeStyle
-import dev.chrisbanes.haze.HazeTint
+import com.music.bitchord.ui.components.backdrop.shadow.Shadow
+import androidx.compose.ui.unit.dp
 
-/** Whether Liquid Glass is turned on — see [AppSettings.liquidGlass]. */
+/** Whether the liquid glass nav bar is turned on — see [AppSettings.liquidGlass]. */
 val LocalLiquidGlassEnabled = staticCompositionLocalOf { false }
 
-/**
- * The app's pages as a blur source, for a [liquidGlass] surface that was not
- * handed one of its own. Null outside the main window's content.
- */
-val LocalGlassHaze = staticCompositionLocalOf<HazeState?> { null }
+/** The backdrop content (app UI) that a liquid glass surface samples from. */
+val LocalAppBackdrop = staticCompositionLocalOf<Backdrop> { error("No AppBackdrop provided") }
 
-/** Blurring what is behind a surface needs [android.graphics.RenderEffect], Android 12 (API 31). */
+/**
+ * Where a [liquidGlass] surface composed under it also records the glass it
+ * draws — the sampled, blurred and tinted backdrop, without its rim or shadow —
+ * so a lens above it can refract that surface rather than the page behind it.
+ * The tab bar's travelling selection pill is the one reader; see
+ * [com.music.bitchord.ui.components.floatingtabbar.GlassSelectionPill].
+ */
+internal val LocalGlassExport = compositionLocalOf<LayerBackdrop?> { null }
+
+/**
+ * The backdrop blur pipeline requires [android.graphics.RenderEffect] on a
+ * [android.graphics.RenderNode], available from Android 12 (API 31).
+ */
 fun isGlassSupported(sdkInt: Int = Build.VERSION.SDK_INT): Boolean = sdkInt >= Build.VERSION_CODES.S
 
-/**
- * How far the glass blurs what is behind it at full intensity. Less than the
- * frosted bars' material, so a page reads through it as shapes and colour.
- */
-private const val BLUR_RADIUS_DP = 14f
+private val DefaultGlassHighlight: () -> Highlight? = { Highlight.Default }
+private val DefaultGlassShadow: () -> Shadow? = { Shadow.Default }
 
-/** How much of the theme's tint lies over the glass: well under the frost's. */
+/** Apple-matched defaults (Echo's GlassEffectConfig()), fixed rather than user sliders. */
+private const val VIBRANCY = 1f
+private const val BLUR_RADIUS_DP = 8f
+private const val LENS_HEIGHT = 0.5f
+private const val LENS_AMOUNT = 0.5f
+private const val LENS_MAX_DP = 48f
 private const val SURFACE_OPACITY = 0.4f
+
+/**
+ * Resolution fraction the glass surface records and processes its backdrop at.
+ *
+ * A third, which is what Echo's `glassResolutionScale` comes to at this blur
+ * radius. It was briefly raised to a half while the sharp-text bug was being
+ * chased — wrongly, as it turned out: the cause was a transparent backdrop, not
+ * the resample (see MainActivity's `paintBackdrop`). A third is nine times fewer
+ * pixels than full resolution through the colour matrix, the blur and the lens
+ * shader, on as many as six surfaces at once in the middle of a fold, and the
+ * blur is what hides the upscale.
+ */
+private const val GLASS_RESOLUTION_SCALE = 0.33f
+
+/**
+ * The blur and resolution under [AppSettings.glassPerformance]. With no lens to
+ * bend what is behind it, the frost alone has to break up a page's text, so it
+ * is twice the radius — and that wider blur hides a smaller recording, which
+ * takes the surface from about 11% of its pixels to about 6%.
+ */
+private const val FROST_BLUR_RADIUS_DP = 16f
+private const val FROST_RESOLUTION_SCALE = 0.25f
 
 /**
  * The hairline along a bar's edge, and what stands in for the glass rim
  * wherever the glass itself is not drawn.
  *
  * A surface filled with the theme's own `surface` colour has no edge of its own
- * against a dark page — it is the same near-black the page is.
+ * against a dark page — it is the same near-black the page is. The glass gets
+ * its edge from [Highlight], and this is that edge for everything that does not.
  */
 internal val GLASS_EDGE_WIDTH = 0.5.dp
 internal val GLASS_EDGE_COLOR = Color.White.copy(alpha = 0.10f)
-
-/**
- * The rim of a [liquidGlass] surface: lit along the top, nearly gone at the
- * sides and picked up again faintly along the foot, as a thick pane catches
- * light from above. A gradient stroke, with no shader behind it.
- */
-private val GLASS_RIM_WIDTH = 1.dp
-private val GLASS_RIM = Brush.verticalGradient(
-    0f to Color.White.copy(alpha = 0.42f),
-    0.45f to Color.White.copy(alpha = 0.07f),
-    1f to Color.White.copy(alpha = 0.20f),
-)
 
 /**
  * Icon and label colour for content sitting on a glass surface.
@@ -79,7 +111,7 @@ private val GLASS_RIM = Brush.verticalGradient(
  * Glass shows whatever is behind it rather than the theme's surface colour, so
  * the usual onSurface greys have nothing dependable to sit against. Pure black
  * or white off the theme's luminance is the only tint that holds against
- * arbitrary artwork.
+ * arbitrary artwork, and it is what Echo's own glass nav bar uses.
  */
 @Composable
 fun glassContentColor(): Color =
@@ -108,9 +140,9 @@ private const val DARK_INDICATOR_OPACITY = 0.14f
  * A lightweight visual match for liquid glass over a stable background.
  *
  * This keeps the same translucent tint, directional highlight and hairline as
- * [liquidGlass], but samples nothing behind it. When Liquid Glass is disabled
- * or unsupported, [fallbackColor] preserves the control's existing filled
- * appearance.
+ * [liquidGlass], but intentionally performs no backdrop capture, blur, lens
+ * refraction or shadow rendering. When Liquid Glass is disabled or unsupported,
+ * [fallbackColor] preserves the control's existing filled appearance.
  */
 @Composable
 fun Modifier.lightweightLiquidGlass(
@@ -147,7 +179,10 @@ fun Modifier.lightweightLiquidGlass(
  * Just the rim of liquid glass — the directional [Highlight] that catches the
  * light along a glass edge — for a control that keeps its own fill.
  *
- * Nothing at all while Liquid Glass is off or unsupported.
+ * Over a flat, stable page the blur and lens of [liquidGlass] would sample a
+ * single colour and change nothing a reader could see; the rim is the part
+ * that reads as glass. No backdrop capture, so it costs a stroke. Nothing at
+ * all while Liquid Glass is off or unsupported.
  */
 @Composable
 fun Modifier.liquidGlassRim(shape: CornerBasedShape): Modifier {
@@ -162,48 +197,87 @@ fun Modifier.liquidGlassRim(shape: CornerBasedShape): Modifier {
 }
 
 /**
- * Draws this composable as a liquid glass surface: what is behind it blurred
- * lightly off [hazeState], a thin theme tint over that (light glass on a light
- * theme, dark on dark), and a lit rim.
+ * Renders this composable as a liquid glass surface sampling [LocalAppBackdrop]:
+ * vibrancy, blur and lens refraction, then a theme-adaptive surface tint (light
+ * glass on light theme, dark on dark). Returns the receiver unchanged on devices
+ * without RenderEffect support — callers should still gate on [isGlassSupported]
+ * to fall back to the regular Haze treatment there.
  *
- * It is the frosted bars' own blur with a different style, so a glass surface
- * costs what a frosted one does: one downsampled blur of the page, and no
- * refraction shader, second recording of the page or shadow pass.
+ * Under "reduce dynamic blur" the surface is filled solid instead, which is what
+ * that setting promises everywhere else in the app. It is checked here rather
+ * than at each call site so there is one answer to it: [MainActivity] also stops
+ * recording the backdrop layer when it is on, and a surface that still tried to
+ * sample would be sampling a layer nothing is drawing into.
  *
- * [AppSettings.liquidGlassIntensity] scales the blur. Under "reduce dynamic
- * blur", with no [hazeState] to sample, or before Android 12 the surface is
- * filled solid instead.
+ * Under [AppSettings.glassPerformance] the lens goes and the blur frosts instead,
+ * for phones that can't spare the refraction shader. The vibrancy, tint, rim and
+ * shadow are the same either way.
+ *
+ * [shape] is restricted to [CornerBasedShape] because the backdrop's lens effect
+ * throws for any other shape type.
  */
 @Composable
 fun Modifier.liquidGlass(
     shape: CornerBasedShape,
-    hazeState: HazeState? = LocalGlassHaze.current,
     /** Drawn over the glass in place of the theme's default tint, when set. */
     surfaceTint: Color? = null,
 ): Modifier {
-    val surface = MaterialTheme.colorScheme.surface
-    val floor = MaterialTheme.colorScheme.background
+    if (!isGlassSupported()) return this
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
-    if (!isGlassSupported() || reduceDynamicBlur || hazeState == null) {
-        return clip(shape)
-            .background(surface)
+    if (reduceDynamicBlur) {
+        return background(MaterialTheme.colorScheme.surface, shape)
             .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, shape)
     }
+    val glassPerformance by AppSettings.glassPerformance.collectAsStateWithLifecycle()
+    val backdrop = LocalAppBackdrop.current
+    val exportedBackdrop = LocalGlassExport.current
+    val density = LocalDensity.current
     val intensity by AppSettings.liquidGlassIntensity.collectAsStateWithLifecycle()
-    val themeTint = if (surface.luminance() > 0.5f) Color(0xFFFAFAFA) else Color(0xFF121212)
-    val tint = surfaceTint ?: themeTint.copy(alpha = SURFACE_OPACITY)
-    val style = remember(surface, floor, tint, intensity) {
-        HazeStyle(
-            // The pages paint no background of their own, so this is what the
-            // blur has under it wherever a page is empty.
-            backgroundColor = floor,
-            tints = listOf(HazeTint(tint)),
-            blurRadius = (BLUR_RADIUS_DP * intensity).dp,
-            noiseFactor = 0f,
-            fallbackTint = HazeTint(surface),
-        )
+    val resolutionScale = if (glassPerformance) FROST_RESOLUTION_SCALE else GLASS_RESOLUTION_SCALE
+    val blurRadiusDp = (if (glassPerformance) FROST_BLUR_RADIUS_DP else BLUR_RADIUS_DP) * intensity
+    val blurPx = with(density) { blurRadiusDp.dp.toPx() } * resolutionScale
+    val lensHeightPx = with(density) { (LENS_HEIGHT * LENS_MAX_DP).dp.toPx() } * resolutionScale * intensity
+    val lensAmountPx = with(density) { (LENS_AMOUNT * LENS_MAX_DP).dp.toPx() } * resolutionScale * intensity
+    val themeTint = if (MaterialTheme.colorScheme.surface.luminance() > 0.5f) {
+        Color(0xFFFAFAFA)
+    } else {
+        Color(0xFF121212)
     }
-    return clip(shape)
-        .optimizedHazeEffect(state = hazeState, style = style)
-        .border(GLASS_RIM_WIDTH, GLASS_RIM, shape)
+    val surfaceTintColor = surfaceTint ?: themeTint.copy(alpha = SURFACE_OPACITY)
+
+    // Held, each on what it is made from. The modifier's elements are compared
+    // by these, and a fresh lambda on every pass made every glass surface
+    // rebuild its blur, its lens and its shadow each time the composable around
+    // it recomposed, changed or not.
+    val shapeBlock = remember(shape) { { shape } }
+    val effects: BackdropEffectScope.() -> Unit =
+        remember(intensity, blurPx, lensHeightPx, lensAmountPx, glassPerformance) {
+            {
+                colorControls(saturation = 1f + 0.5f * VIBRANCY * intensity)
+                blur(blurPx)
+                if (!glassPerformance && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    lens(
+                        refractionHeight = lensHeightPx,
+                        refractionAmount = lensAmountPx,
+                        depthEffect = true,
+                        chromaticAberration = true,
+                    )
+                }
+            }
+        }
+    val drawSurface: DrawScope.() -> Unit = remember(surfaceTintColor) {
+        { drawRect(color = surfaceTintColor, size = size) }
+    }
+
+    return drawBackdrop(
+        backdrop = backdrop,
+        shape = shapeBlock,
+        effects = effects,
+        highlight = DefaultGlassHighlight,
+        shadow = DefaultGlassShadow,
+        onDrawSurface = drawSurface,
+        exportedBackdrop = exportedBackdrop,
+        backdropScale = resolutionScale,
+        frozen = { GlassMotion.sheet.frozen() },
+    )
 }
