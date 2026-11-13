@@ -6,6 +6,8 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
@@ -162,7 +164,11 @@ object LyricsRepository {
                 // If we already found a line-synced or better result, skip Genius completely
                 if (lineSynced != null && source == LyricsSource.GENIUS) continue
 
-                val found = runCatching { job.await() }.getOrNull() ?: continue
+                // A source that was cancelled on its own is skipped; this
+                // call being cancelled is not, and stops here.
+                val found = runCatching { job.await() }
+                    .onFailure { currentCoroutineContext().ensureActive() }
+                    .getOrNull() ?: continue
                 if (found.lines.any { it.isWordSynced }) return@coroutineScope found
                 if (!prioritizeSyllableSync && found.lines.any { it.timeMs > 0 }) {
                     return@coroutineScope found
@@ -255,7 +261,9 @@ object LyricsRepository {
     ): BiniLyrics.Hit? {
         if (LyricsSource.BINI_LYRICS !in sequence) return null
         val hit = withTimeoutOrNull(IDENTIFY_TIMEOUT_MS) {
-            runCatching { BiniLyrics.identify(title, artist, durationMs, album) }.getOrNull()
+            runCatching { BiniLyrics.identify(title, artist, durationMs, album) }
+                .onFailure { currentCoroutineContext().ensureActive() }
+                .getOrNull()
         }
         if (hit == null) return null
         remember(videoId, hit.isrc)
