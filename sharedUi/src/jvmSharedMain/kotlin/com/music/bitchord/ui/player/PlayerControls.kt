@@ -44,7 +44,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.window.Popup
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -1700,7 +1699,8 @@ private fun formatTime(ms: Long): String {
  * fall back to lives inside the sleeve now (see the bottom-centre overlay on
  * the artwork Box above), so there is no tap here to swap it in — the two say
  * the same thing at different resolutions, both read off the stream being
- * decoded rather than off what a source offered to send.
+ * decoded rather than off what a source offered to send. Nor does a tap open
+ * anything: this is a label, with or without a badge in it.
  */
 @Composable
 private fun LosslessOrStats(
@@ -1710,17 +1710,9 @@ private fun LosslessOrStats(
     nerdStats: NerdStats.Snapshot?,
     modifier: Modifier = Modifier,
 ) {
-    var details by remember { mutableStateOf(false) }
-
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.clickable(
-            enabled = nerdStats != null,
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-        ) {
-            details = !details
-        },
+        modifier = modifier,
     ) {
         when {
             // Still resolving — either the player itself is buffering, or a
@@ -1782,22 +1774,8 @@ private fun LosslessOrStats(
             // The space under the bar is kept for what is worth announcing.
             else -> {}
         }
-
-        val measured = nerdStats
-        if (details && measured != null) {
-            Popup(
-                onDismissRequest = { details = false },
-                alignment = Alignment.BottomCenter,
-                offset = IntOffset(0, -QUALITY_CARD_OFFSET_PX),
-            ) {
-                QualityDetailsCard(stats = measured)
-            }
-        }
     }
 }
-
-/** How far above the bottom of the screen the quality card sits. */
-private const val QUALITY_CARD_OFFSET_PX = 260
 
 /** A quality glyph ahead of the status label. */
 @Composable
