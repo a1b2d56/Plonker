@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Favorite, set: Apple SF / Opaline style filled heart, matching
+  OpalineIcons.FavoritesFill in the player. Used on the media notification and
+  the home-screen widget.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="1326"
+    android:viewportHeight="1326">
+    <group
+        android:scaleY="-1"
+        android:translateY="1326">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M686.5 1092.5 L680.5 1087.5 L670.5 1078.5 Q663.5 1071.5 655.5 1078.5 Q653.5 1081.5 641.5 1091.5 Q599.5 1124.5 547.5 1143.5 Q495.5 1162.5 437.5 1162.5 Q348.5 1162.5 273.5 1119.0 Q198.5 1075.5 154.5 1001.0 Q110.5 926.5 110.5 837.5 Q110.5 742.5 158.5 666.5 Q214.5 571.5 340.0 444.5 Q465.5 317.5 596.5 200.5 Q610.5 188.5 622.0 180.0 Q633.5 171.5 643.5 168.5 Q665.5 163.5 684.5 169.5 Q693.5 171.5 705.5 180.5 Q717.5 189.5 731.5 201.5 Q857.5 314.5 978.0 435.5 Q1098.5 556.5 1159.5 652.5 Q1215.5 735.5 1215.5 837.5 Q1215.5 926.5 1171.5 1001.0 Q1127.5 1075.5 1053.0 1119.0 Q978.5 1162.5 889.5 1162.5 Q831.5 1162.5 779.0 1144.0 Q726.5 1125.5 686.5 1092.5 Z" />
+    </group>
+</vector>

@@ -151,13 +151,13 @@ class SessionButtons(
     /** Favorite and Shuffle: the only actions shown on the phone notification. */
     private fun notificationButtons(plan: ButtonPlan): List<CommandButton> {
         // The icon constant tells controllers like Android Auto what the button
-        // means; the custom drawable swaps Material's sharp star for the
-        // player's rounded one on the notification itself.
+        // means; the custom drawable renders the Opaline/Apple SF heart icon
+        // on the notification itself.
         val favorite = plan.favorite?.let { liked ->
-            CommandButton.Builder(if (liked) CommandButton.ICON_STAR_FILLED else CommandButton.ICON_STAR_UNFILLED)
-                .setCustomIconResId(if (liked) R.drawable.ic_notification_star_filled else R.drawable.ic_notification_star)
+            CommandButton.Builder(if (liked) CommandButton.ICON_HEART_FILLED else CommandButton.ICON_HEART_UNFILLED)
+                .setCustomIconResId(if (liked) R.drawable.ic_heart_filled else R.drawable.ic_heart)
                 .setSessionCommand(SessionCommands.favorite)
-                .setDisplayName("Favorite")
+                .setDisplayName(if (liked) "Unlike" else "Like")
                 .build()
         }
         val shuffle = CommandButton.Builder(

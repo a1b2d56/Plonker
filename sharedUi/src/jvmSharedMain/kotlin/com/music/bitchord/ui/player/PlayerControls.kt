@@ -716,7 +716,6 @@ internal fun CircleGlyph(
     Box(
         modifier = modifier
             .size(34.dp)
-            .clip(CircleShape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -726,32 +725,39 @@ internal fun CircleGlyph(
             },
         contentAlignment = Alignment.Center,
     ) {
-        // The disc carries the blend, dodged as the bottom row's glyphs are, and
-        // the glyph sits on it in plain white. The ink is mixed in at a few times
-        // the plain disc's strength: a dodge laid on this thinly is next to nothing.
         Box(
-            Modifier
+            modifier = Modifier
                 .matchParentSize()
-                .vibrantChrome(chrome)
-                .background(
-                    if (chrome) {
-                        VibrantChromeInk.copy(alpha = (discAlpha * CIRCLE_DISC_DODGE_GAIN).coerceAtMost(1f))
-                    } else {
-                        ink.copy(alpha = discAlpha)
-                    },
-                ),
-        )
-        Crossfade(
-            targetState = icon,
-            animationSpec = tween(durationMillis = 180),
-            label = "playerMenuGlyph",
-        ) { glyph ->
-            Icon(
-                imageVector = glyph,
-                contentDescription = contentDescription,
-                tint = ink,
-                modifier = Modifier.size(19.dp),
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            // The disc carries the blend, dodged as the bottom row's glyphs are, and
+            // the glyph sits on it in plain white. The ink is mixed in at a few times
+            // the plain disc's strength: a dodge laid on this thinly is next to nothing.
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .vibrantChrome(chrome)
+                    .background(
+                        if (chrome) {
+                            VibrantChromeInk.copy(alpha = (discAlpha * CIRCLE_DISC_DODGE_GAIN).coerceAtMost(1f))
+                        } else {
+                            ink.copy(alpha = discAlpha)
+                        },
+                    ),
             )
+            Crossfade(
+                targetState = icon,
+                animationSpec = tween(durationMillis = 180),
+                label = "playerMenuGlyph",
+            ) { glyph ->
+                Icon(
+                    imageVector = glyph,
+                    contentDescription = contentDescription,
+                    tint = ink,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
         }
     }
 }

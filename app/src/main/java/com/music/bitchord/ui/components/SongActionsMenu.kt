@@ -212,11 +212,7 @@ fun SongActionsMenu(
     var currentSubmenu by remember { mutableStateOf(SongSubmenu.Main) }
     val chosenSleepTimer by SleepTimer.minutes.collectAsStateWithLifecycle()
     val customMinutes = chosenSleepTimer?.takeIf { it !in SleepTimer.PRESETS }
-    val scrollState = rememberScrollState()
-
-    LaunchedEffect(currentSubmenu) {
-        scrollState.scrollTo(0)
-    }
+    val mainScrollState = rememberScrollState()
 
     BackHandler(enabled = currentSubmenu != SongSubmenu.Main) {
         currentSubmenu = when (currentSubmenu) {
@@ -487,33 +483,42 @@ fun SongActionsMenu(
 }
 
     CompositionLocalProvider(LocalActionRowStyle provides ActionRowStyle.Menu) {
-        Column(modifier.fillMaxWidth().verticalScroll(scrollState)) {
-            // The player's menu has the sleep timer and speed, and animates its subpages smoothly.
-            AnimatedContent(
-                targetState = currentSubmenu,
-                transitionSpec = {
-                    val forward = targetState.level >= initialState.level
-                    if (forward) {
-                        (slideInHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { it } + fadeIn(tween(180)))
-                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { -it / 3 } + fadeOut(tween(140)))
-                            .using(SizeTransform(clip = true))
-                    } else {
-                        (slideInHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { -it / 3 } + fadeIn(tween(180)))
-                            .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)) { it } + fadeOut(tween(140)))
-                            .using(SizeTransform(clip = true))
+        // The player's menu has the sleep timer and speed, and animates its subpages smoothly.
+        AnimatedContent(
+            targetState = currentSubmenu,
+            modifier = modifier.fillMaxWidth(),
+            transitionSpec = {
+                val forward = targetState.level >= initialState.level
+                if (forward) {
+                    (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1200f)) { it } + fadeIn(tween(140)))
+                        .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1200f)) { -it / 3 } + fadeOut(tween(100)))
+                        .using(SizeTransform(clip = true))
+                } else {
+                    (slideInHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1200f)) { -it / 3 } + fadeIn(tween(140)))
+                        .togetherWith(slideOutHorizontally(animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 1200f)) { it } + fadeOut(tween(100)))
+                        .using(SizeTransform(clip = true))
+                }
+            },
+            label = "songActionsSubmenu",
+        ) { submenu ->
+            when (submenu) {
+                SongSubmenu.Main -> {
+                    Column(Modifier.fillMaxWidth().verticalScroll(mainScrollState)) {
+                        rows()
                     }
-                },
-                label = "songActionsSubmenu",
-            ) { submenu ->
-                Column(Modifier.fillMaxWidth()) {
-                    when (submenu) {
-                        SongSubmenu.Main -> rows()
-                        SongSubmenu.SleepTimer -> SleepTimerPicker(
+                }
+                SongSubmenu.SleepTimer -> {
+                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        SleepTimerPicker(
                             palette = palette,
                             onBack = { currentSubmenu = SongSubmenu.Main },
                             onOpenCustom = { currentSubmenu = SongSubmenu.CustomSleepTimer },
                         )
-                        SongSubmenu.CustomSleepTimer -> CustomSleepTimerPage(
+                    }
+                }
+                SongSubmenu.CustomSleepTimer -> {
+                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        CustomSleepTimerPage(
                             palette = palette,
                             initialMinutes = customMinutes ?: 90,
                             onBack = { currentSubmenu = SongSubmenu.SleepTimer },
@@ -522,11 +527,19 @@ fun SongActionsMenu(
                                 currentSubmenu = SongSubmenu.Main
                             },
                         )
-                        SongSubmenu.Speed -> PlaybackSpeedPicker(
+                    }
+                }
+                SongSubmenu.Speed -> {
+                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        PlaybackSpeedPicker(
                             palette = palette,
                             onBack = { currentSubmenu = SongSubmenu.Main },
                         )
-                        SongSubmenu.Sing -> SingPage(
+                    }
+                }
+                SongSubmenu.Sing -> {
+                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        SingPage(
                             palette = palette,
                             onBack = { currentSubmenu = SongSubmenu.Main },
                         )

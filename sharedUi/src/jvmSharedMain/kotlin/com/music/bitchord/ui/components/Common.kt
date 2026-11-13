@@ -672,16 +672,22 @@ fun RowMoreButton(
             .hangIntoGutter(ROW_MORE_OUTSET)
             .size(36.dp)
             .menuAnchor()
-            .clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            Icons.Rounded.MoreVert,
-            contentDescription = stringResource(Res.string.more),
-            tint = tint,
-            modifier = Modifier.size(iconSize),
-        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Rounded.MoreVert,
+                contentDescription = stringResource(Res.string.more),
+                tint = tint,
+                modifier = Modifier.size(iconSize),
+            )
+        }
     }
 }
 
