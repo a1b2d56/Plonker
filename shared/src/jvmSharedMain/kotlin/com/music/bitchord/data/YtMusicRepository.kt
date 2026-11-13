@@ -431,12 +431,22 @@ object YtMusicRepository {
      * [InnertubeParser.parseSearch]), so every candidate here is audio-only
      * without a second check.
      */
-    suspend fun resolveAudio(song: Song): Song {
-        if (!song.isVideo) return song
-        audioVersionCache[song.videoId]?.let { return it }
+    suspend fun resolveAudio(song: Song): Song =
+        (lookupAudio(song) as? VersionLookup.Found)?.song ?: song
+
+    /**
+     * [resolveAudio], saying which kind of nothing it came back with: no
+     * audio release ([VersionLookup.None]), or searches that never answered
+     * ([VersionLookup.Unavailable]), which says nothing about the song.
+     */
+    suspend fun lookupAudio(song: Song): VersionLookup {
+        if (!song.isVideo) return VersionLookup.None
+        audioVersionCache[song.videoId]?.let {
+            return if (it.videoId == song.videoId) VersionLookup.None else VersionLookup.Found(it)
+        }
         officialVersion(song, wantAudio = true)?.let { audio ->
             audioVersionCache[song.videoId] = audio
-            return audio
+            return VersionLookup.Found(audio)
         }
         val target = TrackMatcher.targetOf(song)
         var searchFailed = false
@@ -450,7 +460,7 @@ object YtMusicRepository {
             TrackMatcher.best(candidates, target)?.let { match ->
                 Log.d(TAG, "audio switch: '${song.title}' -> '${match.title}' ($query)")
                 audioVersionCache[song.videoId] = match
-                return match
+                return VersionLookup.Found(match)
             }
             // Music-video timing is visual timing, not the audio release's
             // timing. The manual switch may therefore use the exact official
@@ -458,12 +468,16 @@ object YtMusicRepository {
             TrackMatcher.bestOfficialAudioForVideo(candidates, target)?.let { match ->
                 Log.d(TAG, "audio switch: accepted video/runtime drift '${song.title}' -> '${match.title}' ($query)")
                 audioVersionCache[song.videoId] = match
-                return match
+                return VersionLookup.Found(match)
             }
         }
+        if (searchFailed) {
+            Log.w(TAG, "audio switch: search did not answer for '${song.title}'")
+            return VersionLookup.Unavailable
+        }
         Log.w(TAG, "audio switch: no official song match for '${song.title}' by '${song.artist}'")
-        if (!searchFailed) audioVersionCache[song.videoId] = song
-        return song
+        audioVersionCache[song.videoId] = song
+        return VersionLookup.None
     }
 
     /**
@@ -474,16 +488,22 @@ object YtMusicRepository {
      * This is the inverse of [resolveAudio] - it finds the music video
      * for a catalogue track. Returns null when no video version is found.
      */
-    suspend fun resolveVideo(song: Song): Song? {
-        if (song.isVideo) return null
-        videoVersionCache[song.videoId]?.let { return it }
+    suspend fun resolveVideo(song: Song): Song? =
+        (lookupVideo(song) as? VersionLookup.Found)?.song
+
+    /** [resolveVideo], telling a search that never answered from a song with no video. */
+    suspend fun lookupVideo(song: Song): VersionLookup {
+        if (song.isVideo) return VersionLookup.None
+        videoVersionCache[song.videoId]?.let { return VersionLookup.Found(it) }
         officialVersion(song, wantAudio = false)?.let { video ->
             videoVersionCache[song.videoId] = video
-            return video
+            return VersionLookup.Found(video)
         }
         val target = TrackMatcher.targetOf(song)
+        var searchFailed = false
         for (query in TrackMatcher.queries(target)) {
             val candidates = search(query, SearchFilter.VIDEOS)
+                .onFailure { searchFailed = true }
                 .getOrNull()
                 ?.filterIsInstance<SearchResult.Track>()
                 ?.map { it.song }
@@ -491,12 +511,18 @@ object YtMusicRepository {
             TrackMatcher.best(candidates, target)?.let { match ->
                 Log.d(TAG, "video switch: '${song.title}' -> '${match.title}' ($query)")
                 videoVersionCache[song.videoId] = match
-                return match
+                return VersionLookup.Found(match)
             }
         }
+        if (searchFailed) {
+            Log.w(TAG, "video switch: search did not answer for '${song.title}'")
+            return VersionLookup.Unavailable
+        }
+        // Not remembered: the cache is a ConcurrentHashMap, which cannot hold
+        // a null, and the line that tried to store one here threw instead of
+        // returning "no video".
         Log.w(TAG, "video switch: no video match for '${song.title}' by '${song.artist}'")
-        videoVersionCache[song.videoId] = null
-        return null
+        return VersionLookup.None
     }
 
     /**

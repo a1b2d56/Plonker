@@ -9,12 +9,15 @@ import androidx.compose.runtime.setValue
 import androidx.media3.session.MediaController
 import com.music.bitchord.R
 import com.music.bitchord.data.TrackLog
+import com.music.bitchord.data.VersionLookup
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.listentogether.ListenTogether
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.playback.smart.VersionAudioAligner
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 
 /**
@@ -313,14 +316,28 @@ class VersionSwitcher(
         if (pauseWhileResolving) c.pause()
         try {
             TrackLog.d("Player", "$kind switch requested for '${song.title}'", song.videoId)
-            val found = runCatching {
-                if (towardAudio) YtMusicRepository.resolveAudio(song) else YtMusicRepository.resolveVideo(song)
-            }.getOrNull()
+            val lookup = try {
+                if (towardAudio) YtMusicRepository.lookupAudio(song) else YtMusicRepository.lookupVideo(song)
+            } catch (e: Exception) {
+                // This switch being cancelled is not an answer about the song:
+                // pass it on. Anything else is a lookup that did not answer.
+                currentCoroutineContext().ensureActive()
+                VersionLookup.Unavailable
+            }
+            val found = (lookup as? VersionLookup.Found)?.song
             val stillCurrent = c.currentMediaItemIndex == index &&
                 c.currentMediaItem?.mediaId == song.videoId
 
             // The original MediaItem was never removed, so failure only needs
             // to release the loading state and resume it immediately.
+            if (lookup == VersionLookup.Unavailable) {
+                // A lookup that never answered. The track is not marked as
+                // having no other version, so the next press asks again.
+                TrackLog.w("Player", "$kind switch could not reach the lookup; left as it was", song.videoId)
+                if (stillCurrent) showNotice(context.getString(R.string.no_internet_connection))
+                if (stillCurrent && resumeAfterResolution) c.play()
+                return
+            }
             if (found == null || found.videoId == song.videoId) {
                 TrackLog.w(
                     "Player",
