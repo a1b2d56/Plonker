@@ -29,7 +29,9 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.util.fastCoerceAtMost
 import com.music.bitchord.ui.components.backdrop.RuntimeShaderCacheImpl
+import com.music.bitchord.ui.components.backdrop.internal.LAYER_SIZE_STEP
 import com.music.bitchord.ui.components.backdrop.internal.ShapeProvider
+import com.music.bitchord.ui.components.backdrop.internal.steppedLayerSide
 import com.music.bitchord.ui.components.backdrop.internal.blur
 import com.music.bitchord.ui.components.backdrop.internal.clipOutline
 import com.music.bitchord.ui.components.backdrop.internal.setRuntimeShader
@@ -108,9 +110,10 @@ internal class HighlightNode(
             val layoutDirection = layoutDirection
 
             val safeSize =
+                // In steps: see [steppedLayerSide].
                 IntSize(
-                    ceil(size.width).toInt() + 2,
-                    ceil(size.height).toInt() + 2
+                    steppedLayerSide(ceil(size.width).toInt() + 2, LAYER_SIZE_STEP),
+                    steppedLayerSide(ceil(size.height).toInt() + 2, LAYER_SIZE_STEP)
                 )
 
             val outline = shapeProvider.shape.createOutline(size, layoutDirection, density)
