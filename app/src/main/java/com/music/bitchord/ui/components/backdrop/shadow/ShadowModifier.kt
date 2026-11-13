@@ -26,7 +26,9 @@ import androidx.compose.ui.node.requireGraphicsContext
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
+import com.music.bitchord.ui.components.backdrop.internal.LAYER_SIZE_STEP
 import com.music.bitchord.ui.components.backdrop.internal.ShapeProvider
+import com.music.bitchord.ui.components.backdrop.internal.steppedLayerSide
 import com.music.bitchord.ui.components.backdrop.internal.blur
 import kotlin.math.ceil
 
@@ -91,9 +93,10 @@ internal class ShadowNode(
             val radius = shadow.radius.toPx()
             val offsetX = shadow.offset.x.toPx()
             val offsetY = shadow.offset.y.toPx()
+            // In steps: see [steppedLayerSide].
             val shadowSize = IntSize(
-                ceil(size.width + radius * 4f + offsetX).toInt(),
-                ceil(size.height + radius * 4f + offsetY).toInt()
+                steppedLayerSide(ceil(size.width + radius * 4f + offsetX).toInt(), LAYER_SIZE_STEP),
+                steppedLayerSide(ceil(size.height + radius * 4f + offsetY).toInt(), LAYER_SIZE_STEP)
             )
             val outline = shapeProvider.shape.createOutline(size, layoutDirection, density)
 

@@ -37,3 +37,22 @@ internal fun DrawScope.recordLayer(
         }
     }
 }
+
+/**
+ * Vendored addition: a layer's side, rounded up to the next [step].
+ *
+ * A surface whose size is animated — the tab bar's, for every frame of its
+ * fold — had each of its layers recorded at a new size on every one of those
+ * frames, and a layer that changes size is given a new offscreen buffer. Sized
+ * in steps, a layer keeps its buffer until the surface has grown or shrunk by
+ * a whole step. Everything is drawn where it was; the layer only has spare
+ * room along its right and bottom edges.
+ */
+internal fun steppedLayerSide(px: Int, step: Int): Int {
+    val side = px.coerceAtLeast(1)
+    return (side + step - 1) / step * step
+}
+
+/** The step for a full-resolution layer, and for the downsampled backdrop's. */
+internal const val LAYER_SIZE_STEP = 48
+internal const val BACKDROP_LAYER_SIZE_STEP = 16

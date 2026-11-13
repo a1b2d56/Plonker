@@ -46,7 +46,9 @@ import com.music.bitchord.ui.components.backdrop.backdrops.LayerBackdrop
 import com.music.bitchord.ui.components.backdrop.highlight.Highlight
 import com.music.bitchord.ui.components.backdrop.highlight.HighlightElement
 import com.music.bitchord.ui.components.backdrop.internal.ShapeProvider
+import com.music.bitchord.ui.components.backdrop.internal.BACKDROP_LAYER_SIZE_STEP
 import com.music.bitchord.ui.components.backdrop.internal.recordLayer
+import com.music.bitchord.ui.components.backdrop.internal.steppedLayerSide
 import com.music.bitchord.ui.components.backdrop.shadow.InnerShadow
 import com.music.bitchord.ui.components.backdrop.shadow.InnerShadowElement
 import com.music.bitchord.ui.components.backdrop.shadow.Shadow
@@ -344,9 +346,11 @@ private class DrawBackdropNode(
         if (layer != null) {
             val padding = padding
             val scale = backdropScale
+            // In steps, so a surface that is changing size keeps its buffer
+            // from one frame to the next: see [steppedLayerSide].
             val recordSize = IntSize(
-                ((size.width * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1),
-                ((size.height * scale).toInt() + padding.toInt() * 2).coerceAtLeast(1)
+                steppedLayerSide((size.width * scale).toInt() + padding.toInt() * 2, BACKDROP_LAYER_SIZE_STEP),
+                steppedLayerSide((size.height * scale).toInt() + padding.toInt() * 2, BACKDROP_LAYER_SIZE_STEP)
             )
 
             val hasRecording = recordedBackdropSize != IntSize.Zero
