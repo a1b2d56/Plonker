@@ -250,6 +250,8 @@ interface PlayerSettingsSource {
     val lastPlayerScreen: StateFlow<LastPlayerScreen>
     val playerTheme: StateFlow<PlayerTheme>
     val lyricsBlur: StateFlow<Boolean>
+    /** Romanize every lyric sheet that can be, unasked — see [shouldAutoRomanize][com.music.bitchord.ui.player.lyrics.shouldAutoRomanize]. */
+    val romanizedLyrics: StateFlow<Boolean>
     val lyricsOffsetMs: StateFlow<Int>
     val lyricsSourceOrder: StateFlow<List<LyricsSource>>
     val meteredConnection: StateFlow<Boolean?>

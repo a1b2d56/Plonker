@@ -4,9 +4,12 @@ import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.ui.player.lyrics.LyricsDisplayMode
 import com.music.bitchord.ui.player.lyrics.LyricsTranslationUiState
 import com.music.bitchord.ui.player.lyrics.displayedLyricsFor
+import com.music.bitchord.ui.player.lyrics.shouldAutoRomanize
 import com.music.bitchord.ui.player.lyrics.subLinesFor
 import org.junit.Test
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 
 /**
@@ -45,5 +48,47 @@ class LyricsCoordinatorTest {
         assertEquals(original, displayedLyricsFor(LyricsDisplayMode.Translated, original, loading, loading))
         assertNull(subLinesFor(LyricsDisplayMode.Translated, loading, loading))
         assertEquals(emptyList<LyricLine>(), displayedLyricsFor(LyricsDisplayMode.Romanized, null, loading, loading))
+    }
+
+    // ---- "Romanized lyrics" in Settings ----
+
+    private val idle = LyricsTranslationUiState.Idle
+
+    private fun auto(
+        enabled: Boolean = true,
+        hasLyrics: Boolean = true,
+        mode: LyricsDisplayMode = LyricsDisplayMode.Original,
+        translation: LyricsTranslationUiState = idle,
+        romanization: LyricsTranslationUiState = idle,
+    ) = shouldAutoRomanize(enabled, hasLyrics, mode, translation, romanization)
+
+    @Test
+    fun aFreshSheetIsRomanizedOnlyWithTheSettingOn() {
+        assertTrue(auto())
+        assertFalse(auto(enabled = false))
+    }
+
+    @Test
+    fun noLyricsMeansNothingToAskFor() {
+        assertFalse(auto(hasLyrics = false))
+    }
+
+    @Test
+    fun aTranslationTheListenerChoseIsLeftAlone() {
+        assertFalse(auto(translation = LyricsTranslationUiState.Loading))
+        assertFalse(auto(mode = LyricsDisplayMode.Translated, translation = ready))
+        // Back on the originals with the translation still held: they looked,
+        // and chose the originals.
+        assertFalse(auto(translation = ready))
+    }
+
+    @Test
+    fun aRomanizationIsNotAskedForTwice() {
+        assertFalse(auto(romanization = LyricsTranslationUiState.Loading))
+        // Turned off by hand on this song.
+        assertFalse(auto(romanization = readyRoman))
+        // Already in Latin letters.
+        assertFalse(auto(romanization = LyricsTranslationUiState.SameLanguage))
+        assertFalse(auto(mode = LyricsDisplayMode.Romanized, romanization = readyRoman))
     }
 }

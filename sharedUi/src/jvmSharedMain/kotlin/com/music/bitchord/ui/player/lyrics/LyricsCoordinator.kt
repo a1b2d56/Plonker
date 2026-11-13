@@ -5,6 +5,7 @@ import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -193,6 +194,63 @@ internal fun rememberLyricsTranslation(
             }
         }
     }
+    // Asks for the romanization and shows it when it comes back. [announce] is
+    // the difference between a finger on the button and the setting asking for
+    // every song: the setting gets no buzz and no toast, because a sheet that
+    // is already in Latin letters, or one the service could not do, is the
+    // ordinary case for it and not news. Either way the original stays up.
+    val startRomanization: (Boolean) -> Unit = startRomanization@{ announce ->
+        val source = lyrics.orEmpty()
+        if (source.isEmpty()) return@startRomanization
+        if (announce) haptics.play(Haptic.Tap)
+        romanizationState = LyricsTranslationUiState.Loading
+        translationJob?.cancel()
+        if (translationState is LyricsTranslationUiState.Loading) {
+            translationState = LyricsTranslationUiState.Idle
+        }
+        romanizationJob?.cancel()
+        romanizationJob = translationScope.launch {
+            when (
+                val result = PlayerPlatform.host.romanizeLyrics(
+                    trackId = trackId,
+                    lines = source,
+                    targetLanguageTag = translationLanguage,
+                )
+            ) {
+                is LyricsRomanizationResult.Romanized -> {
+                    romanizationState = LyricsTranslationUiState.Ready(result.lines)
+                    lyricsDisplayMode = LyricsDisplayMode.Romanized
+                    translationTransition++
+                    if (announce) haptics.play(Haptic.ToggleOn)
+                }
+                LyricsRomanizationResult.AlreadyRomanized -> {
+                    romanizationState = LyricsTranslationUiState.SameLanguage
+                    if (announce) PlayerPlatform.host.showMessage(alreadyRomanizedMessage)
+                }
+                LyricsRomanizationResult.Unavailable -> {
+                    romanizationState = LyricsTranslationUiState.Idle
+                    if (announce) PlayerPlatform.host.showMessage(romanizationUnavailableMessage)
+                }
+            }
+        }
+    }
+    // "Romanized lyrics" in Settings: once for each lyric sheet, as it arrives.
+    // Keyed on the sheet, so it is not asked again for the same one — a
+    // romanization the listener turned off on this song stays off, and one that
+    // failed is not retried until the lyrics themselves change.
+    val autoRomanize by PlayerSettings.romanizedLyrics.collectAsStateWithLifecycle()
+    LaunchedEffect(trackId, translationLanguage, lyrics, autoRomanize) {
+        if (shouldAutoRomanize(
+                enabled = autoRomanize,
+                hasLyrics = !lyrics.isNullOrEmpty(),
+                mode = lyricsDisplayMode,
+                translation = translationState,
+                romanization = romanizationState,
+            )
+        ) {
+            startRomanization(false)
+        }
+    }
     val toggleRomanization: () -> Unit = toggleRomanization@{
         when (val state = romanizationState) {
             is LyricsTranslationUiState.Ready -> {
@@ -209,41 +267,7 @@ internal fun rememberLyricsTranslation(
                 haptics.play(Haptic.Tap)
                 PlayerPlatform.host.showMessage(alreadyRomanizedMessage)
             }
-            LyricsTranslationUiState.Idle -> {
-                val source = lyrics.orEmpty()
-                if (source.isEmpty()) return@toggleRomanization
-                haptics.play(Haptic.Tap)
-                romanizationState = LyricsTranslationUiState.Loading
-                translationJob?.cancel()
-                if (translationState is LyricsTranslationUiState.Loading) {
-                    translationState = LyricsTranslationUiState.Idle
-                }
-                romanizationJob?.cancel()
-                romanizationJob = translationScope.launch {
-                    when (
-                        val result = PlayerPlatform.host.romanizeLyrics(
-                            trackId = trackId,
-                            lines = source,
-                            targetLanguageTag = translationLanguage,
-                        )
-                    ) {
-                        is LyricsRomanizationResult.Romanized -> {
-                            romanizationState = LyricsTranslationUiState.Ready(result.lines)
-                            lyricsDisplayMode = LyricsDisplayMode.Romanized
-                            translationTransition++
-                            haptics.play(Haptic.ToggleOn)
-                        }
-                        LyricsRomanizationResult.AlreadyRomanized -> {
-                            romanizationState = LyricsTranslationUiState.SameLanguage
-                            PlayerPlatform.host.showMessage(alreadyRomanizedMessage)
-                        }
-                        LyricsRomanizationResult.Unavailable -> {
-                            romanizationState = LyricsTranslationUiState.Idle
-                            PlayerPlatform.host.showMessage(romanizationUnavailableMessage)
-                        }
-                    }
-                }
-            }
+            LyricsTranslationUiState.Idle -> startRomanization(true)
         }
     }
     // The one line that sits above the scrubber while the lyrics are open: which
@@ -307,3 +331,25 @@ internal fun subLinesFor(
     LyricsDisplayMode.Romanized -> (romanization as? LyricsTranslationUiState.Ready)?.lines
     LyricsDisplayMode.Original -> null
 }
+
+/**
+ * Whether the "Romanized lyrics" setting should ask for a sheet's romanization
+ * on its own.
+ *
+ * Only from a clean slate. What the listener has done to this sheet comes
+ * first: a translation showing or on its way is their choice of what goes under
+ * the lines, and a romanization that is already loading, already here, or
+ * already known to be pointless is not asked for twice. With nothing to
+ * romanize there is nothing to ask. Whatever the answer turns out to be, the
+ * original lyrics are what is on screen until a romanization replaces them.
+ */
+internal fun shouldAutoRomanize(
+    enabled: Boolean,
+    hasLyrics: Boolean,
+    mode: LyricsDisplayMode,
+    translation: LyricsTranslationUiState,
+    romanization: LyricsTranslationUiState,
+): Boolean = enabled && hasLyrics &&
+    mode == LyricsDisplayMode.Original &&
+    translation is LyricsTranslationUiState.Idle &&
+    romanization is LyricsTranslationUiState.Idle
