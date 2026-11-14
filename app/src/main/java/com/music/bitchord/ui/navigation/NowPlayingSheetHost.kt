@@ -7,6 +7,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import com.music.bitchord.ui.utils.RestingSheetSettle
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.math.abs
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.SheetValue
@@ -14,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -83,7 +88,22 @@ fun NowPlayingSheetHost(
     // on a curve slow enough to watch the artwork fly home on, rather than
     // on the sheet's own.
     val sheetDensity = LocalDensity.current
+    // A scroll ending inside the player has the sheet settle onto the anchor
+    // it is already on, deaf to taps while it does: called off here, by
+    // cancelling the coroutine that asked. See [RestingSheetSettle].
+    val restingSettle = remember { RestingSheetSettle() }
+    val sheetAsked = remember { arrayOfNulls<SheetState>(1) }
     val confirmSheetValue: (SheetValue) -> Boolean = { value ->
+        if (value == SheetValue.Expanded) {
+            val sheet = sheetAsked[0]
+            val atRest = sheet != null &&
+                sheet.currentValue == SheetValue.Expanded &&
+                sheet.targetValue == SheetValue.Expanded &&
+                runCatching { abs(sheet.requireOffset()) <= 0.5f }.getOrDefault(false)
+            if (restingSettle.nothingToSettle(atRest)) {
+                throw CancellationException("The sheet is where it would settle")
+            }
+        }
         // Read when asked, not when the sheet was made: the setting
         // can change while the player is up.
         if (value == SheetValue.Hidden && !reduceMotion) {
@@ -110,6 +130,7 @@ fun NowPlayingSheetHost(
             confirmValueChange = confirmSheetValue,
         )
     }
+    sheetAsked[0] = sheetState
     DisposableEffect(sheetState) {
         motion.sheet = sheetState
         dock.sheetOffset = motion::position
@@ -189,6 +210,7 @@ fun NowPlayingSheetHost(
                     }
                 }
                 .guardSheetFromContentTouches(sheetState)
+                .nestedScroll(restingSettle.connection)
                 // The sheet fills the window, so its height is the
                 // whole of its travel: hidden sits that far down.
                 .onSizeChanged {

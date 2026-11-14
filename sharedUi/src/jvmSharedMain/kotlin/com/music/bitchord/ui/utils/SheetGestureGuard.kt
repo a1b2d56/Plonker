@@ -63,6 +63,54 @@ fun Modifier.guardSheetFromContentTouches(sheetState: SheetState): Modifier =
     }
 
 /**
+ * Spots the settle a resting sheet is asked for when a scroll inside it ends,
+ * so that it can be called off.
+ *
+ * Material3 1.3.1's sheet answers the end of every fling under it by settling,
+ * and for a sheet lying open at rest that is 300 ms of animating from where it
+ * is to where it is — during which it takes the next touch-down for itself
+ * ([guardSheetFromContentTouches] gives a drag back to the content; a tap it
+ * cannot give back, and the tap is lost). On a phone, a tap on anything in the
+ * player up to a quarter of a second after the lyrics came to rest did nothing.
+ *
+ * The sheet cannot be kept from hearing of the fling, and its animation cannot
+ * be stopped from outside. But before it animates it asks the state's
+ * `confirmValueChange`, and that is the app's. So: [connection], on the root of
+ * the sheet's content, is told of a fling's end just before the sheet is, and
+ * notes when; and `confirmValueChange`, asked about "expanded" straight after
+ * by a sheet that is expanded and not moving, asks [nothingToSettle] and
+ * cancels the settle rather than answer. Only that one: a sheet off its anchor
+ * has somewhere to go, and any later question is somebody else's.
+ */
+class RestingSheetSettle(private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 }) {
+    private var flingEnded = false
+    private var flingEndedAtMs = 0L
+
+    val connection: NestedScrollConnection = object : NestedScrollConnection {
+        override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+            flingEnded = true
+            flingEndedAtMs = nowMs()
+            return Velocity.Zero
+        }
+    }
+
+    /**
+     * Whether the settle now being asked about is the one a fling's end has
+     * just set off in a sheet that is [atRest]. Answers yes once per fling.
+     */
+    fun nothingToSettle(atRest: Boolean): Boolean {
+        val justEnded = flingEnded && nowMs() - flingEndedAtMs <= SETTLE_FOLLOWS_WITHIN_MS
+        flingEnded = false
+        return justEnded && atRest
+    }
+
+    private companion object {
+        /** The sheet launches its settle on the frame the fling ends; this is slack. */
+        const val SETTLE_FOLLOWS_WITHIN_MS = 200L
+    }
+}
+
+/**
  * Keeps every drag that starts inside an overlay — a drawer or dialog drawn
  * over the player — from reaching the sheet the player lives in. Goes on the
  * overlay's full-screen root.
