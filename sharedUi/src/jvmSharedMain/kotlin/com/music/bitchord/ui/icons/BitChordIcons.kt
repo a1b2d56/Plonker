@@ -991,7 +991,17 @@ object BitChordIcons {
         }.build()
     }
 
-    /** AirPlay: concentric rings with a filled triangle at the base. */
+    /**
+     * Where the music is sent: two arcs open at the bottom around a small
+     * ring, and a filled wedge in the opening — the glyph the phone's own
+     * media player puts on its output button, built here to that one's
+     * measurements: rings of radius 10, 6 and 2 about the middle of the box,
+     * all 1.4 thick, the arcs ending 47.7 degrees either side of straight
+     * down, the wedge's foot on the outer arc's outer edge.
+     *
+     * The arcs stop short of the wedge rather than run behind it; closed
+     * rings with a triangle laid over them read as a target with a bite out.
+     */
     val PlayerAirPlay: ImageVector by lazy {
         ImageVector.Builder(
             name = "bc_player_airplay",
@@ -1000,21 +1010,26 @@ object BitChordIcons {
         ).apply {
             path(
                 stroke = stroke,
-                strokeLineWidth = 1.7f,
+                strokeLineWidth = 1.4f,
+                strokeLineCap = StrokeCap.Round,
             ) {
-                circle(12f, 11.8f, 9.2f)
-                circle(12f, 11.8f, 5.8f)
-                circle(12f, 11.8f, 2.8f)
+                moveTo(4.60f, 18.73f)
+                arcTo(10f, 10f, 0f, true, true, 19.40f, 18.73f)
+                moveTo(7.56f, 16.04f)
+                arcTo(6f, 6f, 0f, true, true, 16.44f, 16.04f)
+                circle(12f, 12f, 2f)
             }
+            // The wedge: its point under the ring, its foot on the outer
+            // arc's circle. The stroke is only there to round its corners.
             path(
                 fill = stroke,
                 stroke = stroke,
-                strokeLineWidth = 1.2f,
+                strokeLineWidth = 1.4f,
                 strokeLineJoin = StrokeJoin.Round,
             ) {
-                moveTo(7.0f, 20.9f)
-                lineTo(17.0f, 20.9f)
-                lineTo(12f, 12.2f)
+                moveTo(12f, 16.5f)
+                lineTo(16.99f, 20.66f)
+                arcTo(10f, 10f, 0f, false, true, 7.01f, 20.66f)
                 close()
             }
         }.build()
