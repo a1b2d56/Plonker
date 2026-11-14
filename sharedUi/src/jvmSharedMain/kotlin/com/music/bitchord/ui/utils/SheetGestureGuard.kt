@@ -86,6 +86,29 @@ fun Modifier.containSheetGestures(): Modifier =
     }
 
 private object SwallowNestedScroll : NestedScrollConnection {
-    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) = available
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource) =
+        sheetBoundLeftover(available, source)
+
     override suspend fun onPostFling(consumed: Velocity, available: Velocity) = available
 }
+
+/**
+ * The part of a scroll's leftover that has to be kept from the player's sheet:
+ * a finger's, and only a finger's.
+ *
+ * The sheet follows what a drag leaves over and ignores what a fling does, so
+ * a connection that is only there to keep the sheet still has no reason to
+ * take a fling's — and a good one not to. A fling reads "consumed" as "still
+ * moving". With its leftover taken, one that has run into the end of its list
+ * is never told so, and carries on for its whole length with nothing moving:
+ * up to a second and a half after a hard flick, measured on a phone. The list
+ * counts as scrolling all that while, and a list that is scrolling takes the
+ * next touch as the one that stops it. So a tap on a row did nothing straight
+ * after a flick to the end of a menu, and worked the second time.
+ *
+ * Handed back, the leftover ends the fling where the list ends. What the fling
+ * had left in speed is still taken, in `onPostFling`: that the sheet would act
+ * on, and a downward one would close the player.
+ */
+internal fun sheetBoundLeftover(available: Offset, source: NestedScrollSource): Offset =
+    if (source == NestedScrollSource.UserInput) available else Offset.Zero

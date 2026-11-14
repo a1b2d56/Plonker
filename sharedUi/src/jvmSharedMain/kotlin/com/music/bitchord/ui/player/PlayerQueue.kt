@@ -87,6 +87,7 @@ import androidx.compose.ui.unit.Velocity
 import coil3.compose.AsyncImage
 import com.music.bitchord.ui.components.thumbnailBorder
 import com.music.bitchord.ui.icons.BitChordIcons
+import com.music.bitchord.ui.utils.sheetBoundLeftover
 import com.music.bitchord.data.model.QueueTier
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.autoplaySectionStart
@@ -97,7 +98,9 @@ import kotlin.math.roundToInt
  * Swallows whatever scroll the queue list itself didn't use. The player is a
  * ModalBottomSheet, and the sheet's own nested-scroll handler reads that
  * leftover as "drag me down" — so scrolling the queue would slide the player
- * away. Consuming it here keeps the gesture inside the list.
+ * away. Consuming it here keeps the gesture inside the list. Only a finger's
+ * leftover, though: a fling's is handed back, or a fling that has reached the
+ * end of the queue never learns that it has — see [sheetBoundLeftover].
  *
  * A downward *fling* has to be caught in the pre-phase, before the sheet sees
  * it, but only at the top of the list — otherwise the queue could never fling.
@@ -107,7 +110,7 @@ internal fun keepScrollInList(listState: LazyListState) = object : NestedScrollC
         consumed: Offset,
         available: Offset,
         source: NestedScrollSource,
-    ): Offset = available
+    ): Offset = sheetBoundLeftover(available, source)
 
     override suspend fun onPreFling(available: Velocity): Velocity =
         if (available.y > 0f && !listState.canScrollBackward) available else Velocity.Zero
