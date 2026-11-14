@@ -287,7 +287,7 @@ fun RowScope.IosMenuQuickAction(
             .fillMaxHeight()
             .clip(RoundedCornerShape(16.dp))
             .background(if (pressed) colors.pressed else Color.Transparent)
-            .menuTap(interactionSource = interaction, enabled = enabled, onClick = onClick)
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -343,7 +343,12 @@ fun IosMenuRow(
             .fillMaxWidth()
             .then(
                 if (onClick != null) {
-                    Modifier.menuTap(interactionSource = interaction, enabled = enabled, onClick = onClick)
+                    Modifier.clickable(
+                        interactionSource = interaction,
+                        indication = null,
+                        enabled = enabled,
+                        onClick = onClick,
+                    )
                 } else {
                     Modifier
                 },
@@ -508,8 +513,12 @@ fun <T : Any> IosMenuPopover(
                     .fillMaxSize()
                     .graphicsLayer { alpha = progress.value.coerceIn(0f, 1f) }
                     .background(scrim)
-                    // Not a button to a screen reader: back is how it leaves there.
-                    .menuTap(enabled = open, role = null, onClick = onDismiss),
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = open,
+                        onClick = onDismiss,
+                    ),
             )
             // The panel's shadow, cast by a plate of its own behind it: the
             // panel is drawn into a layer of its own size (see the placement
