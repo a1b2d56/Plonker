@@ -61,6 +61,7 @@ import com.music.bitchord.ui.components.MENU_FROST_ALPHA
 import com.music.bitchord.ui.components.MenuFrostDark
 import com.music.bitchord.ui.components.liveMenuFrost
 import com.music.bitchord.ui.utils.containSheetGestures
+import com.music.bitchord.ui.utils.sheetBoundLeftover
 import dev.chrisbanes.haze.HazeState
 import kotlin.math.roundToInt
 
@@ -186,7 +187,10 @@ fun PlayerDrawer(
                     drag += used
                     return Offset(0f, used)
                 }
-                return available
+                // The rest of a finger's leftover, and none of a fling's — a
+                // fling told its leftover was used never stops at the end of
+                // the list. See [sheetBoundLeftover].
+                return sheetBoundLeftover(available, source)
             }
 
             override suspend fun onPreFling(available: Velocity): Velocity {
