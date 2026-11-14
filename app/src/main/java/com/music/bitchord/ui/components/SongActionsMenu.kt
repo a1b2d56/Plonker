@@ -7,9 +7,9 @@ import androidx.compose.ui.layout.ContentScale
 import com.music.bitchord.R
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.ui.haptics.Haptic
+import com.music.bitchord.ui.player.PlayerBackHandler
 import com.music.bitchord.ui.haptics.rememberHaptics
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
@@ -213,7 +213,11 @@ fun SongActionsMenu(
     val customMinutes = chosenSleepTimer?.takeIf { it !in SleepTimer.PRESETS }
     val mainScrollState = rememberScrollState()
 
-    BackHandler(enabled = currentSubmenu != SongSubmenu.Main) {
+    // Not a plain BackHandler: the popover this is drawn in closes itself on
+    // back with one that outranks those, and back on a page of the menu would
+    // close the whole menu. This is called after the popover's, so while a
+    // page is up it is the one back reaches.
+    PlayerBackHandler(enabled = currentSubmenu != SongSubmenu.Main) {
         currentSubmenu = when (currentSubmenu) {
             SongSubmenu.CustomSleepTimer -> SongSubmenu.SleepTimer
             else -> SongSubmenu.Main
