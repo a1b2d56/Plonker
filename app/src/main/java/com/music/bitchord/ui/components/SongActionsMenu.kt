@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -503,12 +502,12 @@ fun SongActionsMenu(
         ) { submenu ->
             when (submenu) {
                 SongSubmenu.Main -> {
-                    Column(Modifier.fillMaxWidth().verticalScroll(mainScrollState)) {
+                    MenuScrollColumn(mainScrollState, Modifier.fillMaxWidth()) {
                         rows()
                     }
                 }
                 SongSubmenu.SleepTimer -> {
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    MenuScrollColumn(rememberScrollState(), Modifier.fillMaxWidth()) {
                         SleepTimerPicker(
                             palette = palette,
                             onBack = { currentSubmenu = SongSubmenu.Main },
@@ -517,7 +516,7 @@ fun SongActionsMenu(
                     }
                 }
                 SongSubmenu.CustomSleepTimer -> {
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    MenuScrollColumn(rememberScrollState(), Modifier.fillMaxWidth()) {
                         CustomSleepTimerPage(
                             palette = palette,
                             initialMinutes = customMinutes ?: 90,
@@ -530,7 +529,7 @@ fun SongActionsMenu(
                     }
                 }
                 SongSubmenu.Speed -> {
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    MenuScrollColumn(rememberScrollState(), Modifier.fillMaxWidth()) {
                         PlaybackSpeedPicker(
                             palette = palette,
                             onBack = { currentSubmenu = SongSubmenu.Main },
@@ -538,7 +537,7 @@ fun SongActionsMenu(
                     }
                 }
                 SongSubmenu.Sing -> {
-                    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    MenuScrollColumn(rememberScrollState(), Modifier.fillMaxWidth()) {
                         SingPage(
                             palette = palette,
                             onBack = { currentSubmenu = SongSubmenu.Main },
