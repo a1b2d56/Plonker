@@ -11,8 +11,14 @@ import com.music.bitchord.ui.player.PlayerBackHandler
 import com.music.bitchord.ui.haptics.rememberHaptics
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -58,6 +64,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -1218,15 +1225,37 @@ private fun PlaybackSpeedPicker(palette: ArtworkPalette, onBack: () -> Unit) {
             }
         }
 
-        if (currentSpeed != 1.0f) {
-            HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
-            ActionRow(
-                icon = SfIcons.Revert,
-                label = stringResource(R.string.playback_speed_reset),
-                accent = palette.accent,
-            ) {
-                haptics.play(Haptic.Select)
-                AppSettings.setPlaybackSpeed(1.0f)
+        // Reset opens out of the bottom of the list, and the panel grows with
+        // it, rather than the panel jumping a row taller the moment the speed
+        // leaves 1.0.
+        val motion = LocalUiMotion.current
+        // Long enough to be seen as a row opening: at a spring's pace it was
+        // over in six frames, which still read as a pop.
+        val rowOpen = tween<IntSize>(durationMillis = 280, easing = FastOutSlowInEasing)
+        val rowClose = tween<IntSize>(durationMillis = 220, easing = FastOutSlowInEasing)
+        AnimatedVisibility(
+            visible = currentSpeed != 1.0f,
+            enter = if (motion) {
+                expandVertically(rowOpen, expandFrom = Alignment.Top) + fadeIn(tween(200, delayMillis = 80))
+            } else {
+                EnterTransition.None
+            },
+            exit = if (motion) {
+                shrinkVertically(rowClose, shrinkTowards = Alignment.Top) + fadeOut(tween(120))
+            } else {
+                ExitTransition.None
+            },
+        ) {
+            Column(Modifier.fillMaxWidth()) {
+                HorizontalDivider(thickness = 0.5.dp, color = palette.divider)
+                ActionRow(
+                    icon = SfIcons.Revert,
+                    label = stringResource(R.string.playback_speed_reset),
+                    accent = palette.accent,
+                ) {
+                    haptics.play(Haptic.Select)
+                    AppSettings.setPlaybackSpeed(1.0f)
+                }
             }
         }
     }
