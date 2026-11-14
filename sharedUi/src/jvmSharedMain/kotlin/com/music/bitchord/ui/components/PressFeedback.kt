@@ -51,3 +51,35 @@ fun Modifier.pressBounce(
         scaleY = scale
     }
 }
+
+/**
+ * How far a bare glyph gives under the finger. More than a tile's: a glyph has
+ * no surface of its own to show the press on, so its size is all that says it.
+ */
+const val GLYPH_PRESS_SCALE = 0.86f
+
+/** The glyph spring, shared with whatever swaps one glyph for another. */
+const val GLYPH_SPRING_DAMPING = 0.6f
+const val GLYPH_SPRING_STIFFNESS = 500f
+
+/**
+ * [pressBounce] for the player's glyphs: a deeper give, and a spring loose
+ * enough to overshoot once on the way back, so a tap reads as a tap even
+ * though the finger covers most of it.
+ */
+@Composable
+fun Modifier.glyphPressBounce(
+    interaction: InteractionSource,
+    pressedScale: Float = GLYPH_PRESS_SCALE,
+): Modifier {
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && LocalUiMotion.current) pressedScale else 1f,
+        animationSpec = spring(dampingRatio = GLYPH_SPRING_DAMPING, stiffness = GLYPH_SPRING_STIFFNESS),
+        label = "glyphPressScale",
+    )
+    return graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+}

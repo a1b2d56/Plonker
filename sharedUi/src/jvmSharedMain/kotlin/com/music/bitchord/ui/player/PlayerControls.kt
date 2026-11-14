@@ -20,6 +20,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -112,6 +116,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.bitchord.ui.components.LINE_FADE
+import com.music.bitchord.ui.components.GLYPH_SPRING_DAMPING
+import com.music.bitchord.ui.components.GLYPH_SPRING_STIFFNESS
+import com.music.bitchord.ui.components.LocalUiMotion
+import com.music.bitchord.ui.components.glyphPressBounce
 import com.music.bitchord.ui.graphics.fadingEdges
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.haptics.rememberHaptics
@@ -707,6 +715,7 @@ internal fun CircleGlyph(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
+    val interaction = remember { MutableInteractionSource() }
     val ink = LocalPlayerInk.current
     val discAlpha by animateFloatAsState(
         targetValue = if (active) 0.34f else 0.18f,
@@ -715,9 +724,10 @@ internal fun CircleGlyph(
     val chrome = LocalPlayerChrome.current
     Box(
         modifier = modifier
+            .glyphPressBounce(interaction)
             .size(34.dp)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
             ) {
                 haptics.play(haptic)
@@ -783,6 +793,8 @@ private fun TransportGlyph(
 ) {
     val ink = LocalPlayerInk.current
     val haptics = rememberHaptics()
+    val interaction = remember { MutableInteractionSource() }
+    val motion = LocalUiMotion.current
     // Faded rather than hidden: the row keeps its shape at the ends of a queue.
     val alpha by animateFloatAsState(
         targetValue = if (enabled) 1f else 0.3f,
@@ -792,7 +804,7 @@ private fun TransportGlyph(
         modifier = Modifier
             .size(touchSize)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
                 enabled = enabled,
             ) {
@@ -802,6 +814,7 @@ private fun TransportGlyph(
         contentAlignment = Alignment.Center,
     ) {
         val glyphModifier = Modifier
+            .glyphPressBounce(interaction)
             .size(size)
             .then(if (heightScale != 1f) Modifier.graphicsLayer { scaleY = heightScale } else Modifier)
         when {
@@ -812,15 +825,45 @@ private fun TransportGlyph(
                 smoothness = smoothness,
                 modifier = glyphModifier,
             )
-            icon != null -> Icon(
-                painter = painterResource(icon),
-                contentDescription = contentDescription,
-                tint = ink.copy(alpha = alpha),
+            // Play and pause trade places on the press spring: the old glyph
+            // shrinks away as the new one grows into its place. The skip
+            // glyphs never change, so for them this is the icon and no more.
+            icon != null -> AnimatedContent(
+                targetState = icon,
                 modifier = glyphModifier,
-            )
+                contentAlignment = Alignment.Center,
+                transitionSpec = {
+                    val swap = if (motion) {
+                        (
+                            scaleIn(
+                                animationSpec = spring(GLYPH_SPRING_DAMPING, GLYPH_SPRING_STIFFNESS),
+                                initialScale = GLYPH_SWAP_SCALE,
+                            ) + fadeIn(tween(GLYPH_SWAP_FADE_MS))
+                            ).togetherWith(
+                            scaleOut(tween(GLYPH_SWAP_FADE_MS), targetScale = GLYPH_SWAP_SCALE) +
+                                fadeOut(tween(GLYPH_SWAP_FADE_MS)),
+                        )
+                    } else {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    }
+                    swap.using(null)
+                },
+                label = "transportGlyph",
+            ) { glyph ->
+                Icon(
+                    painter = painterResource(glyph),
+                    contentDescription = contentDescription,
+                    tint = ink.copy(alpha = alpha),
+                    modifier = Modifier.size(size),
+                )
+            }
         }
     }
 }
+
+/** How small a transport glyph is as it leaves or arrives, and how long it fades. */
+private const val GLYPH_SWAP_SCALE = 0.55f
+private const val GLYPH_SWAP_FADE_MS = 110
 
 /** The skip glyphs' width, and their touch box, beside the larger play button. */
 private val PLAYER_SKIP_ICON_SIZE = 53.dp
@@ -1064,6 +1107,7 @@ private fun PillSegment(
     vibrant: Boolean = false,
 ) {
     val haptics = rememberHaptics()
+    val interaction = remember { MutableInteractionSource() }
     val ink = LocalPlayerInk.current
     val lastTap = remember { mutableLongStateOf(-tapWindowMs) }
     val chrome = LocalPlayerChrome.current
@@ -1075,7 +1119,7 @@ private fun PillSegment(
             .additiveChrome(chrome && !vibrant)
             .background(if (highlighted) ink.copy(alpha = 0.14f) else Color.Transparent)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
                 enabled = !loading,
             ) {
@@ -1100,7 +1144,8 @@ private fun PillSegment(
         }
         Crossfade(
             targetState = loading,
-            modifier = Modifier.vibrantChrome(chrome && vibrant),
+            // The glyph gives, not the segment: the capsule keeps its edge.
+            modifier = Modifier.glyphPressBounce(interaction).vibrantChrome(chrome && vibrant),
             animationSpec = tween(durationMillis = 200),
             label = "pillSegmentLoading",
         ) { isLoading ->
@@ -1279,6 +1324,7 @@ private fun BottomGlyph(
     vibrant: Boolean = false,
 ) {
     val haptics = rememberHaptics()
+    val interaction = remember { MutableInteractionSource() }
     val ink = LocalPlayerInk.current
     // Read only from the click handler, never during composition, so writing it
     // costs no recomposition. Starts a full window in the past so the first tap
@@ -1289,6 +1335,7 @@ private fun BottomGlyph(
     Box(
         modifier = Modifier
             .size(BOTTOM_ACTION_SIZE)
+            .glyphPressBounce(interaction)
             // Lit, Apple's way: a rounded tile with the glyph cut out of it, the
             // artwork showing through. The glyph is drawn first and the tile over
             // it with SrcOut, which keeps the tile only where the glyph is not.
@@ -1320,7 +1367,7 @@ private fun BottomGlyph(
                 },
             )
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null,
             ) {
                 val now = uptimeMillis()

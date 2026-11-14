@@ -8,6 +8,14 @@ import com.music.bitchord.ui.components.backdrop.Backdrop
 import com.music.bitchord.ui.components.backdrop.drawBackdrop
 import com.music.bitchord.ui.components.backdrop.effects.blur
 import com.music.bitchord.ui.components.backdrop.effects.colorControls
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FastOutLinearInEasing
@@ -338,6 +346,7 @@ fun IosMenuRow(
     val pressed by interaction.collectIsPressedAsState()
     val alpha = if (enabled) 1f else 0.4f
     val foreground = labelColor ?: colors.label
+    val motion = LocalUiMotion.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -361,13 +370,37 @@ fun IosMenuRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.width(28.dp), contentAlignment = Alignment.Center) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = (iconTint ?: foreground).let { it.copy(alpha = it.alpha * alpha) },
-                    modifier = Modifier.size(21.dp),
-                )
+            // A glyph that changes — a tick moving to the row just chosen, a
+            // heart filling — grows into place rather than cutting in.
+            AnimatedContent(
+                targetState = icon,
+                contentAlignment = Alignment.Center,
+                transitionSpec = {
+                    val swap = if (motion) {
+                        (
+                            scaleIn(
+                                animationSpec = spring(GLYPH_SPRING_DAMPING, GLYPH_SPRING_STIFFNESS),
+                                initialScale = 0.4f,
+                            ) + fadeIn(tween(90))
+                            ).togetherWith(scaleOut(tween(90), targetScale = 0.4f) + fadeOut(tween(90)))
+                    } else {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    }
+                    swap.using(null)
+                },
+                label = "menuRowGlyph",
+            ) { glyph ->
+                if (glyph != null) {
+                    Icon(
+                        imageVector = glyph,
+                        contentDescription = null,
+                        tint = (iconTint ?: foreground).let { it.copy(alpha = it.alpha * alpha) },
+                        modifier = Modifier.size(21.dp),
+                    )
+                } else {
+                    // Something to measure, so the leaving glyph has a size to shrink in.
+                    Spacer(Modifier.size(21.dp))
+                }
             }
         }
         Spacer(Modifier.width(10.dp))
