@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Plonker Dynamic Launcher Icon Colors (Dark Mode) -->
+    <color name="ic_launcher_background">#FF0E1015</color>
+    <color name="ic_launcher_accent">#FFFA233B</color>
+    <color name="ic_launcher_fg">#FFFFFFFF</color>
+    <color name="ic_launcher_fg_subtle">#66FFFFFF</color>
+</resources>

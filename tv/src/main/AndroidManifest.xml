@@ -38,15 +38,6 @@
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 
-    <!--
-      Only for API 28 and below. From 29 the app writes to the shared Music
-      folder through MediaStore, which grants access to the rows it created and
-      needs no permission at all — and this one stops being grantable there.
-    -->
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
-
     <!-- Universal device support: TV Leanback and hardware features are optional -->
     <uses-feature
         android:name="android.software.leanback"
