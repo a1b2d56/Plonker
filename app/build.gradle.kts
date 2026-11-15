@@ -69,15 +69,12 @@ val betaSuffix = rootProject.extra["bitchordBetaSuffix"] as String
 
 android {
     namespace = "com.music.bitchord"
-    // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
     compileSdk = 37
 
     defaultConfig {
         applicationId = "com.app.plonker"
-        // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
-        // Haze falls back to a translucent scrim below that.
-        minSdk = 26
-        targetSdk = 36
+        minSdk = 31
+        targetSdk = 37
         versionCode = rootProject.extra["bitchordVersionCode"] as Int
         versionName = rootProject.extra["bitchordVersionName"] as String
 

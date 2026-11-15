@@ -32,15 +32,6 @@
     -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!--
-      BLUETOOTH_CONNECT's predecessor, granted at install: what reads a paired
-      device's class below API 31, so the player can draw a speaker for a
-      speaker. See AudioRouting.formOf.
-    -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-
-    <!--
       In-app updates: handing a downloaded APK to the system installer. The
       per-app "install unknown apps" switch is still the user's to flip; this
       only lets the request reach the installer.
@@ -52,15 +43,6 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
-
-    <!--
-      Only for API 28 and below. From 29 the app writes to the shared Music
-      folder through MediaStore, which grants access to the rows it created and
-      needs no permission at all — and this one stops being grantable there.
-    -->
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
 
     <queries>
         <intent>

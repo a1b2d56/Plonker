@@ -72,17 +72,14 @@ val betaSuffix = ""
 
 android {
     namespace = "com.music.bitchord"
-    // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
     compileSdk = 37
 
     defaultConfig {
         // Its own id, so the TV app is a separate install from the phone app
         // rather than an upgrade over it (or under it).
         applicationId = "com.app.plonker.tv"
-        // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
-        // Haze falls back to a translucent scrim below that.
-        minSdk = 26
-        targetSdk = 36
+        minSdk = 31
+        targetSdk = 37
         versionCode = 39
         versionName = "1.9.1"
 
