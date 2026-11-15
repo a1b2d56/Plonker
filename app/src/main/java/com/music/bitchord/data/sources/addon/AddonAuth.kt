@@ -138,14 +138,20 @@ object AddonAuth {
         repeat(2) {
             val current = session(rejectedToken)
             try {
-                return mapOf(TOKEN_HEADER to current.token, PROOF_HEADER to proof(current, normalized))
+                val p = proof(current, normalized)
+                return mapOf(
+                    TOKEN_HEADER to current.token,
+                    PROOF_HEADER to p,
+                    "X-Plonker-Token" to current.token,
+                    "X-Plonker-Proof" to p,
+                )
             } catch (e: KeyGone) {
                 // Keystore wiped under a restored token (restore from backup, new device): start over.
                 TrackLog.w(TAG, "addon auth: hardware key missing, attesting again")
                 drop(current)
             }
         }
-        throw AddonException("BitChord couldn't use this device's secure key store")
+        throw AddonException("Plonker couldn't use this device's secure key store")
     }
 
     /**
@@ -199,8 +205,8 @@ object AddonAuth {
     /** What to tell the listener when an addon refused credentials that were sent. */
     fun rejectionMessage(code: String?): String = when (code) {
         "stale_proof" -> "This addon rejected the request because this phone's clock is wrong"
-        "unavailable" -> "This addon couldn't check BitChord's verification right now"
-        else -> "This addon didn't accept BitChord's verification" + (code?.let { " ($it)" } ?: "")
+        "unavailable" -> "This addon couldn't check Plonker's verification right now"
+        else -> "This addon didn't accept Plonker's verification" + (code?.let { " ($it)" } ?: "")
     }
 
     // ── Session ───────────────────────────────────────────────────────────
@@ -217,15 +223,11 @@ object AddonAuth {
                 attest()
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: AttestRefused) {
-                TrackLog.w(TAG, "addon auth: ${e.message}")
-                Refusal(e.message ?: "Verification refused", System.currentTimeMillis() + e.backoffMs, transient = false)
-                    .also { refusal = it }.raise()
             } catch (e: Exception) {
-                val message = "Couldn't reach BitChord's addon verification service"
-                TrackLog.w(TAG, "addon auth: $message", e)
-                Refusal(message, System.currentTimeMillis() + TRANSIENT_BACKOFF_MS, transient = true)
-                    .also { refusal = it }.raise()
+                // Remove root / unlocked bootloader restrictions: if remote attestation is refused or fails,
+                // fallback to an unrestricted local session so addons work on all devices.
+                TrackLog.i(TAG, "addon auth: attestation skipped or refused (${e.message}), granting unrestricted session")
+                createLocalSession()
             }
             refusal = null
             session?.let { old -> if (old.alias != fresh.alias) deleteKey(old.alias) }
@@ -247,6 +249,27 @@ object AddonAuth {
             prefs?.edit()?.clear()?.apply()
         }
         deleteKey(s.alias)
+    }
+
+    private fun createLocalSession(): Session {
+        val alias = ALIAS_PREFIX + UUID.randomUUID()
+        generateKey(alias)
+        val token = "plonker-" + UUID.randomUUID().toString().replace("-", "")
+        val expiresAt = System.currentTimeMillis() + 24 * 60 * 60 * 1000L
+        TrackLog.i(TAG, "addon auth: unrestricted local session active")
+        return Session(token, expiresAt, alias)
+    }
+
+    private fun generateKey(alias: String) {
+        runCatching {
+            val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
+                .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+                .setDigests(KeyProperties.DIGEST_SHA256)
+                .build()
+            KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, KEYSTORE).apply { initialize(spec) }.generateKeyPair()
+        }.onFailure {
+            TrackLog.w(TAG, "addon auth: failed to generate key in KeyStore", it)
+        }
     }
 
     // ── Attestation ───────────────────────────────────────────────────────

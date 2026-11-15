@@ -1252,7 +1252,7 @@
 
 
     <string name="source_needs_lossless_output">需要无损输出 · 请使用支持无损的设备</string>
-    <string name="source_needs_update">此插件已过时。目前仍可使用，但请让开发者按照最新的 BitChord 插件文档进行更新。</string>
+    <string name="source_needs_update">此插件已过时。目前仍可使用，但请让开发者按照最新的 Plonker 插件文档进行更新。</string>
     <string name="source_outdated">插件已过时</string>
     <string name="source_needs_lossless_bt_codec">需要无损输出 · 蓝牙当前为 %1$s；请使用支持无损的设备</string>
     <string name="source_needs_lossless_bt_unknown">需要无损输出 · 无法识别正在使用的蓝牙编解码器</string>
@@ -1411,8 +1411,8 @@
     <string name="font_footer">旧版会恢复应用在匹配 Apple Music 之前使用的更粗、更紧凑的字体。</string>
     <string name="bit_perfect_output">比特完美输出</string>
     <string name="bit_perfect_bypassed_footer">比特完美输出已就绪，因此变灰的设置会被绕过，也不会请求 Dolby Atmos 版本。断开 DAC 或关闭此模式后，它们会恢复工作。</string>
-    <string name="bit_perfect_sheet_warning">将曲目原样发送到 DAC。均衡器、响度标准化、交叉淡入淡出、Automix、播放速度和 BitChord 的音量都会被绕过。</string>
-    <string name="bit_perfect_mode_off_subtitle">音频经过 Android 的混音器和 BitChord 的音效。</string>
+    <string name="bit_perfect_sheet_warning">将曲目原样发送到 DAC。均衡器、响度标准化、交叉淡入淡出、Automix、播放速度和 Plonker 的音量都会被绕过。</string>
+    <string name="bit_perfect_mode_off_subtitle">音频经过 Android 的混音器和 Plonker 的音效。</string>
     <string name="bit_perfect_mode_usb_android">USB DAC</string>
     <string name="bit_perfect_mode_usb_android_subtitle">Android 14 按每首曲目自身的采样率和位深打开 DAC，不进行混音或重采样。</string>
     <string name="bit_perfect_requires_android_14">需要 Android 14 或更高版本</string>
@@ -1420,13 +1420,13 @@
     <string name="bit_perfect_mode_dap_exclusive_subtitle">适用于自带 DAC 的音乐播放器。按每首曲目自身的采样率独占打开耳机或线路输出。并非所有设备都允许独占模式。</string>
     <string name="bit_perfect_requires_android_8_1">需要 Android 8.1 或更高版本</string>
     <string name="bit_perfect_mode_usb_direct">USB DAC（直接驱动）</string>
-    <string name="bit_perfect_mode_usb_direct_subtitle">BitChord 可在任何 Android 版本上直接驱动 DAC，并在 DAC 上设置音量。需要 USB 权限。声音可能比普通输出大得多。</string>
+    <string name="bit_perfect_mode_usb_direct_subtitle">Plonker 可在任何 Android 版本上直接驱动 DAC，并在 DAC 上设置音量。需要 USB 权限。声音可能比普通输出大得多。</string>
     <string name="dac_volume">DAC 音量</string>
     <string name="dac_volume_subtitle">在 DAC 本身上设置；音乐数据不会被缩放</string>
     <string name="usb_allow_fixed_volume">允许无音量控制的 DAC</string>
     <string name="usb_allow_fixed_volume_subtitle">否则此类 DAC 将通过普通输出播放</string>
     <string name="usb_allow_fixed_volume_confirm_title">以满刻度播放？</string>
-    <string name="usb_allow_fixed_volume_confirm_message">BitChord 无法设置此类 DAC 的音量，因此它会以满刻度播放，只有 DAC 自身的旋钮（如果有）才能控制响度。使用灵敏的耳机时，声音可能大到危险。</string>
+    <string name="usb_allow_fixed_volume_confirm_message">Plonker 无法设置此类 DAC 的音量，因此它会以满刻度播放，只有 DAC 自身的旋钮（如果有）才能控制响度。使用灵敏的耳机时，声音可能大到危险。</string>
     <string name="convert_for_limited_dac">为低规格 DAC 转换</string>
     <string name="convert_for_limited_dac_subtitle">将超出 DAC 上限的曲目转换为其支持的最高格式。曲目可能需要更长时间才能开始播放，且相对原始音频不再是比特完美。</string>
     <string name="bit_perfect_confirm_title">开启比特完美输出？</string>

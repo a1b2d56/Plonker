@@ -1,15 +1,21 @@
-# BitChord — Listen Together
+# Plonker — Listen Together
 
 The party server behind **Listen together**: create a six-character code, share
 it, and up to five signed-in devices listen to the same thing at the same time.
 Anyone in the party can control the music.
 
 Go + a WebSocket per device, no database, deployed as a single Render web
-service.
+service or via Docker.
 
 ```bash
 go run .
 go test -v ./...
+```
+
+### Self-Hosting with Docker
+```bash
+cd backend
+docker compose up -d
 ```
 
 ---
