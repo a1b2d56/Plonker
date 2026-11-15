@@ -1,0 +1,16 @@
+services:
+  plonker-listen-together:
+    build: .
+    container_name: plonker-listen-together
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - JAM_TRUST_PROXY=true
+      - JAM_MAX_MEMBERS=5
+      - JAM_STATE_HEARTBEAT_MS=5000
+      - JAM_MAX_UPCOMING_QUEUE=25
+      - JAM_MAX_PARTIES=200
+      - JAM_CREATE_RATE_PER_MINUTE=2
+      - JAM_CONNECTION_IDLE_MS=900000

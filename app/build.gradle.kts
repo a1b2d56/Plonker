@@ -51,19 +51,17 @@ val lastfmSecret: String = (
 val listenTogetherServer: String = (
     localProps.getProperty("LISTEN_TOGETHER_SERVER")
         ?: System.getenv("LISTEN_TOGETHER_SERVER")
-        ?: "https://bitchord-listen-together.onrender.com"
+        ?: "https://plonker-listen-together.onrender.com"
     ).trim().trimEnd('/')
 
 /*
  * The service that checks this app's hardware key attestation and issues addon
- * tokens. See AddonAuth. Overridable for a staging deployment. A fork that
- * points this at its own server gains nothing: addons only trust tokens signed
- * by the official service's key.
+ * tokens. See AddonAuth. Overridable for a staging deployment.
  */
 val addonAuthServer: String = (
     localProps.getProperty("ADDON_AUTH_SERVER")
         ?: System.getenv("ADDON_AUTH_SERVER")
-        ?: "https://bitchord-auth.kushagrasingh.in"
+        ?: "https://plonker-auth.kushagrasingh.in"
     ).trim().trimEnd('/')
 
 // See the root build.gradle.kts: one version for the phone and its watch app.

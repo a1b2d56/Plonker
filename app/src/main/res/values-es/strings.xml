@@ -1247,7 +1247,7 @@
 
 
     <string name="source_needs_lossless_output">Necesita una salida sin pérdida · usa un dispositivo compatible con audio sin pérdida</string>
-    <string name="source_needs_update">Este complemento está desactualizado. Sigue funcionando, pero pide a su desarrollador que lo actualice siguiendo la documentación más reciente de complementos de BitChord.</string>
+    <string name="source_needs_update">Este complemento está desactualizado. Sigue funcionando, pero pide a su desarrollador que lo actualice siguiendo la documentación más reciente de complementos de Plonker.</string>
     <string name="source_outdated">Complemento desactualizado</string>
     <string name="source_needs_lossless_bt_codec">Necesita una salida sin pérdida · el Bluetooth usa %1$s; usa un dispositivo compatible con audio sin pérdida</string>
     <string name="source_needs_lossless_bt_unknown">Necesita una salida sin pérdida · no se puede saber qué códec Bluetooth se usa</string>
@@ -1406,8 +1406,8 @@
     <string name="font_footer">Clásica recupera la tipografía más gruesa y compacta que usaba la app antes de adaptarla a Apple Music.</string>
     <string name="bit_perfect_output">Salida bit-perfect</string>
     <string name="bit_perfect_bypassed_footer">La salida bit-perfect está lista, por lo que se omiten los ajustes atenuados y no se solicitan versiones Dolby Atmos. Vuelven a funcionar al desconectar el DAC o desactivar el modo.</string>
-    <string name="bit_perfect_sheet_warning">Envía la pista al DAC sin cambios. Se omiten el ecualizador, la normalización de volumen, el fundido cruzado, la mezcla automática, la velocidad de reproducción y el volumen de BitChord.</string>
-    <string name="bit_perfect_mode_off_subtitle">El audio pasa por el mezclador de Android y los efectos de BitChord.</string>
+    <string name="bit_perfect_sheet_warning">Envía la pista al DAC sin cambios. Se omiten el ecualizador, la normalización de volumen, el fundido cruzado, la mezcla automática, la velocidad de reproducción y el volumen de Plonker.</string>
+    <string name="bit_perfect_mode_off_subtitle">El audio pasa por el mezclador de Android y los efectos de Plonker.</string>
     <string name="bit_perfect_mode_usb_android">DAC USB</string>
     <string name="bit_perfect_mode_usb_android_subtitle">Android 14 abre el DAC con la frecuencia y la profundidad de bits de cada pista, sin mezclar ni remuestrear.</string>
     <string name="bit_perfect_requires_android_14">Requiere Android 14 o posterior</string>
@@ -1415,13 +1415,13 @@
     <string name="bit_perfect_mode_dap_exclusive_subtitle">Para reproductores de música con DAC propio. Abre la salida de auriculares o de línea en exclusiva con la frecuencia de cada pista. No todos los dispositivos conceden el modo exclusivo.</string>
     <string name="bit_perfect_requires_android_8_1">Requiere Android 8.1 o posterior</string>
     <string name="bit_perfect_mode_usb_direct">DAC USB (controlador directo)</string>
-    <string name="bit_perfect_mode_usb_direct_subtitle">BitChord controla el DAC directamente, en cualquier versión de Android, y ajusta el volumen en el DAC. Pide permiso USB. Puede sonar mucho más alto que la salida normal.</string>
+    <string name="bit_perfect_mode_usb_direct_subtitle">Plonker controla el DAC directamente, en cualquier versión de Android, y ajusta el volumen en el DAC. Pide permiso USB. Puede sonar mucho más alto que la salida normal.</string>
     <string name="dac_volume">Volumen del DAC</string>
     <string name="dac_volume_subtitle">Se ajusta en el propio DAC; la música no se escala</string>
     <string name="usb_allow_fixed_volume">Permitir DAC sin control de volumen</string>
     <string name="usb_allow_fixed_volume_subtitle">Si no, ese DAC reproduce por la salida normal</string>
     <string name="usb_allow_fixed_volume_confirm_title">¿Reproducir a escala completa?</string>
-    <string name="usb_allow_fixed_volume_confirm_message">BitChord no puede ajustar el volumen de este tipo de DAC, así que reproduce a escala completa y solo su propio mando, si lo tiene, controla el nivel. Puede sonar peligrosamente alto con auriculares sensibles.</string>
+    <string name="usb_allow_fixed_volume_confirm_message">Plonker no puede ajustar el volumen de este tipo de DAC, así que reproduce a escala completa y solo su propio mando, si lo tiene, controla el nivel. Puede sonar peligrosamente alto con auriculares sensibles.</string>
     <string name="convert_for_limited_dac">Convertir para DAC más limitados</string>
     <string name="convert_for_limited_dac_subtitle">Convierte las pistas que superan el límite de tu DAC a su formato más alto. Pueden tardar más en empezar y no serán bit-perfect respecto al original.</string>
     <string name="bit_perfect_confirm_title">¿Activar la salida bit-perfect?</string>

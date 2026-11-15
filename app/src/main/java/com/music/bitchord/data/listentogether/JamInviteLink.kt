@@ -20,6 +20,7 @@ object JamInviteLink {
 
     private const val EXTRA_CONSUMED = "bitchord.jamInviteConsumed"
     private const val HOST = "bitchord.kushagrasingh.in"
+    private val HOSTS = setOf("bitchord.kushagrasingh.in", "plonker.app", "plonker-listen-together.onrender.com")
     /** Both schemes the manifest hands this app: the current name and the one before it. */
     private val CUSTOM_SCHEMES = setOf("plonker", "bitchord")
     private const val CUSTOM_HOST = "party"
@@ -50,8 +51,8 @@ object JamInviteLink {
 
     /**
      * Parses an incoming invite:
-     * 1. bitchord://party/<CODE>?server=<SERVER>
-     * 2. https://bitchord.kushagrasingh.in/invite/<CODE>?server=<SERVER>
+     * 1. plonker://party/<CODE>?server=<SERVER> or bitchord://party/<CODE>?server=<SERVER>
+     * 2. https://<DOMAIN>/invite/<CODE>?server=<SERVER>
      */
     fun parseInvite(value: String?): ParsedJamInvite? {
         val uri = runCatching { URI(value ?: return null) }.getOrNull() ?: return null
@@ -60,7 +61,7 @@ object JamInviteLink {
         val query = uri.rawQuery
         val server = extractQueryParam(query, "server")?.let { sanitizeServerUrl(it) }
 
-        // 1. Custom scheme: bitchord://party/<CODE> or bitchord://party?code=<CODE>
+        // 1. Custom scheme: plonker://party/<CODE> or bitchord://party/<CODE>
         if (scheme in CUSTOM_SCHEMES && host == CUSTOM_HOST) {
             val pathPart = uri.path.orEmpty().trim('/').takeIf { it.isNotBlank() }
             val candidate = pathPart ?: extractQueryParam(query, "code") ?: return null
@@ -68,8 +69,8 @@ object JamInviteLink {
             return ParsedJamInvite(code = code, serverUrl = server)
         }
 
-        // 2. Official web domain: https://bitchord.kushagrasingh.in/invite/<CODE>
-        if (scheme == "https" && host == HOST) {
+        // 2. Official web domain: https://.../invite/<CODE>
+        if (scheme == "https" && host in HOSTS) {
             val match = INVITE_PATH.matchEntire(uri.path.orEmpty()) ?: return null
             val code = match.groupValues[1].uppercase()
             return ParsedJamInvite(code = code, serverUrl = server)
@@ -92,9 +93,9 @@ object JamInviteLink {
         val base = customServer?.trim()?.trimEnd('/')
         return if (!base.isNullOrBlank()) {
             val encoded = runCatching { URLEncoder.encode(base, "UTF-8") }.getOrDefault(base)
-            "bitchord://party/$normalizedCode?server=$encoded"
+            "plonker://party/$normalizedCode?server=$encoded"
         } else {
-            "bitchord://party/$normalizedCode"
+            "plonker://party/$normalizedCode"
         }
     }
 
