@@ -80,8 +80,8 @@ android {
         applicationId = "com.app.plonker.tv"
         minSdk = 31
         targetSdk = 37
-        versionCode = 39
-        versionName = "1.9.1"
+        versionCode = 1
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
