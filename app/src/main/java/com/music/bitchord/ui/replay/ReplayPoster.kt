@@ -767,8 +767,8 @@ private const val POSTER_H = 1920
 
 private const val MARGIN = 72f
 
-/** The mark's drawn size. 730×484 in the vector, so this keeps its proportions. */
-private const val LOGO_W = 66f
+/** The mark's drawn size. 1:1 square monogram proportions. */
+private const val LOGO_W = 44f
 private const val LOGO_H = 44f
 private const val LOGO_GAP = 20f
 

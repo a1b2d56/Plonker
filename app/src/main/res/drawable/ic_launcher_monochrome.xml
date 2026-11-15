@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="50"
+        android:pivotY="50"
+        android:scaleX="0.72"
+        android:scaleY="0.72"
+        android:translateX="4"
+        android:translateY="4">
+        <!-- Turntable Stem / Soundbar -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M 26,16 C 29.314,16 32,18.686 32,22 L 32,78 C 32,81.314 29.314,84 26,84 C 22.686,84 20,81.314 20,78 L 20,22 C 20,18.686 22.686,16 26,16 Z" />
+        <!-- Outer Vinyl Groove Disc -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="7"
+            android:pathData="M 56,18 C 69.255,18 80,28.745 80,42 C 80,55.255 69.255,66 56,66 C 42.745,66 32,55.255 32,42 C 32,28.745 42.745,18 56,18 Z" />
+        <!-- Micro-Groove Resonance Track -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="2.2"
+            android:strokeAlpha="0.4"
+            android:pathData="M 56,26.5 C 64.56,26.5 71.5,33.44 71.5,42 C 71.5,50.56 64.56,57.5 56,57.5 C 47.44,57.5 40.5,50.56 40.5,42 C 40.5,33.44 47.44,26.5 56,26.5 Z" />
+        <!-- Spindle Core Center -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M 56,34.5 C 60.142,34.5 63.5,37.858 63.5,42 C 63.5,46.142 60.142,49.5 56,49.5 C 51.858,49.5 48.5,46.142 48.5,42 C 48.5,37.858 51.858,34.5 56,34.5 Z" />
+        <!-- Stylus Tracking Arm -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4.5"
+            android:strokeLineCap="round"
+            android:pathData="M 32,42 L 48.5,42" />
+    </group>
+</vector>

@@ -47,10 +47,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
-import com.music.bitchord.AppIcon
+
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.ui.components.IosSwitch
 import com.music.bitchord.ui.components.languageDisplayNameRes
@@ -313,64 +312,6 @@ internal fun MiscellaneousSettingsGroup(
                 },
                 onClick = { AppSettings.setShowNerdStats(!nerdStats) },
             )
-        }
-        val appIconTitle = stringResource(R.string.app_icon)
-        row(appIconTitle, "icon", "launcher", "logo") {
-            var selectedIcon by remember { mutableStateOf(AppIcon.current(context)) }
-            SettingsRow(icon = SfIcons.Apps, title = appIconTitle)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = ROW_INSET, end = ROW_INSET, bottom = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                AppIcon.entries.forEach { option ->
-                    val selected = option == selectedIcon
-                    Column(
-                        modifier = Modifier
-                            .width(84.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable {
-                                selectedIcon = option
-                                AppIcon.apply(context, option)
-                            }
-                            .padding(vertical = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        val preview = option.previewRes
-                        if (preview == null) {
-                            AndroidView(
-                                factory = { ctx ->
-                                    android.widget.ImageView(ctx).apply { setImageResource(option.iconRes) }
-                                },
-                                modifier = Modifier
-                                    .size(68.dp)
-                                    .clip(RoundedCornerShape(22.dp)),
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(preview),
-                                contentDescription = null,
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier
-                                    .size(68.dp)
-                                    .scale(1.5f),
-                            )
-                        }
-                        Text(
-                            text = stringResource(option.labelRes),
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-                }
-            }
         }
     }
 }
