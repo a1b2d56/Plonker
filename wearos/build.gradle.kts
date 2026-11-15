@@ -117,6 +117,9 @@ android {
         resValues = true
     }
     packaging {
+        dex {
+            useLegacyPackaging = true
+        }
         resources {
             excludes += setOf(
                 "META-INF/*.version",

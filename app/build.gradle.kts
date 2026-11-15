@@ -211,6 +211,9 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        dex {
+            useLegacyPackaging = true
+        }
         resources {
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
