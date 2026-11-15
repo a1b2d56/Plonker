@@ -13,10 +13,10 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/KabirSinghBhatia/BitChord/backend/clock"
-	"github.com/KabirSinghBhatia/BitChord/backend/config"
-	"github.com/KabirSinghBhatia/BitChord/backend/presence"
-	"github.com/KabirSinghBhatia/BitChord/backend/protocol"
+	"github.com/a1b2d56/Plonker/backend/clock"
+	"github.com/a1b2d56/Plonker/backend/config"
+	"github.com/a1b2d56/Plonker/backend/presence"
+	"github.com/a1b2d56/Plonker/backend/protocol"
 )
 
 func setupTestServer() *httptest.Server {

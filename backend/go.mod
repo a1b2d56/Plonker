@@ -1,4 +1,4 @@
-module github.com/KabirSinghBhatia/BitChord/backend
+module github.com/a1b2d56/Plonker/backend
 
 go 1.26
 

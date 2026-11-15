@@ -18,13 +18,13 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/KabirSinghBhatia/BitChord/backend/clock"
-	"github.com/KabirSinghBhatia/BitChord/backend/codes"
-	"github.com/KabirSinghBhatia/BitChord/backend/config"
-	"github.com/KabirSinghBhatia/BitChord/backend/hub"
-	"github.com/KabirSinghBhatia/BitChord/backend/party"
-	"github.com/KabirSinghBhatia/BitChord/backend/presence"
-	"github.com/KabirSinghBhatia/BitChord/backend/protocol"
+	"github.com/a1b2d56/Plonker/backend/clock"
+	"github.com/a1b2d56/Plonker/backend/codes"
+	"github.com/a1b2d56/Plonker/backend/config"
+	"github.com/a1b2d56/Plonker/backend/hub"
+	"github.com/a1b2d56/Plonker/backend/party"
+	"github.com/a1b2d56/Plonker/backend/presence"
+	"github.com/a1b2d56/Plonker/backend/protocol"
 )
 
 var (

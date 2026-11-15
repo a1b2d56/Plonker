@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/KabirSinghBhatia/BitChord/backend/codes"
-	"github.com/KabirSinghBhatia/BitChord/backend/config"
+	"github.com/a1b2d56/Plonker/backend/codes"
+	"github.com/a1b2d56/Plonker/backend/config"
 )
 
 func TestCodeNormalisation(t *testing.T) {
