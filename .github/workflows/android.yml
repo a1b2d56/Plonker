@@ -26,9 +26,9 @@ jobs:
         echo "LASTFM_SECRET=${{ secrets.LASTFM_SECRET }}" >> local.properties
         echo "LISTEN_TOGETHER_SERVER=${{ secrets.LISTEN_TOGETHER_SERVER }}" >> local.properties
 
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > bitchord-release.jks
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > plonker-release.jks
         {
-          echo "storeFile=bitchord-release.jks"
+          echo "storeFile=plonker-release.jks"
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}"
           echo "keyAlias=${{ secrets.KEY_ALIAS }}"
           echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
@@ -40,17 +40,20 @@ jobs:
     - name: Build Signed Prod Release APK
       run: ./gradlew assembleProdRelease
 
-    - name: Upload APK Artifact
+    - name: Upload Phone APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: bitchord-prod-release-signed
+        name: plonker-prod-release-signed
         path: app/build/outputs/apk/prod/release/*.apk
 
-    # Built by the same assembleProdRelease, with the same key. The watch app
-    # only pairs with a phone app signed by the same key, so a prod watch APK
-    # for these phone builds can only come from here, never a local build.
     - name: Upload Wear OS APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: bitchord-wear-prod-release-signed
+        name: plonker-wear-prod-release-signed
         path: wearos/build/outputs/apk/prod/release/*.apk
+
+    - name: Upload Android TV APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: plonker-tv-prod-release-signed
+        path: tv/build/outputs/apk/prod/release/*.apk
