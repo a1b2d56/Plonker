@@ -65,8 +65,9 @@ internal fun PlayerMeshBackdrop(
     canvasFrame: () -> ImageBitmap?,
     seamTarget: () -> Dp,
     alpha: () -> Float,
+    artPx: Int = ART_PX,
 ) {
-    val mesh = key(trackKey) { rememberArtworkMesh(imageUrl, canvasFrame(), ART_PX) }
+    val mesh = key(trackKey) { rememberArtworkMesh(imageUrl, canvasFrame(), artPx) }
     val currentSeamTarget by rememberUpdatedState(seamTarget)
     val seam = remember { Animatable(Snapshot.withoutReadObservation { seamTarget() }, Dp.VectorConverter) }
     // Glides to a clip's edge as the clip fades in, and is put straight where
