@@ -1,11 +1,10 @@
 package com.music.bitchord.download
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import com.music.bitchord.data.DebugLog as Log
 import com.music.bitchord.data.Http
+import com.music.bitchord.data.artwork.ArtworkCompressor
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
 import kotlinx.coroutines.sync.Mutex
@@ -14,7 +13,6 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.security.MessageDigest
-import kotlin.math.max
 
 /**
  * Embeds title, artist, album, lyrics and cover art into a track [Downloads]
@@ -40,7 +38,7 @@ object MediaTagger {
     private const val TAG = "BitChord"
 
     /** Long side of the embedded cover — plenty for a lock screen or a car head unit, without ballooning the file. */
-    private const val COVER_MAX_SIDE = 1000
+    private const val COVER_MAX_SIDE = ArtworkCompressor.EMBED_MAX_SIDE
 
     /**
      * How much of a FLAC has to be read to be sure the whole metadata chain is
@@ -162,7 +160,10 @@ object MediaTagger {
     internal fun cacheArtwork(context: Context, sourceUrl: String?): String? {
         if (sourceUrl.isNullOrBlank()) return null
         artworkFile(context, sourceUrl).takeIf { it.isFile }?.let { return Uri.fromFile(it).toString() }
-        val artwork = fetchCover(sourceUrl.artworkAt(1200) ?: sourceUrl, "collection") ?: return null
+        // Asked for at the size the cover is kept at: a larger copy would be
+        // fetched and then scaled down to the same thing.
+        val artwork = fetchCover(sourceUrl.artworkAt(COVER_MAX_SIDE) ?: sourceUrl, "collection")
+            ?: return null
         return persistArtwork(context, sourceUrl, artwork)
     }
 
@@ -420,7 +421,9 @@ object MediaTagger {
     }
 
     private fun fetchCover(track: Song): Artwork? {
-        val url = track.artworkAt(1200) ?: return null
+        // Asked for at the size the cover is kept at: a larger copy would be
+        // fetched and then scaled down to the same thing.
+        val url = track.artworkAt(COVER_MAX_SIDE) ?: return null
         return fetchCover(url, track.videoId)
     }
 
@@ -430,25 +433,19 @@ object MediaTagger {
             Http.client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@runCatching null
                 val raw = response.body.bytes()
-                val bitmap = BitmapFactory.decodeByteArray(raw, 0, raw.size) ?: return@runCatching null
-                val scaled = downscale(bitmap, COVER_MAX_SIDE)
-                val out = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.JPEG, 92, out)
-                Artwork(out.toByteArray(), "image/jpeg")
+                // Compressed rather than kept as it arrived: the cover is filed
+                // inside the track and beside it, and it is read at thumbnail
+                // size by every other player — see [ArtworkCompressor].
+                //
+                // The decode is subsampled to the size the cover is kept at
+                // and both bitmaps are freed here rather than left to the GC,
+                // because a batch download tags one track after another and
+                // each decode is megabytes.
+                val jpeg = ArtworkCompressor.toJpeg(raw, COVER_MAX_SIDE)
+                    ?: return@runCatching null
+                Artwork(jpeg, "image/jpeg")
             }
         }.onFailure { Log.d(TAG, "no cover saved for $logId: ${it.message}") }.getOrNull()
-    }
-
-    private fun downscale(bitmap: Bitmap, maxSide: Int): Bitmap {
-        val longest = max(bitmap.width, bitmap.height)
-        if (longest <= maxSide) return bitmap
-        val scale = maxSide.toFloat() / longest
-        return Bitmap.createScaledBitmap(
-            bitmap,
-            (bitmap.width * scale).toInt().coerceAtLeast(1),
-            (bitmap.height * scale).toInt().coerceAtLeast(1),
-            true,
-        )
     }
 
     private fun readAll(context: Context, uri: Uri): ByteArray? = runCatching {

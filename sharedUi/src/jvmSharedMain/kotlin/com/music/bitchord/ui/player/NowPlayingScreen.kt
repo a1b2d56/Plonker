@@ -184,6 +184,7 @@ import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.PlaybackSourceType
 import com.music.bitchord.data.model.PLAYER_ART_PX
 import com.music.bitchord.data.model.Song
+import com.music.bitchord.data.model.playerArtPx
 import com.music.bitchord.playback.BACK_RESTARTS_AFTER_MS
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeInputScale
@@ -584,6 +585,16 @@ fun NowPlayingScreen(
     val density = LocalDensity.current
     val haptics = rememberHaptics()
 
+    // The size of the copy of the cover this player draws: the width of the
+    // window it is drawn in, capped at the largest rung on the ladder — see
+    // [playerArtPx]. Every surface below asks for that same copy, so the
+    // sleeve, the mesh, the palette and the full-cover blur share one
+    // download of it, and none of them decodes a cover bigger than the screen
+    // it is shown on.
+    val artPx = remember(windowWidth, density.density) {
+        playerArtPx(windowWidth.value, density.density)
+    }
+
     // Remote tracks whose art lives inside the file resolve it here, once —
     // every surface below reads the same value rather than each triggering
     // its own extraction.
@@ -591,7 +602,7 @@ fun NowPlayingScreen(
     // This is produced by the palette's existing 128 px decode and cache. It
     // samples the upper band rather than the whole sleeve because that is what
     // lies beneath the status bar when the player expands to full bleed.
-    val artTopLuminance = rememberArtworkTopBandLuminance(remoteArt, ART_PX)
+    val artTopLuminance = rememberArtworkTopBandLuminance(remoteArt, artPx)
     val playerInk = Color.White
     val artworkStatusScrimAlpha = topBandScrimAlpha(artTopLuminance)
 
@@ -1117,7 +1128,7 @@ fun NowPlayingScreen(
     // had and never re-emits, so the `onState` that is the sole writer here
     // never fires again. Keyed on the cover there is nothing to reset: the
     // bitmap really is still loaded, so the state stays true.
-    val art = rememberPlayerArtwork(remoteArt)
+    val art = rememberPlayerArtwork(remoteArt, artPx)
     // Sticky, unlike [PlayerArtwork.loaded]: the banner is the shape of the player rather
     // than a property of the track in it. Waiting on each new cover would
     // collapse the banner into a card and blow it back out on every skip —
@@ -1429,7 +1440,7 @@ fun NowPlayingScreen(
     // effect.
     val fullArtworkBlurImage = rememberFullArtworkBlurImage(
         imageUrl = remoteArt,
-        artPx = ART_PX,
+        artPx = artPx,
         // Straight away when it is the main player's backdrop too: the decode
         // and blur run off the main thread, and the last cover's blur is held
         // on screen until this one is ready.
@@ -2077,6 +2088,7 @@ fun NowPlayingScreen(
                         alpha = {
                             if (spotifyCanvasPresentation || fullArtworkBackdropAlpha >= 1f) 0f else 1f
                         },
+                        artPx = artPx,
                     )
                 }
                 fullArtworkBlurContent(
