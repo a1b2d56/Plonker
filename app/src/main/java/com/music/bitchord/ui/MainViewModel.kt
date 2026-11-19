@@ -14,6 +14,7 @@ import com.music.bitchord.auth.adjacentProfile
 import com.music.bitchord.data.AppUpdateChecker
 import com.music.bitchord.data.LocalMediaRepository
 import com.music.bitchord.data.LikeState
+import com.music.bitchord.data.HomeFeedCache
 import com.music.bitchord.data.YtMusicRepository
 import com.music.bitchord.data.TopPicks
 import com.music.bitchord.data.AppleArtistPhotos
@@ -150,13 +151,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private val _homePendingShelves = MutableStateFlow(0)
 
+    /**
+     * Last launch's page, drawn while this launch's is on the wire.
+     *
+     * Null once the fresh feed has replaced it, or when there was none to
+     * draw. [publishHome] draws this in place of [_homeRaw] while it is set,
+     * so the fresh shelves gather behind it and replace it in one swap rather
+     * than one shelf at a time. See [HomeFeedCache].
+     */
+    private var homeCachedRaw: List<HomeShelf>? = null
+
+    /**
+     * Whether the page on screen is [homeCachedRaw]. The page's own
+     * loading placeholders are held back while it is: the cached page
+     * already has its Recents and its tail, and a skeleton drawn over real
+     * shelves would be a second page arriving.
+     */
+    private val _homeShowingCached = MutableStateFlow(false)
+
+    private val _homeRaw = MutableStateFlow<List<HomeShelf>>(emptyList())
+
     /** True whenever shelves are still due at the end of the feed, from either source. */
     val homeLoadingMore: StateFlow<Boolean> =
-        combine(_homeLoadingMore, _homePendingShelves) { paging, pending -> paging || pending > 0 }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+        combine(_homeLoadingMore, _homePendingShelves, _homeShowingCached) { paging, pending, cached ->
+            !cached && (paging || pending > 0)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val _homeRecentlyPlayedLoading = MutableStateFlow(false)
-    val homeRecentlyPlayedLoading: StateFlow<Boolean> = _homeRecentlyPlayedLoading.asStateFlow()
+    val homeRecentlyPlayedLoading: StateFlow<Boolean> =
+        combine(_homeRecentlyPlayedLoading, _homeShowingCached) { loading, cached -> loading && !cached }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
     private val homeLoadGeneration = AtomicLong(0L)
 
     /**
@@ -1773,6 +1797,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _home.value = UiState.Loading
         homeContinuation = null
         homeSeenTitles.clear()
+        _homeRaw.value = emptyList()
+        homeCachedRaw = null
+        _homeShowingCached.value = false
         _homeLoadingMore.value = false
         _homeRecentlyPlayedLoading.value = _signedIn.value
         // The core feed plus one browse per supplement. Recently played is left
@@ -1780,6 +1807,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // one at the tail.
         _homePendingShelves.value = 1 + YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.size
         loadTopPicks(identity, rebuild = false)
+
+        val cacheOwner = homeCacheOwner(identity)
+        restoreHomeCache(identity, generation, cacheOwner)
+
+        var coreLanded = false
+        var recentPending = _signedIn.value
+        fun releaseWhenReady() {
+            if (coreLanded && !recentPending) releaseHomeCache(identity, generation)
+        }
+        var outstanding = 1 + YtMusicRepository.HOME_SUPPLEMENT_BROWSE_IDS.size + (if (recentPending) 1 else 0)
+        fun settled() {
+            if (--outstanding == 0 && coreLanded) keepHomeCache(identity, generation, cacheOwner)
+        }
+
         viewModelScope.launch {
             launch {
                 try {
@@ -1788,6 +1829,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             if (!isCurrentHomeLoad(identity, generation)) return@onSuccess
                             homeContinuation = feed.continuation
                             publishHomeShelves(feed.shelves)
+                            coreLanded = true
+                            releaseWhenReady()
                         }
                         .onFailure { failure ->
                             if (isCurrentHomeLoad(identity, generation) && _home.value !is UiState.Success) {
@@ -1796,20 +1839,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                 } finally {
                     homeShelfRequestSettled(identity, generation)
+                    settled()
                 }
             }
-            if (_signedIn.value) {
+            if (recentPending) {
                 launch {
-                    YtMusicRepository.homeRecentlyPlayed()
-                        .onSuccess { shelf ->
-                            if (isCurrentHomeLoad(identity, generation)) {
-                                _homeRecentlyPlayedLoading.value = false
-                                shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
+                    try {
+                        YtMusicRepository.homeRecentlyPlayed()
+                            .onSuccess { shelf ->
+                                if (isCurrentHomeLoad(identity, generation)) {
+                                    _homeRecentlyPlayedLoading.value = false
+                                    shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
+                                }
                             }
-                        }
-                        .onFailure {
-                            if (isCurrentHomeLoad(identity, generation)) _homeRecentlyPlayedLoading.value = false
-                        }
+                            .onFailure {
+                                if (isCurrentHomeLoad(identity, generation)) _homeRecentlyPlayedLoading.value = false
+                            }
+                    } finally {
+                        recentPending = false
+                        releaseWhenReady()
+                        settled()
+                    }
                 }
             }
             launch {
@@ -1825,6 +1875,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     } finally {
                         homeShelfRequestSettled(identity, generation)
+                        settled()
                     }
                 }
             }
@@ -1962,40 +2013,117 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun isCurrentHomeLoad(identity: String?, generation: Long) =
         identity == listenerKey() && generation == homeLoadGeneration.get()
 
+    /** The catalogue's name for [HomeFeedCache]: one kept page each. */
+    private fun homeCatalogue(): String = "YOUTUBE"
+
+    /**
+     * Whose page a kept home page is: the listener. Captured when a load starts,
+     * so a page is kept under the session it was read with.
+     */
+    private fun homeCacheOwner(identity: String?): String = identity ?: "guest"
+
+    /**
+     * Draws last launch's page for this catalogue and listener, if one was kept.
+     *
+     * Read and parsed off the main thread. Drawn only into a page that
+     * is still this load's and still empty: a fresh answer that beat the disk
+     * is newer, and must never be covered by an older one.
+     */
+    private fun restoreHomeCache(identity: String?, generation: Long, cacheOwner: String) {
+        val catalogue = homeCatalogue()
+        viewModelScope.launch {
+            val kept = withContext(Dispatchers.IO) {
+                HomeFeedCache.load(getApplication(), catalogue, cacheOwner)
+            } ?: return@launch
+            if (!isCurrentHomeLoad(identity, generation)) return@launch
+            if (_home.value is UiState.Success || _homeRaw.value.isNotEmpty()) return@launch
+            val shelves = kept.shelves
+            if (shelves.isEmpty()) return@launch
+            homeCachedRaw = shelves
+            _homeShowingCached.value = true
+            publishHome()
+        }
+    }
+
+    /**
+     * Swaps the cached page for the fresh one, in one go.
+     *
+     * Not when nothing fresh has arrived: a page of last launch's shelves is
+     * still better than an empty one.
+     */
+    private fun releaseHomeCache(identity: String?, generation: Long) {
+        if (!isCurrentHomeLoad(identity, generation)) return
+        if (homeCachedRaw == null || _homeRaw.value.isEmpty()) return
+        homeCachedRaw = null
+        _homeShowingCached.value = false
+        publishHome()
+    }
+
+    /** Keeps the fresh page for the next launch, written off the main thread. */
+    private fun keepHomeCache(identity: String?, generation: Long, cacheOwner: String) {
+        if (!isCurrentHomeLoad(identity, generation)) return
+        if (homeCachedRaw != null) return
+        val shelves = _homeRaw.value.takeIf { it.isNotEmpty() } ?: return
+        val catalogue = homeCatalogue()
+        viewModelScope.launch(Dispatchers.IO) {
+            HomeFeedCache.save(getApplication(), catalogue, cacheOwner, HomeFeedCache.Snapshot(shelves))
+        }
+    }
+
     private fun publishHomeShelves(shelves: List<HomeShelf>, prepend: Boolean = false) {
-        val existing = (_home.value as? UiState.Success)?.data.orEmpty()
+        val existing = _homeRaw.value
         if (prepend) {
             // YouTube's core home can also contain a stale "Recently played"
             // shelf. The dedicated history endpoint wins and replaces it.
             val replacing = shelves.map { it.title.lowercase(Locale.ROOT) }.toSet()
             homeSeenTitles.addAll(replacing)
-            _home.value = UiState.Success(shelves + existing.filterNot {
+            _homeRaw.value = shelves + existing.filterNot {
                 it.title.lowercase(Locale.ROOT) in replacing
-            })
+            }
+            publishHome()
             return
         }
         val added = shelves.withoutRepeatsOf(existing)
             .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
-        if (added.isNotEmpty()) _home.value = UiState.Success(existing + added)
+        if (added.isNotEmpty()) {
+            _homeRaw.value = existing + added
+            publishHome()
+        }
+    }
+
+    private fun publishHome() {
+        val raw = homeCachedRaw ?: _homeRaw.value
+        if (raw.isEmpty()) return
+        _home.value = UiState.Success(raw)
     }
 
     /** Refreshes the core feed without blanking the current Play page first. */
     private suspend fun refreshHome(identity: String?) = coroutineScope {
+        val generation = homeLoadGeneration.get()
+        val cacheOwner = homeCacheOwner(identity)
         val recent = if (_signedIn.value) async { YtMusicRepository.homeRecentlyPlayed() } else null
         // Top Picks keeps to its hour; a pull refreshes the feed, not the
         // picks, unless the hour has already turned over.
         if (topPicksJob?.isActive != true) loadTopPicks(identity, rebuild = false)
+        var coreLanded = false
         YtMusicRepository.home().onSuccess { feed ->
             if (identity != listenerKey()) return@onSuccess
             homeContinuation = feed.continuation
             homeSeenTitles.clear()
             val shelves = feed.shelves.withoutRepeatsOf(emptyList())
                 .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
-            if (shelves.isNotEmpty()) _home.value = UiState.Success(shelves)
+            if (shelves.isNotEmpty()) {
+                _homeRaw.value = shelves
+                homeCachedRaw = null
+                _homeShowingCached.value = false
+                publishHome()
+                coreLanded = true
+            }
         }
         recent?.await()?.onSuccess { shelf ->
             if (identity == listenerKey()) shelf?.let { publishHomeShelves(listOf(it), prepend = true) }
         }
+        if (coreLanded) keepHomeCache(identity, generation, cacheOwner)
     }
 
     /**
@@ -2011,14 +2139,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             YtMusicRepository.moreHome(token).onSuccess { feed ->
                 if (identity == listenerKey()) {
-                    val existing = (_home.value as? UiState.Success)?.data ?: emptyList()
+                    val existing = _homeRaw.value
                     val added = feed.shelves.withoutRepeatsOf(existing)
                         .filter { homeSeenTitles.add(it.title.lowercase(Locale.ROOT)) }
                     // A page with nothing new signals the feed has looped back on
                     // itself rather than run dry with a token still attached —
                     // treat it the same as exhausted so scrolling can't spin here.
                     homeContinuation = feed.continuation.takeIf { added.isNotEmpty() }
-                    if (added.isNotEmpty()) _home.value = UiState.Success(existing + added)
+                    if (added.isNotEmpty()) {
+                        _homeRaw.value = existing + added
+                        publishHome()
+                    }
                 }
             }
             if (identity == listenerKey()) _homeLoadingMore.value = false

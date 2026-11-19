@@ -407,6 +407,33 @@ private fun Color.shifted(hue: Float, lightness: Float): Color {
 private fun Color.hsl(): FloatArray =
     FloatArray(3).also { ColorUtils.colorToHSL(toArgb(), it) }
 
+private fun MeshPalette.drawnColors(): List<Color> =
+    (colors.ifEmpty { FallbackColors } + FallbackColors).take(4).map { it.tuned() }
+
+/** Top and bottom scrim of the legacy backdrop (see [MeshScrim]). */
+internal const val LEGACY_SCRIM_TOP = 0.10f
+internal const val LEGACY_SCRIM_BOTTOM = 0.38f
+
+/**
+ * What the legacy blobs backdrop shows under the chrome, for the ink to be
+ * judged against.
+ *
+ * Each blob's tuned colour blended over the dark base, plus the base itself for
+ * when none of the four reaches that spot, with the top scrim for light and
+ * its darkest for dark.
+ */
+internal fun legacyMeshInkSurface(palette: MeshPalette): InkSurface {
+    val drawn = palette.drawnColors()
+    val base = drawn.first().dimmed().toArgb()
+    val shown = IntArray(drawn.size + 1) { i ->
+        if (i == drawn.size) base else blendArgb(drawn[i].toArgb(), base, BLOB_ALPHA)
+    }
+    return InkSurface(
+        light = IntArray(shown.size) { scrimmed(shown[it], LEGACY_SCRIM_TOP) },
+        dark = IntArray(shown.size) { scrimmed(shown[it], LEGACY_SCRIM_BOTTOM) },
+    )
+}
+
 /** Boost saturation and clamp lightness so any artwork yields a rich, non-muddy mesh. */
 private fun Color.tuned(): Color {
     val hsl = FloatArray(3)

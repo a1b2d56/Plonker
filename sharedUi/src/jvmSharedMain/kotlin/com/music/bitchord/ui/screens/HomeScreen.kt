@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import com.music.bitchord.ui.components.ShelfRow
+import com.music.bitchord.ui.components.ShelfSnap
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -335,6 +336,7 @@ private fun RecentShelf(
             ShelfRow(
                 contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
+                snap = ShelfSnap.OneItemPerFling,
             ) {
                 items(columns, key = { column -> column.firstOrNull()?.let { it.videoId ?: it.browseId } ?: column.hashCode() }) { column ->
                     Column(Modifier.width(columnWidth)) {
