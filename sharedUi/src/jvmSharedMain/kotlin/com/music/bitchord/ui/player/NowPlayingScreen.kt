@@ -97,6 +97,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Immutable
@@ -968,32 +971,18 @@ fun NowPlayingScreen(
     // Horizontal fling anywhere on the player skips tracks; the artwork
     // follows the finger so the gesture has something to hold on to.
     val swipeThreshold = with(density) { 72.dp.toPx() }
-    // Where the finger has dragged the sleeve to, and the sleeve springing
-    // after it. What animateFloatAsState does inside — a conflated channel of
-    // targets, each chased from the current velocity — but fed straight from
-    // the gesture: as state read here, every pointer move recomposed the whole
-    // player just to hand the spring a new target, when the only readers are
-    // draw-phase layers.
-    val swipeSettle = remember { Animatable(0f) }
-    val swipeTargets = remember { Channel<Float>(Channel.CONFLATED) }
-    LaunchedEffect(swipeTargets) {
-        for (target in swipeTargets) {
-            val newest = swipeTargets.tryReceive().getOrNull() ?: target
-            launch {
-                if (newest != swipeSettle.targetValue) {
-                    swipeSettle.animateTo(newest, spring(stiffness = Spring.StiffnessMediumLow))
-                }
-            }
-        }
-    }
-    val setSwipeOffset: (Float) -> Unit = { swipeTargets.trySend(it) }
+    val flingVelocity = with(density) { SWIPE_FLING_DP_PER_S.dp.toPx() }
+    // The artwork's part in a track change: following a drag, leaving, and
+    // the next cover coming in — see [TrackChangeMotion]. Read only by
+    // draw-phase layers, so none of it recomposes the player frame to frame.
+    val trackMotion = rememberTrackChangeMotion(song.videoId)
     // The skip hint under the sleeve only needs composing while there is a
     // drag to hint at, and which way it points; its fade is drawn, not composed.
-    val swipeHintShown by remember(swipeThreshold) {
-        derivedStateOf { abs(swipeSettle.value) / swipeThreshold > 0.01f }
+    val swipeHintShown by remember {
+        derivedStateOf { abs(trackMotion.hint()) > 0.01f }
     }
     // A leftward drag (negative offset) is the one that skips forward.
-    val swipeHintNext by remember { derivedStateOf { swipeSettle.value < 0f } }
+    val swipeHintNext by remember { derivedStateOf { trackMotion.hint() < 0f } }
 
     // Signature Apple Music touch: the sleeve shrinks back while paused.
     val artScale by animateFloatAsState(
@@ -1323,34 +1312,44 @@ fun NowPlayingScreen(
     val skipSwipeGesture = Modifier.pointerInput(showAudioPipeline, showCast, panelScrolling, controlsLocked) {
         if (showAudioPipeline || showCast || panelScrolling) return@pointerInput
         var total = 0f
+        val velocity = VelocityTracker()
         detectHorizontalDragGestures(
-            onDragStart = { total = 0f },
-            onDragCancel = { setSwipeOffset(0f) },
+            onDragStart = {
+                total = 0f
+                velocity.resetTracking()
+                trackMotion.dragStart()
+            },
+            onDragCancel = { trackMotion.springBack() },
             onDragEnd = {
-                // The same two buzzes the transport glyphs give, so swiping the
-                // sleeve and tapping skip feel like one gesture with two
-                // spellings.
-                val crossed = total <= -swipeThreshold || total >= swipeThreshold
+                val direction = trackSwipeDirection(
+                    total = total,
+                    velocity = velocity.calculateVelocity().x,
+                    threshold = swipeThreshold,
+                    flingVelocity = flingVelocity,
+                )
                 when {
-                    // Still tracks the finger and still springs back, so the
-                    // sleeve does not feel dead — it just says why it did not
-                    // move on.
-                    controlsLocked -> if (crossed) onBlockedControl()
-                    total <= -swipeThreshold -> {
+                    controlsLocked -> {
+                        if (direction != 0) onBlockedControl()
+                        trackMotion.springBack()
+                    }
+                    direction == 1 && !trackMotion.hasNext -> trackMotion.springBack()
+                    direction == 1 -> {
                         haptics.play(Haptic.SkipNext)
+                        trackMotion.commit(1)
                         onNext()
                     }
-                    total >= swipeThreshold -> {
+                    direction == -1 -> {
                         haptics.play(Haptic.SkipPrevious)
+                        trackMotion.commit(-1)
                         onPrevious()
                     }
+                    else -> trackMotion.springBack()
                 }
-                setSwipeOffset(0f)
             },
-            onHorizontalDrag = { _, delta ->
+            onHorizontalDrag = { change, delta ->
                 total += delta
-                // Damped: it's a hint, not a drag-to-position.
-                setSwipeOffset(total * 0.35f)
+                velocity.addPointerInputChange(change)
+                trackMotion.drag(total, swipeThreshold)
             },
         )
     }
@@ -1505,6 +1504,37 @@ fun NowPlayingScreen(
     // The rest of the player gets out of the way a little ahead of the artwork,
     // so the cover lands on the bar rather than on a ghost of the player.
     val dockFade: () -> Float = { ((dockT() - DOCK_FADE_LEAD) / (1f - DOCK_FADE_LEAD)).coerceIn(0f, 1f) }
+
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val trackMotionVisible: () -> Boolean = remember(dock, dockFrame, lifecycle) {
+        {
+            p() == 0f && dockT() >= 1f &&
+                lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        }
+    }
+    val trackCoverLoaded: () -> Boolean = remember(art) { { art.loaded } }
+    val reduceAnimation by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
+    SideEffect {
+        trackMotion.widthPx = with(density) { windowWidth.toPx() }
+        trackMotion.banner = heroMode && !landscape
+        trackMotion.reduced = reduceAnimation
+        trackMotion.hasNext = hasNext
+        trackMotion.canAnimate = trackMotionVisible
+        trackMotion.coverLoaded = trackCoverLoaded
+    }
+    LaunchedEffect(song.videoId, queueIndex) { trackMotion.onTrackChanged(song.videoId, queueIndex) }
+    val onNextTransport: () -> Unit = remember(onNext) {
+        {
+            trackMotion.expect(1)
+            onNext()
+        }
+    }
+    val onPreviousTransport: () -> Unit = remember(onPrevious) {
+        {
+            trackMotion.expect(-1)
+            onPrevious()
+        }
+    }
 
     // The clip's own frame, standing in for it while the sleeve moves — so
     // opening, closing, and collapsing into the lyrics or the queue carry
@@ -1677,9 +1707,9 @@ fun NowPlayingScreen(
                             isLoading = isLoading || audioVersionSwitching,
                             previousEnabled = !controlsLocked && (hasPrevious || pastRestartPoint),
                             nextEnabled = !controlsLocked && hasNext,
-                            onPrevious = onPrevious,
+                            onPrevious = onPreviousTransport,
                             onPlayPause = onPlayPause,
-                            onNext = onNext,
+                            onNext = onNextTransport,
                             compact = true,
                         )
                     },
@@ -1812,7 +1842,8 @@ fun NowPlayingScreen(
                                     val scale = if (t >= 1f) landscapeArtScale else 1f + (landscapeArtScale - 1f) * t
                                     scaleX = scale
                                     scaleY = scale
-                                    translationX = if (t >= 1f) swipeSettle.value else swipeSettle.value * t
+                                    translationX = if (t >= 1f) trackMotion.offset() else trackMotion.offset() * t
+                                    alpha = trackMotion.alpha()
                                 }
                                 // With a panel up the sleeve is the way back to
                                 // the player, as the portrait thumbnail is.
@@ -1900,9 +1931,9 @@ fun NowPlayingScreen(
                                     previousEnabled = !controlsLocked &&
                                         (hasPrevious || pastRestartPoint),
                                     nextEnabled = !controlsLocked && hasNext,
-                                    onPrevious = onPrevious,
+                                    onPrevious = onPreviousTransport,
                                     onPlayPause = onPlayPause,
-                                    onNext = onNext,
+                                    onNext = onNextTransport,
                                     compact = compact,
                                 )
                             },
@@ -2902,7 +2933,7 @@ fun NowPlayingScreen(
                                     val scale = if (t >= 1f) open else 1f + (open - 1f) * t
                                     scaleX = scale
                                     scaleY = scale
-                                    translationX = swipeSettle.value * (1f - p()) * (1f - share) * t
+                                    translationX = trackMotion.offset() * (1f - p()) * (1f - share) * t
                                 }
                                 // Haze must observe the drawable layer itself, the
                                 // banner included — a source on the surrounding layout
@@ -3024,7 +3055,7 @@ fun NowPlayingScreen(
                                         }
                                         scaleX = scale
                                         scaleY = scale
-                                        translationX = swipeSettle.value * (1f - p()) * share * t
+                                        translationX = trackMotion.offset() * (1f - p()) * share * t
                                         // Its own corners only once it is smaller than
                                         // the sleeve; as the whole card it takes the
                                         // sleeve's clip, as it always did.
@@ -3186,7 +3217,7 @@ fun NowPlayingScreen(
                                     val idle = cardScale()
                                     scaleX = idle
                                     scaleY = idle
-                                    translationX = swipeSettle.value * (1f - p())
+                                    translationX = trackMotion.offset() * (1f - p())
                                 }
                                 // Collapsed, the sleeve is the way back: tapping the
                                 // thumbnail puts the queue or the lyrics away again.
@@ -3254,7 +3285,7 @@ fun NowPlayingScreen(
                                         }
                                         .graphicsLayer {
                                             alpha = (1f - p() * 2f).coerceIn(0f, 1f)
-                                            translationX = swipeSettle.value * (1f - p())
+                                            translationX = trackMotion.offset() * (1f - p())
                                         },
                                 ) {
                                     // Black with a spinner under the picture until
@@ -3315,7 +3346,7 @@ fun NowPlayingScreen(
                                     }
                                     .size(16.dp)
                                     .graphicsLayer {
-                                        alpha = (abs(swipeSettle.value) / swipeThreshold)
+                                        alpha = abs(trackMotion.hint())
                                             .coerceIn(0f, 1f) * (1f - p()) * hintAlpha
                                     },
                             )
@@ -3815,9 +3846,9 @@ fun NowPlayingScreen(
                             previousEnabled = !controlsLocked &&
                                 (hasPrevious || pastRestartPoint),
                             nextEnabled = !controlsLocked && hasNext,
-                            onPrevious = onPrevious,
+                            onPrevious = onPreviousTransport,
                             onPlayPause = onPlayPause,
-                            onNext = onNext,
+                            onNext = onNextTransport,
                         )
                     }
                     if (!hideVolumeBar) {

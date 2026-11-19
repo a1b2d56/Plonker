@@ -411,7 +411,7 @@ private val FullArtworkScrim = Brush.verticalGradient(
 )
 
 /** Drawn only until an artwork has been read — never a colour anyone chose. */
-private val FallbackBackdrop = Color(0xFF121212)
+internal val FallbackBackdrop = Color(0xFF121212)
 
 /** A screen cannot recover detail discarded here; small is the performance feature. */
 private const val FULL_BLUR_SOURCE_PX = 128
