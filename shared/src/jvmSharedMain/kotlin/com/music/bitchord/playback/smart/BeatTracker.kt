@@ -224,10 +224,10 @@ class BeatTracker(
          * too and found no beats at all. A new name rather than the old one because the app
          * unpacks assets once by name and would keep serving the stale copy.
          */
-        const val MODEL_ASSET = "beat_this_final0_q8.onnx"
+        const val MODEL_ASSET = "beat_this_int8.onnx"
 
-        /** The broken earlier export, whose unpacked copy is deleted on first use of the new one. */
-        const val RETIRED_MODEL_ASSET = "beat_this_int8.onnx"
+        /** The retired heavy final0 export, whose unpacked copy is deleted on first use. */
+        const val RETIRED_MODEL_ASSET = "beat_this_final0_q8.onnx"
         /** The window the model was trained on, and the margin discarded from each chunk's edges. */
         const val CHUNK_FRAMES = 1500
         const val BORDER_FRAMES = 6

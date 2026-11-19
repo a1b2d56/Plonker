@@ -101,6 +101,10 @@ android {
         // the updater installs the TV app here, never the phone app. See
         // AppUpdateChecker.apkAssetUrl.
         buildConfigField("String", "UPDATE_APK_PREFIX", "\"PlonkerTV-\"")
+
+        ndk {
+            debugSymbolLevel = "none"
+        }
     }
 
     splits {
@@ -237,6 +241,9 @@ android {
             // SMBJ's BouncyCastle and jspecify both ship this descriptor.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
+    }
+    androidResources {
+        noCompress.clear()
     }
     buildFeatures {
         compose = true
