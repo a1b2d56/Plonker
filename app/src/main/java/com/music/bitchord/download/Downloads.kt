@@ -52,8 +52,29 @@ sealed interface DownloadState {
     /** [fraction] is 0f until the length is known, which is the first thing asked for. */
     data class Running(val fraction: Float) : DownloadState
 
-    data class Failed(val reason: String) : DownloadState
+    /**
+     * [generation] makes every failure its own value: two failures with the
+     * same [reason] still compare unequal, so clearing the one a row showed
+     * (see [Downloads.dismissFailure]) can never clear a later one, even
+     * through the state flow's equality-based compare-and-set.
+     */
+    data class Failed(
+        val reason: String,
+        val generation: Long = failureGenerations.incrementAndGet(),
+    ) : DownloadState
 }
+
+private val failureGenerations = java.util.concurrent.atomic.AtomicLong()
+
+/**
+ * [active] without [shown], if [shown] is still the entry for [videoId];
+ * otherwise [active] unchanged, so a retry or a newer failure stays.
+ */
+internal fun withoutShownFailure(
+    active: Map<String, DownloadState>,
+    videoId: String,
+    shown: DownloadState.Failed,
+): Map<String, DownloadState> = if (active[videoId] == shown) active - videoId else active
 
 /**
  * The download queue, and the record of what came out of it.
@@ -1706,9 +1727,16 @@ object Downloads {
     /** As `DownloadService.WORKERS`, whose reasoning is the same here. */
     private const val BATCH_WORKERS = 4
 
-    /** Dropped when the sheet is reopened; a failure is worth showing once. */
-    fun dismissFailure(videoId: String) {
-        if (_active.value[videoId] is DownloadState.Failed) clear(videoId)
+    /**
+     * Dropped when the sheet is reopened; a failure is worth showing once.
+     * When [shown] is supplied, only that exact failure is dismissed.
+     */
+    fun dismissFailure(videoId: String, shown: DownloadState.Failed? = null) {
+        if (shown != null) {
+            _active.update { withoutShownFailure(it, videoId, shown) }
+        } else {
+            _active.update { if (it[videoId] is DownloadState.Failed) it - videoId else it }
+        }
     }
 
     private const val KEY_SAVED = "downloaded_tracks"
