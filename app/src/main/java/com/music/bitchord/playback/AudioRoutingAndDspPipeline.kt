@@ -14,6 +14,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
@@ -21,6 +22,7 @@ import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import com.music.bitchord.data.NerdStats
+import com.music.bitchord.data.TrackLog
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.settings.EqualizerMode
 import com.music.bitchord.playback.audio.DirectAudioProbe
@@ -240,22 +242,58 @@ internal class AudioRoutingAndDspPipeline(
             // advance per decoded buffer when Media3 requests float PCM.
             // Decode FLAC through the platform software codec on affected Samsung devices.
             setMediaCodecSelector { mimeType, requiresSecureDecoder, requiresTunnelingDecoder ->
-                val selector = if (mimeType == MimeTypes.AUDIO_FLAC) {
-                    MediaCodecSelector.PREFER_SOFTWARE
+                if (mimeType == MimeTypes.AUDIO_ALAC && bundledFfmpegDecodesAlac()) {
+                    // ALAC never goes to the platform decoder.
+                    //
+                    // The note on the renderer list below says FFmpeg is there
+                    // for "a track no platform decoder takes: ALAC everywhere" —
+                    // which was only ever true on a device whose platform ships
+                    // no ALAC decoder. A device that has one takes it, and the
+                    // one on a GSI image does: `c2.mtk.alac.decoder` initialises
+                    // on a 24-bit stream, plays about a second of it at a crawl,
+                    // and then dies with a MediaCodec state error
+                    // ("releaseOutputBuffer() is valid only at Executing
+                    // states"). The player reads that as a broken stream and
+                    // answers by falling back to YouTube's lossy copy, so a
+                    // hi-res lossless track becomes a 128kbps one a second in.
+                    //
+                    // The reference player decodes ALAC with FFmpeg and has
+                    // neither the crawl nor the crash. So the platform decoder
+                    // is refused for ALAC outright, and the bundled FFmpeg
+                    // takes it — but only when it is actually there to take it.
+                    emptyList()
                 } else {
-                    MediaCodecSelector.DEFAULT
-                }
-                val candidates = selector.getDecoderInfos(
-                    mimeType,
-                    requiresSecureDecoder,
-                    requiresTunnelingDecoder,
-                )
-                if (mimeType == MimeTypes.AUDIO_FLAC) {
-                    candidates.filterNot { AudioOutputPolicy.isUnsafeFloatFlacDecoder(it.name) }
-                } else {
-                    candidates
+                    val selector = if (mimeType == MimeTypes.AUDIO_FLAC) {
+                        MediaCodecSelector.PREFER_SOFTWARE
+                    } else {
+                        MediaCodecSelector.DEFAULT
+                    }
+                    val candidates = selector.getDecoderInfos(
+                        mimeType,
+                        requiresSecureDecoder,
+                        requiresTunnelingDecoder,
+                    )
+                    if (mimeType == MimeTypes.AUDIO_FLAC) {
+                        candidates.filterNot { AudioOutputPolicy.isUnsafeFloatFlacDecoder(it.name) }
+                    } else {
+                        candidates
+                    }
                 }
             }
+        }
+
+        /**
+         * Whether the bundled FFmpeg can decode ALAC.
+         *
+         * Asked before the platform decoder is refused for ALAC: refusing it
+         * on a build with no software decoder would leave the format with no
+         * decoder at all, which is worse than the platform one.
+         */
+        private fun bundledFfmpegDecodesAlac(): Boolean = runCatching {
+            FfmpegLibrary.isAvailable() && FfmpegLibrary.supportsFormat(MimeTypes.AUDIO_ALAC)
+        }.getOrElse {
+            TrackLog.w("Plonker", "could not query the bundled ALAC decoder — ${it.message}")
+            false
         }
 
         override fun buildAudioSink(
