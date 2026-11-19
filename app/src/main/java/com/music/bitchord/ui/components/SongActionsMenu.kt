@@ -636,11 +636,16 @@ private fun DownloadRow(song: Song, palette: ArtworkPalette, isOffline: Boolean,
 
     // A failure is worth stating once. Leaving it set would have the row still
     // reporting last week's dead connection the next time the menu is opened.
+    // Only the failure this row actually showed is cleared: a menu stays up
+    // for its exit, and a failure arriving in those frames has not been seen.
+    val shownFailure = remember(song.videoId) { arrayOfNulls<DownloadState.Failed>(1) }
     DisposableEffect(song.videoId) {
-        onDispose { Downloads.dismissFailure(song.videoId) }
+        onDispose { shownFailure[0]?.let { Downloads.dismissFailure(song.videoId, it) } }
     }
 
-    when (val state = active[song.videoId]) {
+    val state = active[song.videoId]
+    if (state is DownloadState.Failed) shownFailure[0] = state
+    when (state) {
         is DownloadState.Queued -> ActionRow(
             icon = SfIcons.Download,
             label = stringResource(R.string.queued),
