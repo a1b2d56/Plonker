@@ -97,6 +97,12 @@ android {
         // the same GitHub release, told apart by file name. See
         // AppUpdateChecker.apkAssetUrl.
         buildConfigField("String", "UPDATE_APK_PREFIX", "\"Plonker-\"")
+
+        // Strip symbol tables from our CMake-built .so (ffmpeg/jamesdsp/
+        // analysis/dsd/usb). The prebuilt libs arrive already stripped.
+        ndk {
+            debugSymbolLevel = "none"
+        }
     }
 
     splits {
@@ -222,6 +228,11 @@ android {
             // The three BouncyCastle jars (bcprov, bcutil, bcpkix) ship one licence between them.
             pickFirsts += setOf("META-INF/LICENSE.md", "META-INF/LICENSE.txt", "META-INF/NOTICE.md")
         }
+    }
+    androidResources {
+        // Compress everything aapt would otherwise store raw (fonts, ONNX models).
+        // resources.arsc stays aligned/uncompressed automatically.
+        noCompress.clear()
     }
     buildFeatures {
         compose = true
