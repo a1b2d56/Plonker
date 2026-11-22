@@ -22,6 +22,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -403,16 +404,26 @@ private fun SuccessView(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Button(
                 onClick = onPlay,
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = RoundedCornerShape(percent = 50),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
             ) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = null)
+                Icon(
+                    imageVector = Icons.Rounded.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
                 Spacer(Modifier.width(6.dp))
-                Text(stringResource(R.string.recognition_play_now))
+                Text(
+                    text = stringResource(R.string.recognition_play_now),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
 
             if (onQueue != null) {
@@ -420,10 +431,19 @@ private fun SuccessView(
                     onClick = onQueue,
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(percent = 50),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.QueueMusic, contentDescription = null)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.recognition_add_to_queue))
+                    Text(
+                        text = stringResource(R.string.recognition_add_to_queue),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
         }
