@@ -24,6 +24,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
 import androidx.media3.session.SessionToken
 import com.music.bitchord.data.model.ArtistRef
 import com.music.bitchord.data.model.NOTIFICATION_ART_PX
@@ -299,6 +300,27 @@ fun MediaController.setQueueDragActive(active: Boolean) {
         bundleOf(EXTRA_QUEUE_DRAG_ACTIVE to active),
     )
 }
+
+/**
+ * A queue-screen tap on a history row: played again at the playhead, keeping
+ * later history as history. False when the service left the queue as it was
+ * (a party, a row that moved): seek to it instead.
+ */
+suspend fun MediaController.replayFromHistory(index: Int, song: Song): Boolean =
+    try {
+        val bundle = Bundle().apply {
+            putInt(EXTRA_QUEUE_MOVE_INDEX, index)
+            putString(EXTRA_QUEUE_MOVE_MEDIA, song.videoId)
+        }
+        sendCustomCommand(
+            SessionCommand(ACTION_QUEUE_REPLAY_HISTORY, Bundle.EMPTY),
+            bundle,
+        ).await().resultCode == SessionResult.RESULT_SUCCESS
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        false
+    }
 
 /** Mirrors the controller into Compose state, polling position while playing. */
 @Composable

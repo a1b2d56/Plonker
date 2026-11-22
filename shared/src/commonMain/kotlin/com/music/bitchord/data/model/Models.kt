@@ -357,6 +357,9 @@ const val NOTIFICATION_ART_PX = 544
  */
 const val PLAYER_ART_PX = 1200
 
+/** Memory-cache namespace shared by the player and same-resolution widgets. */
+const val PLAYER_ART_MEMORY_CACHE_KEY_EXTRA = "bitchord_player_art_px"
+
 /**
  * The smallest copy of the player's artwork worth asking for.
  *

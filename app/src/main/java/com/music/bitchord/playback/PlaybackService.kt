@@ -135,6 +135,14 @@ const val ACTION_DISMISS_PLAYBACK = "com.music.bitchord.action.DISMISS_PLAYBACK"
 const val ACTION_QUEUE_DRAG = "com.music.bitchord.action.QUEUE_DRAG"
 const val EXTRA_QUEUE_DRAG_ACTIVE = "bitchord.queueDrag.active"
 
+/**
+ * Play a history row again from the queue screen, keeping later history as
+ * history. Takes the target index and mediaId.
+ */
+const val ACTION_QUEUE_REPLAY_HISTORY = "com.music.bitchord.action.QUEUE_REPLAY_HISTORY"
+const val EXTRA_QUEUE_MOVE_INDEX = "bitchord.queueMove.index"
+const val EXTRA_QUEUE_MOVE_MEDIA = "bitchord.queueMove.media"
+
 /** A full first page for an explicitly requested station. */
 private const val INITIAL_STATION_TRACKS = 24
 
@@ -2256,6 +2264,11 @@ class PlaybackService : MediaLibraryService() {
                     partySync?.endQueueDrag()
                 }
             }
+            ACTION_QUEUE_REPLAY_HISTORY -> {
+                val index = args.getInt(EXTRA_QUEUE_MOVE_INDEX, -1)
+                val mediaId = args.getString(EXTRA_QUEUE_MOVE_MEDIA)
+                replayFromHistory(session, index, mediaId)
+            }
             // A widget or watch drawn before the track changed can still
             // send this for one the player offers no Like on.
             ACTION_TOGGLE_FAVORITE -> session.player.currentMediaItem
@@ -2273,6 +2286,25 @@ class PlaybackService : MediaLibraryService() {
             else -> return false
         }
         return true
+    }
+
+    /**
+     * A queue-screen tap on a history row. Outside a party, the row is played
+     * again at the playhead (see [QueueCoordinator.replayFromHistory]).
+     * False means the row could not be found or the caller should fall back to seek.
+     */
+    private fun replayFromHistory(session: MediaSession, requestedIndex: Int, mediaId: String?): Boolean {
+        if (ListenTogether.state.value.controlsLocked || ListenTogether.state.value.inParty) return false
+        val p = session.player
+        val current = p.currentMediaItemIndex
+        if (requestedIndex !in 0 until current || current >= p.mediaItemCount) return false
+        val item = p.getMediaItemAt(requestedIndex)
+        if (mediaId != null && item.mediaId != mediaId) return false
+        val success = QueueCoordinator.replayFromHistory(p, requestedIndex)
+        if (success) {
+            this.player?.let(::saveQueueSnapshotImmediately)
+        }
+        return success
     }
 
     private suspend fun restoreStreamingAfterOffline() {

@@ -27,6 +27,7 @@ object SessionCommands {
     val upgradeQuality = SessionCommand(ACTION_UPGRADE_QUALITY, Bundle.EMPTY)
     val swapVersion = SessionCommand(ACTION_SWAP_VERSION, Bundle.EMPTY)
     val queueDrag = SessionCommand(ACTION_QUEUE_DRAG, Bundle.EMPTY)
+    val queueReplayHistory = SessionCommand(ACTION_QUEUE_REPLAY_HISTORY, Bundle.EMPTY)
     val dismissPlayback = SessionCommand(ACTION_DISMISS_PLAYBACK, Bundle.EMPTY)
 
     /** Media3's default session and library commands, plus every one of ours. */
@@ -46,6 +47,7 @@ object SessionCommands {
             .add(upgradeQuality)
             .add(swapVersion)
             .add(queueDrag)
+            .add(queueReplayHistory)
             .add(dismissPlayback)
             .build()
 }

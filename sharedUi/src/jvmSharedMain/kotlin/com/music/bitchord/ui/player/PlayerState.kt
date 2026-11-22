@@ -26,6 +26,7 @@ import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.size.Precision
 import com.music.bitchord.data.canvas.CanvasArtwork
+import com.music.bitchord.data.model.PLAYER_ART_MEMORY_CACHE_KEY_EXTRA
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
 import kotlin.math.abs
@@ -106,7 +107,7 @@ internal class PlayerArtwork(
      * decodes a cover several times the size of the window it is drawn on, and
      * it is that bitmap — not the picture — that costs the frame.
      */
-    private val artPx: Int,
+    private val artPx: Int = com.music.bitchord.data.model.PLAYER_ART_PX,
 ) {
     /**
      * Whether the cover is on screen. Keyed on the artwork rather than on the
@@ -156,6 +157,10 @@ internal class PlayerArtwork(
         ImageRequest.Builder(context)
             .data(url)
             .size(artPx)
+            // Other surfaces may load this same URL at thumbnail sizes. Keep
+            // their cache entries from replacing the image used for hold-over;
+            // the matching widget request uses this same extra.
+            .memoryCacheKeyExtra(PLAYER_ART_MEMORY_CACHE_KEY_EXTRA, artPx.toString())
             // The cover is decoded at the size the screen can show, and a
             // source smaller than that is left at its own size rather than
             // blown up to fill the request: an upscaled copy is more pixels to

@@ -178,6 +178,7 @@ import com.music.bitchord.playback.autoplaySectionStart
 import com.music.bitchord.playback.beginRadioQueue
 import com.music.bitchord.playback.commitRadioQueue
 import com.music.bitchord.playback.playSongs
+import com.music.bitchord.playback.replayFromHistory
 import com.music.bitchord.playback.toMediaItem
 import com.music.bitchord.playback.toSong
 import com.music.bitchord.playback.toDirectYouTubeMediaItem
@@ -2256,12 +2257,20 @@ private fun BitChordApp(
             },
             onJumpTo = { index ->
                 controller?.let { c ->
-                    // The session applies the jump plan to its own player (see
-                    // its seekTo override); editing the queue from here would
-                    // round-trip every item through the controller and lose
-                    // their bounded-window metadata.
-                    c.seekTo(index, 0L)
-                    c.play()
+                    val historySong = player.queue.getOrNull(index)
+                        ?.takeIf { index < c.currentMediaItemIndex }
+                    if (historySong == null) {
+                        c.seekTo(index, 0L)
+                        c.play()
+                    } else {
+                        // A history row plays again at the playhead, so what was
+                        // played after it stays history rather than coming back
+                        // as upcoming. The seek is the service's fallback.
+                        scope.launch {
+                            if (!c.replayFromHistory(index, historySong)) c.seekTo(index, 0L)
+                            c.play()
+                        }
+                    }
                 }
             },
             onRemoveFromQueue = { controller?.removeMediaItem(it) },

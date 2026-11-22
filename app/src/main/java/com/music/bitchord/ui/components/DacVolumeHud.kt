@@ -85,8 +85,8 @@ object VolumeHud {
     val pulses: SharedFlow<Pulse> = _pulses.asSharedFlow()
 
     /**
-     * True while the full player is open: its own volume bar already shows
-     * the level, and two of them would be one too many.
+     * True while the full player is open: its own volume bar shows the level,
+     * unless the listener hid it (see the collector).
      */
     @Volatile var suppressed = false
 
@@ -200,7 +200,7 @@ fun DacVolumeHud(hazeState: HazeState) {
     }
 
     fun show() {
-        if (VolumeHud.suppressed) return
+        if (VolumeHud.suppressed && !AppSettings.hideVolumeBar.value) return
         present = true
         scope.launch { slide.animateTo(0f, spring(dampingRatio = 0.72f, stiffness = 420f)) }
         scheduleHide()
@@ -225,7 +225,7 @@ fun DacVolumeHud(hazeState: HazeState) {
         }
     }
 
-    if (!present || VolumeHud.suppressed) return
+    if (!present || (VolumeHud.suppressed && !AppSettings.hideVolumeBar.value)) return
 
     val reduceBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
     val offscreenPx = with(density) { (EXPANDED_WIDTH + EDGE_GAP * 2).roundToPx() }
