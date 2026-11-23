@@ -4,6 +4,8 @@ import com.music.bitchord.data.model.ArtistCredit
 import com.music.bitchord.data.model.ArtistNameIndex
 import com.music.bitchord.data.model.ArtistRef
 import com.music.bitchord.data.model.CreditJoiner
+import com.music.bitchord.data.model.maskKnownBands
+import com.music.bitchord.data.model.unmaskKnownBands
 
 /**
  * The credits to draw for a track, and how the line is cut into the stretches
@@ -55,15 +57,18 @@ private fun splitCreditLine(artist: String, primaryArtistId: String?): List<Arti
     val text = artist.trim()
     if (text.isEmpty()) return emptyList()
 
-    val cuts = CREDIT_SEPARATOR.findAll(text).toList()
+    val (masked, bands) = maskKnownBands(text)
+    val cuts = CREDIT_SEPARATOR.findAll(masked).toList()
     if (cuts.isEmpty()) {
-        return listOf(ArtistCredit(name = text, browseId = primaryArtistId))
+        val restored = unmaskKnownBands(masked, bands).trim()
+        return listOf(ArtistCredit(name = restored, browseId = primaryArtistId))
     }
 
     val out = mutableListOf<ArtistCredit>()
     var start = 0
     for (cut in cuts) {
-        val name = text.substring(start, cut.range.first).trim()
+        val nameMasked = masked.substring(start, cut.range.first).trim()
+        val name = unmaskKnownBands(nameMasked, bands).trim()
         if (name.isNotEmpty()) {
             out += ArtistCredit(
                 name = name,
@@ -73,7 +78,8 @@ private fun splitCreditLine(artist: String, primaryArtistId: String?): List<Arti
         }
         start = cut.range.last + 1
     }
-    val tail = text.substring(start).trim()
+    val tailMasked = masked.substring(start).trim()
+    val tail = unmaskKnownBands(tailMasked, bands).trim()
     if (tail.isNotEmpty()) out += ArtistCredit(name = tail, browseId = null)
     if (out.isEmpty()) out += ArtistCredit(name = text, browseId = primaryArtistId)
     return out

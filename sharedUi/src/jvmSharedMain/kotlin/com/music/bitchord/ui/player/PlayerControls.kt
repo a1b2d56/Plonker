@@ -257,13 +257,14 @@ internal fun PlayerScrubber(
                 modifier = Modifier.fillMaxWidth().additiveChrome(LocalPlayerChrome.current),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
+                val elapsedMs = if (durationMs > 0L) (shown * durationMs).toLong() else 0L
                 Text(
-                    text = formatTime((shown * durationMs).toLong()),
+                    text = formatTime(elapsedMs),
                     style = MaterialTheme.typography.labelMedium,
                     color = timeColor,
                 )
                 Text(
-                    text = "-" + formatTime(durationMs - (shown * durationMs).toLong()),
+                    text = if (durationMs > 0L) "\u2212" + formatTime((durationMs - elapsedMs).coerceAtLeast(0L)) else "--:--",
                     style = MaterialTheme.typography.labelMedium,
                     color = timeColor,
                 )
@@ -1741,9 +1742,14 @@ internal fun Modifier.bleedHorizontally(gutter: Dp): Modifier = layout { measura
 
 private fun formatTime(ms: Long): String {
     if (ms <= 0) return "0:00"
+    val hours = TimeUnit.MILLISECONDS.toHours(ms)
     val minutes = TimeUnit.MILLISECONDS.toMinutes(ms)
     val seconds = TimeUnit.MILLISECONDS.toSeconds(ms) % 60
-    return "%d:%02d".format(Locale.ROOT, minutes, seconds)
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(Locale.ROOT, hours, minutes % 60, seconds)
+    } else {
+        "%d:%02d".format(Locale.ROOT, minutes, seconds)
+    }
 }
 
 /**

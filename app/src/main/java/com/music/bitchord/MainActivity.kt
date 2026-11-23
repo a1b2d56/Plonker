@@ -105,6 +105,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -557,6 +558,16 @@ private fun BitChordApp(
     // connects.
     val openPlayerRequested by PlayerDeepLink.pending.collectAsStateWithLifecycle()
     var showRecognitionSheet by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(showNowPlaying) {
+        if (showNowPlaying) {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
 
     LaunchedEffect(openPlayerRequested) {
         if (openPlayerRequested) {

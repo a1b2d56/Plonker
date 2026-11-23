@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -88,6 +90,15 @@ fun NowPlayingSheetHost(
     // on a curve slow enough to watch the artwork fly home on, rather than
     // on the sheet's own.
     val sheetDensity = LocalDensity.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(motion.holding) {
+        if (motion.holding) {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
     // A scroll ending inside the player has the sheet settle onto the anchor
     // it is already on, deaf to taps while it does: called off here, by
     // cancelling the coroutine that asked. See [RestingSheetSettle].

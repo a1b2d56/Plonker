@@ -367,7 +367,7 @@ private val GAP_ROW_SPACING = 16.dp
  * further out, which is most of the list.
  */
 private val LINE_FALLOFF_ALPHA = floatArrayOf(1f, 0.8f, 0.7f, 0.58f, 0.46f)
-private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.dp, 1.dp, 1.7.dp, 2.4.dp)
+private val LINE_FALLOFF_BLUR = arrayOf(0.dp, 1.4.dp, 2.2.dp, 3.2.dp, 4.2.dp)
 
 /**
  * The same falloff for a phone, where the sung line is read from the top and
@@ -2229,12 +2229,22 @@ internal fun LyricsPanel(
                                     // Each dot owns its share of the break and
                                     // fills across it, so they light left to right.
                                     val lit = (through * GAP_DOTS - dot).coerceIn(0f, 1f)
+                                    val dotAlpha = GAP_DOT_REST + (1f - GAP_DOT_REST) * lit
+                                    val center = Offset(radius + dot * stride, size.height / 2f)
+                                    // Lyra radiant breathing glow aura around active interlude dots
+                                    if (lit > 0f) {
+                                        drawCircle(
+                                            color = Color.White.copy(alpha = dotAlpha * 0.35f),
+                                            radius = radius + (3.5.dp.toPx() * lit),
+                                            center = center,
+                                        )
+                                    }
                                     drawCircle(
                                         color = Color.White.copy(
-                                            alpha = GAP_DOT_REST + (1f - GAP_DOT_REST) * lit,
+                                            alpha = dotAlpha,
                                         ),
                                         radius = radius,
-                                        center = Offset(radius + dot * stride, size.height / 2f),
+                                        center = center,
                                     )
                                 }
                             }

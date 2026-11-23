@@ -1,5 +1,7 @@
 package com.music.bitchord.data.canvas
 
+import com.music.bitchord.data.model.maskKnownBands
+import com.music.bitchord.data.model.unmaskKnownBands
 import java.text.Normalizer
 import java.util.Locale
 
@@ -83,10 +85,15 @@ fun String.normalizeForMatch(): String =
  * separator — commas, ampersands, "feat.", a bare "x" between collaborators —
  * so comparing the joined strings would fail on formatting alone.
  */
-fun splitArtists(raw: String): List<String> =
-    raw.split(ARTIST_SEPARATORS)
+fun splitArtists(raw: String): List<String> {
+    if (raw.isBlank()) return emptyList()
+    val (masked, bands) = maskKnownBands(raw)
+    return masked.split(ARTIST_SEPARATORS)
+        .map { unmaskKnownBands(it, bands) }
         .map { it.normalizeForMatch() }
         .filter { it.isNotBlank() }
+        .distinct()
+}
 
 private val ARTIST_SEPARATORS = Regex(
     "(?:\\s*,\\s*|\\s*&\\s*|\\s+×\\s+|\\s+x\\s+|\\bfeat\\.?\\b|\\bft\\.?\\b|\\bfeaturing\\b|\\bwith\\b)",

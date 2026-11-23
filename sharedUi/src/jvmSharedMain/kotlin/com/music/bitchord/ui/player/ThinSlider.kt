@@ -35,6 +35,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -164,37 +165,39 @@ fun ThinSlider(
             // detector took the pointer and a tap has no drag to report.
             .pointerInput(Unit) {
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    dragging = true
-                    val start = (down.position.x / size.width).coerceIn(0f, 1f)
-                    var edge = SliderDetents.edge(start)
-                    currentOnValueChange(start)
+                    try {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        dragging = true
+                        val start = (down.position.x / size.width).coerceIn(0f, 1f)
+                        var edge = SliderDetents.edge(start)
+                        currentOnValueChange(start)
 
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!pointer.pressed) {
-                            pointer.consume()
-                            break
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val pointer = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!pointer.pressed) {
+                                pointer.consume()
+                                break
+                            }
+                            if (pointer.positionChanged()) {
+                                val fraction = (pointer.position.x / size.width).coerceIn(0f, 1f)
+                                // A firm tap as the drag reaches either end, like
+                                // iOS's volume bar; nothing in between, where a tick
+                                // per step would turn a scrub into a rattle. The
+                                // caller gives the release its own beat.
+                                val nowAt = SliderDetents.edge(fraction, held = edge)
+                                // Tap rather than Tick: reaching an end is a collision,
+                                // and Tick's single light beat went unfelt.
+                                if (nowAt != edge && nowAt != 0) haptics.play(Haptic.Tap)
+                                edge = nowAt
+                                currentOnValueChange(fraction)
+                                pointer.consume()
+                            }
                         }
-                        if (pointer.positionChanged()) {
-                            val fraction = (pointer.position.x / size.width).coerceIn(0f, 1f)
-                            // A firm tap as the drag reaches either end, like
-                            // iOS's volume bar; nothing in between, where a tick
-                            // per step would turn a scrub into a rattle. The
-                            // caller gives the release its own beat.
-                            val nowAt = SliderDetents.edge(fraction, held = edge)
-                            // Tap rather than Tick: reaching an end is a collision,
-                            // and Tick's single light beat went unfelt.
-                            if (nowAt != edge && nowAt != 0) haptics.play(Haptic.Tap)
-                            edge = nowAt
-                            currentOnValueChange(fraction)
-                            pointer.consume()
-                        }
+                    } finally {
+                        dragging = false
+                        currentOnValueChangeFinished?.invoke()
                     }
-
-                    dragging = false
-                    currentOnValueChangeFinished?.invoke()
                 }
             },
         contentAlignment = Alignment.Center,
@@ -261,10 +264,21 @@ fun ThinSlider(
             val filled = size.width * fraction * fillFactor
             if (filled > 0f) {
                 val alpha = if (dragging) activeColor.alpha else mixPulse?.alpha(activeColor.alpha) ?: activeColor.alpha
+                val playheadX = filled.coerceAtLeast(size.height * fillFactor).coerceAtMost(size.width)
+                // Lyra Player radiant progress glow around active seekbar playhead
+                if (dragging || !sheenVisible) {
+                    val glowRadius = size.height * (if (dragging) 1.5f else 1.15f)
+                    val glowAlpha = if (dragging) 0.40f else 0.18f
+                    drawCircle(
+                        color = activeColor.copy(alpha = alpha * glowAlpha),
+                        radius = glowRadius,
+                        center = Offset(playheadX, size.height / 2f),
+                    )
+                }
                 drawRoundRect(
                     color = activeColor.copy(alpha = alpha),
                     size = Size(
-                        filled.coerceAtLeast(size.height * fillFactor).coerceAtMost(size.width),
+                        playheadX,
                         size.height,
                     ),
                     cornerRadius = radius,

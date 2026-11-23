@@ -121,6 +121,9 @@ class ArtistCreditsTest {
     fun `a name the project rule leaves whole is left whole here`() {
         assertEquals(listOf("AC/DC"), split("AC/DC").map { it.name })
         assertEquals(listOf("Florence and the Machine"), split("Florence and the Machine").map { it.name })
+        assertEquals(listOf("Earth, Wind & Fire"), split("Earth, Wind & Fire").map { it.name })
+        assertEquals(listOf("Tyler, The Creator"), split("Tyler, The Creator").map { it.name })
+        assertEquals(listOf("Simon & Garfunkel"), split("Simon & Garfunkel").map { it.name })
     }
 
     @Test

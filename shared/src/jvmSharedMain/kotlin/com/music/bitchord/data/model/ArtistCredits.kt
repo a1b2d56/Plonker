@@ -362,6 +362,51 @@ private val JOINER = Regex("""\s*,\s*|\s*，\s*|\s+&\s+|\s+＆\s+|\s*•\s*|\s*�
 val CreditJoiner = JOINER
 
 /**
+ * Bands and artists whose official name contains a separator (comma, ampersand, etc.)
+ * that would otherwise cause them to be split into multiple solo artists.
+ */
+val KNOWN_BANDS_WITH_SEPARATORS: List<String> = listOf(
+    "Earth, Wind & Fire", "Earth, Wind and Fire", "Tyler, The Creator", "Crosby, Stills, Nash & Young",
+    "Crosby, Stills & Nash", "Simon & Garfunkel", "Hall & Oates", "Florence + the Machine",
+    "Florence & the Machine", "Mumford & Sons", "Kool & the Gang", "Sly & the Family Stone",
+    "AC/DC", "Guns N' Roses", "Of Monsters and Men", "Brooks & Dunn", "Bob Marley & The Wailers",
+    "Echo & the Bunnymen", "Huey Lewis and the News", "Hootie & the Blowfish", "Years & Years",
+    "Coheed and Cambria", "Me First and the Gimme Gimmes", "King Gizzard & The Lizard Wizard",
+    "Joan Jett & the Blackhearts", "KC & The Sunshine Band", "Tom Petty and the Heartbreakers",
+    "Gladys Knight & The Pips", "Frankie Lymon & The Teenagers", "Blood, Sweat & Tears"
+)
+
+val KNOWN_BAND_REGEXES: List<Regex> =
+    KNOWN_BANDS_WITH_SEPARATORS.map { Regex(Regex.escape(it), RegexOption.IGNORE_CASE) }
+
+val BAND_PLACEHOLDER = Regex("\u0000(\\d+)\u0000")
+
+/**
+ * Masks known band names containing separators with placeholders before splitting,
+ * returning the masked string and list of captured band names.
+ */
+fun maskKnownBands(text: String): Pair<String, List<String>> {
+    val bands = ArrayList<String>()
+    var masked = text
+    for (band in KNOWN_BAND_REGEXES) {
+        masked = band.replace(masked) {
+            bands.add(it.value)
+            "\u0000${bands.lastIndex}\u0000"
+        }
+    }
+    return masked to bands
+}
+
+/**
+ * Restores masked band names from placeholders.
+ */
+fun unmaskKnownBands(text: String, bands: List<String>): String =
+    BAND_PLACEHOLDER.replace(text) { match ->
+        val idx = match.groupValues[1].toIntOrNull()
+        if (idx != null && idx in bands.indices) bands[idx] else match.value
+    }
+
+/**
  * How many times a single unbroken word has to be seen between two credited
  * names before it is believed to be what joins them.
  *

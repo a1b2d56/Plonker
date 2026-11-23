@@ -984,12 +984,12 @@ fun NowPlayingScreen(
     // A leftward drag (negative offset) is the one that skips forward.
     val swipeHintNext by remember { derivedStateOf { trackMotion.hint() < 0f } }
 
-    // Signature Apple Music touch: the sleeve shrinks back while paused.
+    // Signature Apple Music & Lyra touch: the sleeve shrinks back while paused with lively spring momentum.
     val artScale by animateFloatAsState(
-        targetValue = if (isPlaying) 1f else 0.86f,
+        targetValue = if (isPlaying) 1f else 0.92f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessLow,
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMediumLow,
         ),
         label = "artScale",
     )
