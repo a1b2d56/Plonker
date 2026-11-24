@@ -838,6 +838,10 @@ object AppSettings {
     val listenBrainzToken = MutableStateFlow("")
     val listenBrainzPrimaryArtistOnly = MutableStateFlow(false)
     val spotifySpdcToken = MutableStateFlow("")
+    val tidalToken = MutableStateFlow("")
+    val tidalUserId = MutableStateFlow("")
+    val tidalCountryCode = MutableStateFlow("")
+    val monochromeServers = MutableStateFlow<List<String>>(emptyList())
 
     // ── Discord Rich Presence ───────────────────────────────────────────
 
@@ -1223,6 +1227,10 @@ object AppSettings {
         listenBrainzToken.value = readSecret(KEY_LISTENBRAINZ_TOKEN)
         listenBrainzPrimaryArtistOnly.value = prefs.getBoolean(KEY_LISTENBRAINZ_PRIMARY_ARTIST_ONLY, false)
         spotifySpdcToken.value = readSecret(KEY_SPOTIFY_SPDC_TOKEN)
+        tidalToken.value = readSecret(KEY_TIDAL_TOKEN)
+        tidalUserId.value = prefs.getString(KEY_TIDAL_USER_ID, "").orEmpty()
+        tidalCountryCode.value = prefs.getString(KEY_TIDAL_COUNTRY_CODE, "US").orEmpty()
+        monochromeServers.value = prefs.getStringSet(KEY_MONOCHROME_SERVERS, emptySet())?.toList().orEmpty()
         replayGenres.value = prefs.getBoolean(KEY_REPLAY_GENRES, true)
         filterNonMusicAudio.value = prefs.getBoolean(KEY_FILTER_NON_MUSIC_AUDIO, true)
         localMusicSort.value = readLocalMusicSort(KEY_LOCAL_MUSIC_SORT)
@@ -2062,6 +2070,33 @@ object AppSettings {
         SpotifyToken.invalidate()
     }
 
+    fun setTidalSession(token: String, userId: String, countryCode: String) {
+        tidalToken.value = token
+        tidalUserId.value = userId
+        tidalCountryCode.value = countryCode
+        writeSecret(KEY_TIDAL_TOKEN, token)
+        prefs.edit()
+            .putString(KEY_TIDAL_USER_ID, userId)
+            .putString(KEY_TIDAL_COUNTRY_CODE, countryCode)
+            .apply()
+    }
+
+    fun clearTidalSession() {
+        tidalToken.value = ""
+        tidalUserId.value = ""
+        tidalCountryCode.value = ""
+        writeSecret(KEY_TIDAL_TOKEN, "")
+        prefs.edit()
+            .remove(KEY_TIDAL_USER_ID)
+            .remove(KEY_TIDAL_COUNTRY_CODE)
+            .apply()
+    }
+
+    fun setMonochromeServers(servers: List<String>) {
+        monochromeServers.value = servers
+        prefs.edit().putStringSet(KEY_MONOCHROME_SERVERS, servers.toSet()).apply()
+    }
+
     fun setLastfmScrobbleEnabled(value: Boolean) {
         lastfmScrobbleEnabled.value = value
         if (!value) lastfmNowPlaying.value = false
@@ -2508,6 +2543,7 @@ object AppSettings {
         KEY_LASTFM_SECRET,
         KEY_LISTENBRAINZ_TOKEN,
         KEY_SPOTIFY_SPDC_TOKEN,
+        KEY_TIDAL_TOKEN,
         KEY_PAXSENIX_API_KEY,
     )
 
@@ -2687,6 +2723,10 @@ object AppSettings {
     private const val KEY_LISTENBRAINZ_TOKEN = "listenbrainz_token"
     private const val KEY_LISTENBRAINZ_PRIMARY_ARTIST_ONLY = "listenbrainz_primary_artist_only"
     private const val KEY_SPOTIFY_SPDC_TOKEN = "spotify_spdc_token"
+    private const val KEY_TIDAL_TOKEN = "tidal_token"
+    private const val KEY_TIDAL_USER_ID = "tidal_user_id"
+    private const val KEY_TIDAL_COUNTRY_CODE = "tidal_country_code"
+    private const val KEY_MONOCHROME_SERVERS = "monochrome_servers"
 
     private const val KEY_DISCORD_USERNAME = "discord_username"
     private const val KEY_DISCORD_NAME = "discord_name"

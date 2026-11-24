@@ -42,6 +42,8 @@ import com.music.bitchord.ui.screens.SettingsChoicePage
 import com.music.bitchord.ui.screens.SettingsScreen
 import com.music.bitchord.ui.screens.SourcesScreen
 import com.music.bitchord.ui.screens.SpotifyLibraryScreen
+import com.music.bitchord.ui.screens.TidalLibraryScreen
+import com.music.bitchord.data.tidal.TIDAL_PAGE_PREFIX
 import com.music.bitchord.ui.screens.WearOsScreen
 
 /**
@@ -63,6 +65,8 @@ class AppOverlayState {
     var showSmbEditor by mutableStateOf(false)
     var showDiscordLogin by mutableStateOf(false)
     var showSpotifyLogin by mutableStateOf(false)
+    var showTidalLogin by mutableStateOf(false)
+    var showMonochromeEditor by mutableStateOf(false)
     var showBedsideMode by mutableStateOf(false)
 }
 
@@ -93,7 +97,7 @@ class RouteActions(
 /** Whether [route] is one [RoutePage] draws — the rest are release pages or tabs. */
 fun handlesRoute(route: AppRoute?): Boolean = when (route) {
     AppRoute.History, is AppRoute.LibraryShowAll, AppRoute.Moods, AppRoute.Replay,
-    AppRoute.Spotify, AppRoute.Discord, AppRoute.AccountScrobbling, AppRoute.Sources,
+    AppRoute.Spotify, AppRoute.Tidal, AppRoute.Discord, AppRoute.AccountScrobbling, AppRoute.Sources,
     AppRoute.Downloads, AppRoute.WearOs, AppRoute.ListenTogether, AppRoute.Equalizer,
     AppRoute.EqualizerPresets, is AppRoute.SettingsChoice, AppRoute.Settings,
     is AppRoute.SettingsSection -> true
@@ -216,6 +220,20 @@ fun RoutePage(
                 onOpenTokenSetup = { showSpotifyCanvasAuth = true },
                 contentPadding = listPadding,
             )
+        } else if (pageRoute == AppRoute.Tidal) {
+            TidalLibraryScreen(
+                onOpenPlaylist = { playlist ->
+                    viewModel.openDetail(
+                        browseId = TIDAL_PAGE_PREFIX + playlist.id,
+                        title = playlist.name,
+                        subtitle = playlist.owner ?: context.getString(R.string.tidal),
+                        thumbnailUrl = playlist.imageUrl,
+                        type = BrowseType.PLAYLIST,
+                    )
+                },
+                onOpenLogin = { showTidalLogin = true },
+                contentPadding = listPadding,
+            )
         } else if (pageRoute == AppRoute.Discord) {
             DiscordScreen(
                 song = player.song,
@@ -243,6 +261,7 @@ fun RoutePage(
                 onOpenLastfmLogin = { showLastfmLogin = true },
                 onOpenDiscord = { navigator.push(AppRoute.Discord) },
                 onOpenSpotify = { navigator.push(AppRoute.Spotify) },
+                onOpenTidal = { navigator.push(AppRoute.Tidal) },
                 contentPadding = listPadding,
             )
         } else if (pageRoute == AppRoute.Sources) {
@@ -253,6 +272,7 @@ fun RoutePage(
                 onExplainOutdatedAddon = { explainingOutdatedAddon = it },
                 onEditWebDav = { showWebDavEditor = true },
                 onEditSmb = { showSmbEditor = true },
+                onEditMonochrome = { showMonochromeEditor = true },
                 onConfirmJioSaavn = { confirmJioSaavn = true },
             )
         } else if (pageRoute == AppRoute.Downloads) {

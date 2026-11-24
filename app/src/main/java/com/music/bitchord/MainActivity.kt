@@ -118,6 +118,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.music.bitchord.auth.DiscordLoginScreen
 import com.music.bitchord.auth.SpotifyLoginScreen
+import com.music.bitchord.auth.TidalLoginScreen
 import com.music.bitchord.auth.WebSessionMode
 import com.music.bitchord.auth.YtMusicLoginScreen
 import com.music.bitchord.data.AppUpdateChecker
@@ -626,6 +627,8 @@ private fun BitChordApp(
     // after it.
     var showDiscordLogin by overlays::showDiscordLogin
     var showSpotifyLogin by overlays::showSpotifyLogin
+    var showTidalLogin by overlays::showTidalLogin
+    var showMonochromeEditor by overlays::showMonochromeEditor
     var showBedsideMode by overlays::showBedsideMode
     var discordDialog by alerts::discordDialog
     var songActions by remember { mutableStateOf<Song?>(null) }
@@ -2884,6 +2887,7 @@ private fun BitChordApp(
                 FrostedTopBar(
                     title = when (route) {
                         AppRoute.Spotify -> stringResource(R.string.spotify)
+                        AppRoute.Tidal -> stringResource(R.string.tidal)
                         AppRoute.Downloads -> stringResource(R.string.downloads)
                         AppRoute.Discord -> "Discord"
                         AppRoute.History -> stringResource(R.string.history)
@@ -3894,6 +3898,43 @@ private fun BitChordApp(
             )
         }
 
+        IosModalContainer(
+            visible = showMonochromeEditor,
+            onDismiss = { showMonochromeEditor = false },
+        ) {
+            val defaultMirrors = com.music.bitchord.data.sources.HiResMonochromeBackend.DEFAULT_INSTANCES.joinToString("\n")
+            val currentServers = com.music.bitchord.data.settings.AppSettings.monochromeServers.value.joinToString("\n")
+            ServerEditorHost(
+                hazeState = hazeState,
+                title = stringResource(R.string.monochrome_mirrors),
+                description = stringResource(R.string.monochrome_mirrors_description),
+                fields = listOf(
+                    FieldConfig(
+                        initial = if (currentServers.isNotBlank()) currentServers else defaultMirrors,
+                        placeholder = stringResource(R.string.monochrome_mirrors_hint),
+                        keyboardType = KeyboardType.Uri,
+                    ),
+                ),
+                canSubmit = { it[0].isNotBlank() },
+                testFailedRes = R.string.monochrome_mirrors_test_failed,
+                onTest = { (serversText) ->
+                    val servers = serversText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                    val ok = servers.any { host ->
+                        val clean = host.removePrefix("https://").removePrefix("http://").trimEnd('/')
+                        com.music.bitchord.data.sources.HiResMonochromeBackend.probeHost(clean)
+                    }
+                    if (ok) Result.success(Unit) else Result.failure(Exception("Could not connect to any instance"))
+                },
+                onSave = { (serversText) ->
+                    val servers = serversText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                    com.music.bitchord.data.settings.AppSettings.setMonochromeServers(servers)
+                    showMonochromeEditor = false
+                },
+                onDismiss = { showMonochromeEditor = false },
+                animatedScope = this,
+            )
+        }
+
         WebDavConflictHost(hazeState)
 
         // ---- Discord sign-in (full screen WebView) ----
@@ -3963,6 +4004,41 @@ private fun BitChordApp(
                         onConnected = { token ->
                             AppSettings.setSpotifySpdcToken(token)
                             showSpotifyLogin = false
+                        },
+                    )
+                }
+            }
+        }
+
+        if (showTidalLogin) {
+            BackHandler { showTidalLogin = false }
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { showTidalLogin = false }) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = stringResource(R.string.close),
+                                tint = MaterialTheme.colorScheme.onBackground,
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.tidal_sign_in),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                        )
+                    }
+                    TidalLoginScreen(
+                        modifier = Modifier.navigationBarsPadding(),
+                        onConnected = { token, userId, country ->
+                            AppSettings.setTidalSession(token, userId, country)
+                            showTidalLogin = false
                         },
                     )
                 }

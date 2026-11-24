@@ -44,9 +44,28 @@ object HiResMonochromeBackend {
     private const val TAG = "BitChord"
     private const val PACK_PREFIX = "m:"
 
+    val DEFAULT_INSTANCES = listOf(
+        "https://tracks.monochrome.st",
+        "https://monochrome.tf",
+        "https://lossless.wtf",
+        "https://eu-central.monochrome.tf",
+        "https://us-west.monochrome.tf",
+    )
+
+    @Volatile
+    private var activeBase: String = BASE
+
     /** Test hook: point the backend at a MockWebServer; reset after each case. */
     internal var baseOverride: String? = null
-    private val base: String get() = baseOverride?.trimEnd('/') ?: BASE
+    private val base: String get() = baseOverride?.trimEnd('/') ?: activeBase
+
+    fun getCandidateBases(): List<String> {
+        baseOverride?.let { return listOf(it.trimEnd('/')) }
+        val userServers = com.music.bitchord.data.settings.AppSettings.monochromeServers.value
+            .map { it.trimEnd('/') }
+            .filter { it.isNotBlank() }
+        return (listOf(activeBase) + userServers + DEFAULT_INSTANCES).distinct()
+    }
 
     /** 5xx backoff: one unreachable origin is routinely gone on retry. */
     private val RETRY_DELAYS_MS = listOf(1_000L, 2_000L, 4_000L)
@@ -159,6 +178,7 @@ object HiResMonochromeBackend {
 
     internal fun resetForTests() {
         baseOverride = null
+        activeBase = BASE
         origins.clear()
     }
 
@@ -170,28 +190,73 @@ object HiResMonochromeBackend {
         val sampleRateHz: Int,
     )
 
-    /** True when the host answers a shape-checked search. Swallows, never throws. */
-    suspend fun probe(): Boolean {
+    data class FlacInfo(val bitDepth: Int, val sampleRateHz: Int)
+
+    fun parseFlacStreamInfo(bytes: ByteArray): FlacInfo? {
+        if (bytes.size < 4) return null
+        if (bytes[0] != 0x66.toByte() || bytes[1] != 0x4C.toByte() ||
+            bytes[2] != 0x61.toByte() || bytes[3] != 0x43.toByte()) {
+            return null
+        }
+        if (bytes.size < 26) return FlacInfo(16, 44_100)
+        val b18 = bytes[18].toInt() and 0xFF
+        val b19 = bytes[19].toInt() and 0xFF
+        val b20 = bytes[20].toInt() and 0xFF
+        val b21 = bytes[21].toInt() and 0xFF
+
+        val sampleRate = (b18 shl 12) or (b19 shl 4) or (b20 shr 4)
+        val bitsPerSample = (((b20 and 0x01) shl 4) or (b21 shr 4)) + 1
+
+        val validRate = if (sampleRate in 8_000..768_000) sampleRate else 44_100
+        val validBits = if (bitsPerSample in 8..32) bitsPerSample else 16
+        return FlacInfo(validBits, validRate)
+    }
+
+    /** Checks whether a specific host answers a search. Swallows, never throws. */
+    suspend fun probeHost(host: String): Boolean {
+        val base = if (host.startsWith("http://") || host.startsWith("https://")) host.trimEnd('/') else "https://$host"
         return try {
             get("$base/search/tracks?q=a&limit=1")
             true
-        } catch (e: IOException) {
-            coroutineContext.ensureActive()
+        } catch (e: Exception) {
+            kotlin.coroutines.coroutineContext.ensureActive()
             false
         }
     }
 
+    /** True when any candidate host answers a shape-checked search. Swallows, never throws. */
+    suspend fun probe(): Boolean {
+        for (candidate in getCandidateBases()) {
+            val ok = try {
+                get("$candidate/search/tracks?q=a&limit=1")
+                activeBase = candidate
+                true
+            } catch (e: IOException) {
+                coroutineContext.ensureActive()
+                false
+            }
+            if (ok) return true
+        }
+        return false
+    }
+
     suspend fun searchTracks(query: String, limit: Int = 25): List<MonoTrack> {
         val q = query.trim().takeIf { it.isNotEmpty() } ?: return emptyList()
-        return try {
-            val body = get("$base/search/tracks?q=${encode(q)}&limit=${limit.coerceIn(1, 50)}")
-            json.decodeFromString<SearchResponse>(body).tracks
-                .filter { it.playable != false && it.id.isNotBlank() }
-        } catch (e: Exception) {
-            coroutineContext.ensureActive()
-            TrackLog.d(TAG, "  ✗ hires direct catalogue search failed: ${e.message}")
-            emptyList()
+        for (candidate in getCandidateBases()) {
+            val result = try {
+                val body = get("$candidate/search/tracks?q=${encode(q)}&limit=${limit.coerceIn(1, 50)}")
+                val tracks = json.decodeFromString<SearchResponse>(body).tracks
+                    .filter { it.playable != false && it.id.isNotBlank() }
+                activeBase = candidate
+                tracks
+            } catch (e: Exception) {
+                coroutineContext.ensureActive()
+                TrackLog.d(TAG, "  ✗ hires direct catalogue search on $candidate failed: ${e.message}")
+                null
+            }
+            if (result != null) return result
         }
+        return emptyList()
     }
 
     /**
@@ -200,39 +265,68 @@ object HiResMonochromeBackend {
      * below-lossless file in a FLAC container: all are misses to walk past.
      */
     suspend fun resolveFile(id: String, durationMs: Long?): ResolvedFile? {
-        val url = "$base/track/$id"
         val duration = normalizeDurationMs(durationMs)
+        for (candidate in getCandidateBases()) {
+            val url = "$candidate/track/$id"
+            val res = resolveFileOn(url, duration)
+            if (res != null) {
+                activeBase = candidate
+                return res
+            }
+        }
+        return null
+    }
+
+    private suspend fun resolveFileOn(url: String, duration: Long?): ResolvedFile? {
         repeat(RETRY_DELAYS_MS.size + 1) { attempt ->
             coroutineContext.ensureActive()
-            val head = try {
-                head(url)
+            val probe = try {
+                probeStream(url)
             } catch (e: IOException) {
                 coroutineContext.ensureActive()
                 return null
             }
-            if (head.code == 200 || head.code == 206) {
-                val measured = measuredKbps(head.lengthBytes, duration)
+            if (probe.code == 200 || probe.code == 206) {
+                val measured = measuredKbps(probe.lengthBytes, duration)
                 if (measured != null && measured < MIN_GENUINE_KBPS) {
                     TrackLog.w(TAG, "  ✗ hires direct file below lossless floor; refusing")
                     return null
                 }
-                return fileFrom(url, head.lengthBytes, duration)
+                return fileFrom(url, probe.lengthBytes, duration, probe.flacInfo)
             }
-            if (head.code < 500 || attempt >= RETRY_DELAYS_MS.size) return null
+            if (probe.code < 500 || attempt >= RETRY_DELAYS_MS.size) return null
             delay(RETRY_DELAYS_MS[attempt])
         }
         return null
     }
 
-    private data class Head(val code: Int, val lengthBytes: Long)
+    private data class StreamProbe(val code: Int, val lengthBytes: Long, val flacInfo: FlacInfo? = null)
 
-    private fun head(url: String): Head {
-        val request = Request.Builder().url(url).head()
+    private fun probeStream(url: String): StreamProbe {
+        val rangeReq = Request.Builder().url(url)
+            .header("User-Agent", BROWSER_UA)
+            .header("Range", "bytes=0-41")
+            .build()
+        try {
+            client.newCall(rangeReq).execute().use { response ->
+                if (response.code == 206 || response.code == 200) {
+                    val cr = response.header("Content-Range")
+                    val total = cr?.substringAfterLast('/')?.toLongOrNull()
+                        ?: response.header("Content-Length")?.toLongOrNull()
+                        ?: 0L
+                    val bytes = response.body?.bytes() ?: ByteArray(0)
+                    val flac = parseFlacStreamInfo(bytes)
+                    return StreamProbe(response.code, total, flac)
+                }
+            }
+        } catch (_: Exception) {}
+
+        val headReq = Request.Builder().url(url).head()
             .header("User-Agent", BROWSER_UA)
             .build()
-        client.newCall(request).execute().use { response ->
+        client.newCall(headReq).execute().use { response ->
             val length = response.header("Content-Length")?.toLongOrNull() ?: 0L
-            return Head(response.code, length)
+            return StreamProbe(response.code, length, null)
         }
     }
 
@@ -249,18 +343,22 @@ object HiResMonochromeBackend {
         return (((sizeBytes * 8L * 1000L) / duration) / 1000L).toInt()
     }
 
+    fun fileFrom(url: String, sizeBytes: Long, durationMs: Long?): ResolvedFile =
+        fileFrom(url, sizeBytes, durationMs, null)
+
     /**
-     * File size over duration to average bitrate, then the least resolution
-     * that bitrate implies. Unknown size or duration falls back to CD figures
-     * rather than refusing a file the catalogue says is playable.
+     * File size over duration to average bitrate, then the exact resolution
+     * from STREAMINFO or least resolution that bitrate implies.
      */
-    fun fileFrom(url: String, sizeBytes: Long, durationMs: Long?): ResolvedFile {
+    fun fileFrom(url: String, sizeBytes: Long, durationMs: Long?, flacInfo: FlacInfo? = null): ResolvedFile {
         val kbps = measuredKbps(sizeBytes, durationMs) ?: (CD_PCM_BITRATE / 1000)
+        val bitDepth = flacInfo?.bitDepth ?: if (kbps > CD_PCM_BITRATE / 1000) 24 else 16
+        val sampleRateHz = flacInfo?.sampleRateHz ?: if (kbps > HIRES_PCM_BITRATE / 1000) 96_000 else 44_100
         return ResolvedFile(
             url = url,
             kbps = kbps,
-            bitDepth = if (kbps > CD_PCM_BITRATE / 1000) 24 else 16,
-            sampleRateHz = if (kbps > HIRES_PCM_BITRATE / 1000) 96_000 else 44_100,
+            bitDepth = bitDepth,
+            sampleRateHz = sampleRateHz,
         )
     }
 

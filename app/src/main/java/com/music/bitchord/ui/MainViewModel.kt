@@ -35,6 +35,11 @@ import com.music.bitchord.data.spotify.SPOTIFY_PAGE_PREFIX
 import com.music.bitchord.data.spotify.SpotifyImporter
 import com.music.bitchord.data.spotify.SpotifyLibrary
 import com.music.bitchord.data.spotify.SpotifyTrack
+import com.music.bitchord.data.tidal.TIDAL_PAGE_PREFIX
+import com.music.bitchord.data.tidal.TIDAL_PENDING_PREFIX
+import com.music.bitchord.data.tidal.TIDAL_MISSING_PREFIX
+import com.music.bitchord.data.tidal.TidalLibrary
+import com.music.bitchord.data.tidal.TidalTrack
 import com.music.bitchord.data.lyrics.EmbeddedLyrics
 import com.music.bitchord.data.lyrics.LyricLine
 import com.music.bitchord.data.lyrics.LyricsRepository
@@ -2923,6 +2928,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             openSpotifyPage(browseId, title, subtitle, thumbnailUrl)
             return
         }
+        if (browseId.startsWith(TIDAL_PAGE_PREFIX)) {
+            openTidalPage(browseId, title, subtitle, thumbnailUrl)
+            return
+        }
         val resolved = browseTypeOf(browseId, type)
         _detailStack.value += DetailPage(
             browseId = browseId,
@@ -3158,6 +3167,84 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun SpotifyTrack.asPendingSong() = Song(
         videoId = SPOTIFY_PENDING_PREFIX + id,
+        title = title,
+        artist = artist,
+        thumbnailUrl = imageUrl,
+        durationText = durationMs.takeIf { it > 0 }?.let { ms ->
+            "%d:%02d".format(ms / 60000, ms / 1000 % 60)
+        },
+        albumName = album,
+    )
+
+    private fun openTidalPage(
+        browseId: String,
+        title: String,
+        subtitle: String?,
+        thumbnailUrl: String?,
+    ) {
+        _detailStack.value += DetailPage(
+            browseId = browseId,
+            title = title,
+            subtitle = subtitle ?: text(R.string.tidal),
+            thumbnailUrl = thumbnailUrl,
+            songs = UiState.Loading,
+            type = BrowseType.PLAYLIST,
+        )
+        viewModelScope.launch {
+            val playlistId = browseId.removePrefix(TIDAL_PAGE_PREFIX)
+            val token = AppSettings.tidalToken.value
+            val userId = AppSettings.tidalUserId.value
+            val countryCode = AppSettings.tidalCountryCode.value
+            fun open() = _detailStack.value.any { it.browseId == browseId }
+            fun setSongs(songs: UiState<List<Song>>) {
+                _detailStack.update { stack -> stack.map {
+                    if (it.browseId == browseId) it.copy(songs = songs) else it
+                } }
+            }
+            launch {
+                val cover = runCatching { TidalLibrary.cover(playlistId, token, countryCode) }.getOrNull() ?: return@launch
+                _detailStack.update { stack -> stack.map {
+                    if (it.browseId == browseId) it.copy(thumbnailUrl = cover) else it
+                } }
+            }
+            val tracks = runCatching {
+                TidalLibrary.tracks(token, playlistId, userId, countryCode) { soFar ->
+                    setSongs(UiState.Success(soFar.map { it.asPendingSong() }))
+                }
+            }.getOrElse {
+                setSongs(UiState.Error(it.message ?: text(R.string.failed)))
+                return@launch
+            }
+            if (tracks.isEmpty()) {
+                setSongs(UiState.Error(text(R.string.tidal_empty_tracks)))
+                return@launch
+            }
+            val gate = Semaphore(SPOTIFY_MATCH_PARALLELISM)
+            coroutineScope {
+                tracks.forEachIndexed { index, track ->
+                    launch {
+                        gate.withPermit {
+                            if (!open()) return@withPermit
+                            val match = runCatching { TidalLibrary.matchTrack(track) }.getOrNull()
+                            val found = match?.copy(thumbnailUrl = match.thumbnailUrl ?: track.imageUrl)
+                                ?: track.asPendingSong().let {
+                                    it.copy(videoId = TIDAL_MISSING_PREFIX + track.id)
+                                }
+                            _detailStack.update { stack -> stack.map { page ->
+                                val list = (page.songs as? UiState.Success<List<Song>>)?.data
+                                if (page.browseId == browseId && list != null && index < list.size) {
+                                    page.copy(songs = UiState.Success(list.toMutableList().also { it[index] = found }))
+                                } else page
+                            } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun TidalTrack.asPendingSong() = Song(
+        videoId = TIDAL_PENDING_PREFIX + id,
         title = title,
         artist = artist,
         thumbnailUrl = imageUrl,

@@ -123,6 +123,8 @@ fun SourcesScreen(
     onEditWebDav: () -> Unit,
     /** As [onEditWebDav], for the SMB share editor. */
     onEditSmb: () -> Unit,
+    /** As [onEditWebDav], for custom Monochrome Hi-Res mirrors. */
+    onEditMonochrome: () -> Unit = {},
     /** Opens the full-window warning before JioSaavn is opted into. */
     onConfirmJioSaavn: () -> Unit,
     modifier: Modifier = Modifier,
@@ -253,7 +255,11 @@ fun SourcesScreen(
                         // Anything the user configured is theirs to edit or
                         // delete. JioSaavn and YouTube have no address to
                         // change, so a tap on them would open an empty editor.
-                        onClick = if (config.kind.needsServer) ({ onEditSource(config) }) else null,
+                        onClick = when {
+                            config.kind == SourceKind.HIRES -> ({ onEditMonochrome() })
+                            config.kind.needsServer -> ({ onEditSource(config) })
+                            else -> null
+                        },
                         onChooseQuality = { onChooseSourceQuality(config) },
                         onExplainOutdated = { onExplainOutdatedAddon(config) },
                         // YouTube gets no switch at all — see

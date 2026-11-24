@@ -180,4 +180,32 @@ class HiresDirectSourceTest {
         assertEquals("BitChord Hi-Res Lossless Addon", SourceRegistry.HIRES_DISPLAY_NAME)
         assertEquals(SourceKind.HIRES, source().kind)
     }
+
+    @Test
+    fun `parseFlacStreamInfo extracts exact bit depth and sample rate`() {
+        val bytes = ByteArray(42)
+        // "fLaC" magic bytes
+        bytes[0] = 0x66
+        bytes[1] = 0x4C
+        bytes[2] = 0x61
+        bytes[3] = 0x43
+
+        // 96000 Hz = 0x17700 (20 bits):
+        // b18 = 0x17, b19 = 0x70, b20 upper 4 bits = 0x0
+        bytes[18] = 0x17
+        bytes[19] = 0x70
+        // 24 bits per sample: bitsPerSample - 1 = 23 = 0x17 (5 bits: 1 bit at b20 bit 0, 4 bits at b21 upper)
+        // b20 bit 0 = 1, b21 upper 4 bits = 0x7
+        bytes[20] = 0x01
+        bytes[21] = 0x70.toByte()
+
+        val info = HiResMonochromeBackend.parseFlacStreamInfo(bytes)
+        assertNotNull(info)
+        assertEquals(96_000, info!!.sampleRateHz)
+        assertEquals(24, info.bitDepth)
+
+        // Invalid magic bytes returns null
+        bytes[0] = 0x00
+        assertNull(HiResMonochromeBackend.parseFlacStreamInfo(bytes))
+    }
 }

@@ -2,6 +2,7 @@ package com.music.bitchord.ui.screens
 
 import com.music.bitchord.ui.icons.SfIcons
 import com.music.bitchord.auth.clearSpotifyWebSession
+import com.music.bitchord.auth.clearTidalWebSession
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.HorizontalDivider
 import com.music.bitchord.sharedui.resources.Res
@@ -47,6 +48,7 @@ fun AccountAndScrobblingScreen(
     onOpenLastfmLogin: () -> Unit,
     onOpenDiscord: () -> Unit,
     onOpenSpotify: () -> Unit,
+    onOpenTidal: () -> Unit,
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -66,6 +68,7 @@ fun AccountAndScrobblingScreen(
     val discordUsername by AppSettings.discordUsername.collectAsStateWithLifecycle()
     val discordRpcEnabled by AppSettings.discordRpcEnabled.collectAsStateWithLifecycle()
     val spotifyConnected by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
+    val tidalConnected by AppSettings.tidalToken.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -120,6 +123,30 @@ fun AccountAndScrobblingScreen(
                     onClick = {
                         clearSpotifyWebSession()
                         AppSettings.setSpotifySpdcToken("")
+                    },
+                )
+            }
+        }
+
+        SettingsGroup(
+            header = stringResource(R.string.tidal),
+            footer = stringResource(R.string.tidal_connect_subtitle),
+        ) {
+            SettingsRow(
+                iconPainter = androidx.compose.ui.res.painterResource(R.drawable.ic_tidal),
+                title = stringResource(R.string.tidal),
+                subtitle = stringResource(
+                    if (tidalConnected.isNotBlank()) R.string.connected else R.string.tap_to_connect,
+                ),
+                onClick = onOpenTidal,
+            )
+            if (tidalConnected.isNotBlank()) {
+                FullWidthDivider()
+                DestructiveRow(
+                    label = stringResource(R.string.tidal_disconnect),
+                    onClick = {
+                        clearTidalWebSession()
+                        AppSettings.clearTidalSession()
                     },
                 )
             }
