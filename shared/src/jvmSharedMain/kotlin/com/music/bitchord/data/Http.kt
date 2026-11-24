@@ -104,6 +104,19 @@ object Http {
     // ---- End temporary instrumentation ----------------------------------
 
     /**
+     * Base OkHttpClient without WebDAV authentication, for untrusted addons,
+     * external sources, modules, and general network tasks.
+     */
+    val baseClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .dispatcher(Dispatcher().apply { maxRequestsPerHost = 16 })
+        .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
+        .apply { if (USAGE_LOGGING_ENABLED) addNetworkInterceptor(usageInterceptor) }
+        .build()
+
+    /**
      * Adds the WebDAV Basic credential to requests aimed at the configured
      * server, so both PROPFIND listings and ExoPlayer's media fetches (which
      * share this client via OkHttpDataSource) authenticate the same way.
@@ -114,7 +127,9 @@ object Http {
     private val webDavInterceptor = okhttp3.Interceptor { chain ->
         val request = chain.request()
         if (request.header("Authorization") == null &&
-            com.music.bitchord.data.webdav.WebDavAuth.shouldAuthorize(request.url.host)
+            request.header("X-BitChord-No-WebDav") == null &&
+            request.header("X-Plonker-No-WebDav") == null &&
+            com.music.bitchord.data.webdav.WebDavAuth.shouldAuthorize(request.url.toString())
         ) {
             val header = com.music.bitchord.data.webdav.WebDavAuth.authHeader
             if (!header.isNullOrBlank()) {
@@ -126,13 +141,7 @@ object Http {
         chain.proceed(request)
     }
 
-    val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .retryOnConnectionFailure(true)
-        .dispatcher(Dispatcher().apply { maxRequestsPerHost = 16 })
-        .connectionPool(ConnectionPool(16, 5, TimeUnit.MINUTES))
+    val client: OkHttpClient = baseClient.newBuilder()
         .addInterceptor(webDavInterceptor)
-        .apply { if (USAGE_LOGGING_ENABLED) addNetworkInterceptor(usageInterceptor) }
         .build()
 }

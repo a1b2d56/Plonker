@@ -68,6 +68,7 @@ interface SongMenuEnv {
 
     fun close()
     fun closePlayer()
+    fun openBedsideMode() {}
     fun endPlayback()
     fun likeStatus(song: Song): LikeStatus
     fun toggleLike(song: Song)
@@ -383,6 +384,14 @@ fun SongMenuBody(heldSong: Song, env: SongMenuEnv, viewModel: MainViewModel) {
             {
                 env.close()
                 env.endPlayback()
+            }
+        } else {
+            null
+        },
+        onBedsideMode = if (fromPlayer) {
+            {
+                env.close()
+                env.openBedsideMode()
             }
         } else {
             null

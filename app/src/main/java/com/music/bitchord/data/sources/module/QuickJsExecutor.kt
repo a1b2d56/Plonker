@@ -473,12 +473,43 @@ internal object QuickJsExecutor {
         }
     }
 
+    private fun isPrivateOrLocalAddress(host: String): Boolean {
+        val h = host.lowercase(Locale.ROOT).trim()
+        if (h == "localhost" || h.endsWith(".localhost") || h == "::1" || h == "0.0.0.0") return true
+        val parts = h.split('.')
+        if (parts.size == 4 && parts.all { it.toIntOrNull() != null }) {
+            val b0 = parts[0].toInt()
+            val b1 = parts[1].toInt()
+            if (b0 == 127) return true
+            if (b0 == 10) return true
+            if (b0 == 172 && b1 in 16..31) return true
+            if (b0 == 192 && b1 == 168) return true
+            if (b0 == 169 && b1 == 254) return true
+            if (b0 == 0) return true
+        }
+        return false
+    }
+
     private fun fetchUrlSync(
         url: String,
         method: String,
         headersJson: String,
         body: String?,
     ): Pair<Int, String> {
+        val parsedUri = runCatching { java.net.URI(url) }.getOrNull()
+            ?: throw IllegalArgumentException("Invalid URL: $url")
+        val scheme = parsedUri.scheme?.lowercase(Locale.ROOT)
+        if (scheme != "http" && scheme != "https") {
+            throw SecurityException("Module fetch only supports http and https protocols: $scheme")
+        }
+        val host = parsedUri.host ?: throw IllegalArgumentException("Invalid URL host: $url")
+        if (isPrivateOrLocalAddress(host)) {
+            throw SecurityException("Module network access to private or local network address $host is blocked")
+        }
+        if (com.music.bitchord.data.webdav.WebDavAuth.shouldAuthorize(url)) {
+            throw SecurityException("Module network access to private WebDAV storage endpoint is blocked")
+        }
+
         val builder = Request.Builder().url(url)
 
         var hasUserAgent = false

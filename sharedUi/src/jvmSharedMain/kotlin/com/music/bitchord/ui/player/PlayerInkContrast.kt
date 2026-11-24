@@ -218,7 +218,7 @@ internal fun resolveInk(
             (abs(dark.wash - light.wash) <= WASH_TIE && dark.index < light.index)
         )
     return when {
-        darkWins -> InkResolution(Color(dark!!.ink), dark = true, wash = dark.wash)
+        dark != null && darkWins -> InkResolution(Color(dark.ink), dark = true, wash = dark.wash)
         light != null -> InkResolution(Color(light.ink), dark = false, wash = light.wash)
         // Unreachable in practice — see MAX_INK_WASH — but never leave the
         // chrome without an answer.

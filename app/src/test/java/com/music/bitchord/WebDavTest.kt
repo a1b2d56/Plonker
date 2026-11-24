@@ -162,10 +162,19 @@ class WebDavTest {
     fun authorizesOnlyConfiguredHost() {
         WebDavAuth.update("https://cloud.example.com/music", "user", "pass")
         assertTrue(WebDavAuth.shouldAuthorize("cloud.example.com"))
+        assertTrue(WebDavAuth.shouldAuthorize("https://cloud.example.com/music/track.mp3"))
+        // Strict isolation: other paths on same host are NOT authorized
+        assertFalse(WebDavAuth.shouldAuthorize("https://cloud.example.com/addon/search"))
+        assertFalse(WebDavAuth.shouldAuthorize("https://cloud.example.com/other"))
+        // HTTP downgrade is NOT authorized when configured for HTTPS
+        assertFalse(WebDavAuth.shouldAuthorize("http://cloud.example.com/music/track.mp3"))
+        // Different host is NOT authorized
         assertFalse(WebDavAuth.shouldAuthorize("other.example.com"))
+        assertFalse(WebDavAuth.shouldAuthorize("https://other.example.com/music/track.mp3"))
         assertNotNull(WebDavAuth.authHeader)
         WebDavAuth.update("", "", "")
         assertFalse(WebDavAuth.shouldAuthorize("cloud.example.com"))
+        assertFalse(WebDavAuth.shouldAuthorize("https://cloud.example.com/music/track.mp3"))
     }
 
     @Test

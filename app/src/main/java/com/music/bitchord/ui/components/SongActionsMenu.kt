@@ -198,6 +198,8 @@ fun SongActionsMenu(
     onCopyLog: (() -> Unit)? = null,
     /** Dismisses playback and closes the player. */
     onDismissPlayback: (() -> Unit)? = null,
+    /** Opens Mochy-Music inspired Bedside ambient night mode. */
+    onBedsideMode: (() -> Unit)? = null,
     /** Opens the timing control offered only by the main player's menu. */
     onLyricsOffset: (() -> Unit)? = null,
     /**
@@ -443,6 +445,14 @@ fun SongActionsMenu(
                     value = sleepTimerStatus(),
                     accent = palette.accent,
                 ) { currentSubmenu = SongSubmenu.SleepTimer }
+                onBedsideMode?.let {
+                    ActionRow(
+                        icon = SfIcons.Clock,
+                        label = stringResource(R.string.bedside_mode),
+                        accent = palette.accent,
+                        onClick = it,
+                    )
+                }
                 ActionRow(
                     icon = SfIcons.Tune,
                     label = stringResource(R.string.playback_speed),

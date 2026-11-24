@@ -626,6 +626,7 @@ private fun BitChordApp(
     // after it.
     var showDiscordLogin by overlays::showDiscordLogin
     var showSpotifyLogin by overlays::showSpotifyLogin
+    var showBedsideMode by overlays::showBedsideMode
     var discordDialog by alerts::discordDialog
     var songActions by remember { mutableStateOf<Song?>(null) }
     var showLyricsOffset by remember { mutableStateOf(false) }
@@ -3119,6 +3120,7 @@ private fun BitChordApp(
             override val coroutineScope get() = scope
             override fun close() { songActions = null }
             override fun closePlayer() = dismissPlayer()
+            override fun openBedsideMode() { showBedsideMode = true }
             override fun endPlayback() = dismissPlayback()
             override fun likeStatus(song: Song) = likeStatusOf(song)
             override fun toggleLike(song: Song) = toggleLikeOf(song)
@@ -3971,6 +3973,41 @@ private fun BitChordApp(
             BackHandler { showSpotifyCanvasAuth = false }
             SpotifyCanvasAuthScreen(
                 onNavigateUp = { showSpotifyCanvasAuth = false }
+            )
+        }
+
+        // ---- Mochy-Music Bedside Mode ----
+        if (showBedsideMode) {
+            BackHandler { showBedsideMode = false }
+            val sleepTimerDeadline by com.music.bitchord.playback.SleepTimer.deadline.collectAsStateWithLifecycle()
+            val sleepTimerAfterTrack by com.music.bitchord.playback.SleepTimer.afterTrack.collectAsStateWithLifecycle()
+            val sleepTimerText = when {
+                sleepTimerAfterTrack -> "End of track"
+                sleepTimerDeadline != null -> {
+                    val remMs = (sleepTimerDeadline!! - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+                    val m = (remMs / 60_000L).toInt()
+                    val s = ((remMs % 60_000L) / 1000L).toInt()
+                    String.format(java.util.Locale.ROOT, "%d:%02d", m, s)
+                }
+                else -> null
+            }
+
+            com.music.bitchord.ui.player.BedsideMode(
+                visible = true,
+                song = playerSong,
+                isPlaying = player.isPlaying,
+                sleepTimerText = sleepTimerText,
+                onPlayPause = { if (player.isPlaying) controller?.pause() else controller?.play() },
+                onPrevious = { controller?.seekToPreviousMediaItem() },
+                onNext = { controller?.seekToNextMediaItem() },
+                onDismiss = { showBedsideMode = false },
+                onOpenSleepTimer = {
+                    if (com.music.bitchord.playback.SleepTimer.isRunning) {
+                        com.music.bitchord.playback.SleepTimer.cancel()
+                    } else {
+                        com.music.bitchord.playback.SleepTimer.start(30)
+                    }
+                },
             )
         }
 

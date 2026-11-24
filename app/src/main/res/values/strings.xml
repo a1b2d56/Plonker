@@ -725,6 +725,7 @@
     <string name="sleep_timer">Sleep timer</string>
     <string name="sleep_timer_custom">Custom</string>
     <string name="start_sleep_timer">Start timer</string>
+    <string translatable="false" name="bedside_mode">Bedside mode</string>
     <string name="playback_speed">Playback speed</string>
     <string name="playback_speed_normal">Normal (1.0×)</string>
     <string name="playback_speed_reset">Reset to 1.0×</string>

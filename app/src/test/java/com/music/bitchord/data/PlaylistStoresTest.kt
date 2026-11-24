@@ -64,6 +64,35 @@ class PlaylistStoresTest {
         assertNotNull(LocalPlaylistStore.parse("[]"))
     }
 
+    @Test
+    fun `m3u songs parse with artist, title, duration and youtube links`() {
+        val m3u = """
+            #EXTM3U
+            #PLAYLIST:My Test Playlist
+            #EXTINF:210,Kavinsky - Nightcall
+            https://music.youtube.com/watch?v=MV_3Dpw-BRY
+            #EXTINF:180,Midnight Club FM - Round About Midnight
+            https://youtu.be/abc123xyz
+            #EXTINF:60,Local Song
+            /storage/emulated/0/Music/song.flac
+        """.trimIndent()
+        val songs = LocalPlaylistStore.parseM3uSongs(m3u)
+        assertEquals(3, songs.size)
+        assertEquals("MV_3Dpw-BRY", songs[0].videoId)
+        assertEquals("Nightcall", songs[0].title)
+        assertEquals("Kavinsky", songs[0].artist)
+        assertEquals("3:30", songs[0].durationText)
+
+        assertEquals("abc123xyz", songs[1].videoId)
+        assertEquals("Round About Midnight", songs[1].title)
+        assertEquals("Midnight Club FM", songs[1].artist)
+        assertEquals("3:00", songs[1].durationText)
+
+        assertEquals("/storage/emulated/0/Music/song.flac", songs[2].videoId)
+        assertEquals("Local Song", songs[2].title)
+        assertEquals("1:00", songs[2].durationText)
+    }
+
     // ---- Offline playlists -------------------------------------------------
 
     @Test

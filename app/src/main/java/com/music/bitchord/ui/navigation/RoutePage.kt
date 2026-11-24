@@ -63,6 +63,7 @@ class AppOverlayState {
     var showSmbEditor by mutableStateOf(false)
     var showDiscordLogin by mutableStateOf(false)
     var showSpotifyLogin by mutableStateOf(false)
+    var showBedsideMode by mutableStateOf(false)
 }
 
 /** What the pushed pages reach that lives with the app: playback, menus, Replay. */

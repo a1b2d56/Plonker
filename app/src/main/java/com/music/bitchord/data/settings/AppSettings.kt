@@ -1474,7 +1474,7 @@ object AppSettings {
                     probedReachable = null
                     probe = networkScope.launch(Dispatchers.IO) {
                         while (isActive) {
-                            val reachable = Reachability.probe(network!!)
+                            val reachable = Reachability.probe(network)
                             val current = synchronized(probeLock) {
                                 (probedNetwork == network).also { if (it) probedReachable = reachable }
                             }

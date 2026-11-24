@@ -91,5 +91,17 @@ object WebDavConfig {
 }
 
 /** Publishes the saved server's credentials to the shared HTTP client. */
-fun WebDavAuth.update(url: String, username: String, password: String) =
-    update(WebDavConfig.hostOf(url), WebDavConfig.basicAuthHeader(username, password))
+fun WebDavAuth.update(url: String, username: String, password: String) {
+    if (url.isBlank() || (username.isBlank() && password.isBlank())) {
+        update(null, null, -1, null, null)
+        return
+    }
+    val normalized = WebDavConfig.normalizeUrl(url)
+    val uri = runCatching { java.net.URI(normalized) }.getOrNull()
+    val scheme = uri?.scheme?.lowercase(Locale.ROOT) ?: "https"
+    val host = uri?.host?.lowercase(Locale.ROOT)
+    val port = uri?.port ?: if (scheme == "https") 443 else 80
+    val path = uri?.path?.takeIf { it.isNotBlank() && it != "/" }
+    val header = WebDavConfig.basicAuthHeader(username, password)
+    update(scheme, host, port, path, header)
+}
