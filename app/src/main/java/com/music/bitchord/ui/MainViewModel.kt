@@ -48,6 +48,7 @@ import com.music.bitchord.auth.CapturedSession
 import com.music.bitchord.auth.WebSessionMode
 import com.music.bitchord.data.model.Account
 import com.music.bitchord.data.model.AccountChannel
+import com.music.bitchord.playback.OriginOsMusicCard
 import com.music.bitchord.data.model.BrowseType
 import com.music.bitchord.data.model.DetailPage
 import com.music.bitchord.data.model.HomeShelf
@@ -463,6 +464,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // not which of the eight services they came from months ago.
                     _lyricsSource.value = null
                     _lyricsChecked.value = true
+                    OriginOsMusicCard.publishPlayerLyrics(title, artist, videoId, embedded)
                     return@launch
                 }
             }
@@ -484,6 +486,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _lyrics.value = selected?.lines
             _lyricsSource.value = selected?.source
             _lyricsChecked.value = true
+            selected?.lines?.let { OriginOsMusicCard.publishPlayerLyrics(title, artist, videoId, it) }
         }
     }
 
@@ -576,6 +579,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _lyrics.value = result.lines
         _lyricsSource.value = result.source
         _lyricsChecked.value = true
+        currentLyricsRequest?.let { req ->
+            OriginOsMusicCard.publishPlayerLyrics(req.title, req.artist, req.videoId, result.lines)
+        }
     }
 
     private val _account = MutableStateFlow<Account?>(null)

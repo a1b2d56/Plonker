@@ -16,6 +16,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * The lyric line under the notification's title.
@@ -35,6 +36,7 @@ internal class ServiceLyrics(
     private val scope: CoroutineScope,
     private val player: () -> ExoPlayer?,
     private val loopPositionMs: () -> Long?,
+    private val setSessionExtras: (android.os.Bundle) -> Unit = {},
 ) {
     private var serviceLyricsJob: Job? = null
     private var serviceLyrics: List<LyricLine>? = null
@@ -42,6 +44,29 @@ internal class ServiceLyrics(
     var lastPublishedSubtitle: String? = null
         private set
     private var lyricsTickerJob: Job? = null
+    private var originLyricsTickerJob: Job? = null
+    private var currentOriginOsExtras: android.os.Bundle? = null
+
+    init {
+        if (OriginOsMusicCard.isSupportedDevice()) {
+            scope.launch {
+                OriginOsMusicCard.playerLyrics.collectLatest { playerLrc ->
+                    if (playerLrc == null) return@collectLatest
+                    val currentSong = player()?.currentMediaItem?.toSong() ?: return@collectLatest
+                    val trackKey = OriginOsMusicCard.trackKeyOf(currentSong)
+                    if (playerLrc.trackKey != trackKey) return@collectLatest
+                    delay(OriginOsMusicCard.PLAYER_LYRICS_SETTLE_MS)
+                    val lrc = OriginOsMusicCard.lrcOf(playerLrc.lines) ?: return@collectLatest
+                    val mediaId = player()?.currentMediaItem?.mediaId ?: return@collectLatest
+                    val extras = OriginOsMusicCard.lyricsExtras(mediaId, lrc)
+                    currentOriginOsExtras = extras
+                    withContext(Dispatchers.Main) {
+                        setSessionExtras(extras)
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * A track's synced lyrics for the loop mix, which lets a loop be vouched
@@ -103,6 +128,15 @@ internal class ServiceLyrics(
             }
             withContext(Dispatchers.Main) {
                 serviceLyrics = lines
+                if (OriginOsMusicCard.isSupportedDevice() && lines != null) {
+                    val lrc = OriginOsMusicCard.lrcOf(lines)
+                    val mediaId = currentSong.videoId
+                    if (lrc != null) {
+                        val extras = OriginOsMusicCard.lyricsExtras(mediaId, lrc)
+                        currentOriginOsExtras = extras
+                        setSessionExtras(extras)
+                    }
+                }
                 if (player()?.isPlaying == true) {
                     update()
                 }
@@ -111,6 +145,17 @@ internal class ServiceLyrics(
     }
 
     fun startTicker() {
+        if (OriginOsMusicCard.isSupportedDevice() && originLyricsTickerJob?.isActive != true) {
+            originLyricsTickerJob = scope.launch(Dispatchers.Main) {
+                while (isActive) {
+                    val extras = currentOriginOsExtras
+                    if (extras != null) {
+                        setSessionExtras(extras)
+                    }
+                    delay(OriginOsMusicCard.LYRICS_RESEND_INTERVAL_MS)
+                }
+            }
+        }
         if (lyricsTickerJob?.isActive == true) return
         lyricsTickerJob = scope.launch(Dispatchers.Main) {
             while (isActive) {
@@ -121,6 +166,8 @@ internal class ServiceLyrics(
     }
 
     fun stopTicker() {
+        originLyricsTickerJob?.cancel()
+        originLyricsTickerJob = null
         lyricsTickerJob?.cancel()
         lyricsTickerJob = null
         update()
@@ -157,6 +204,9 @@ internal class ServiceLyrics(
 
     /** The service is going. */
     fun release() {
+        originLyricsTickerJob?.cancel()
+        originLyricsTickerJob = null
+        currentOriginOsExtras = null
         lyricsTickerJob?.cancel()
         lyricsTickerJob = null
         serviceLyricsJob?.cancel()

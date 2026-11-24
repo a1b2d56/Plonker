@@ -324,6 +324,7 @@ class PlaybackService : MediaLibraryService() {
         scope = scope,
         player = { player },
         loopPositionMs = { crossfade?.loopPositionMs() },
+        setSessionExtras = { mediaSession?.setSessionExtras(it) },
     )
 
     /** Auto-skips sponsor & non-music segments during playback — see [SponsorBlockCoordinator]. */
