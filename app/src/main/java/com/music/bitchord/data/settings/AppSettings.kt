@@ -291,7 +291,7 @@ object AppSettings {
     /** The CPU budget used by Beat This! and vocal analysis for Automix. */
     val automixPerformanceMode = MutableStateFlow(AutomixPerformanceMode.BALANCED)
     val skipSilence = MutableStateFlow(false)
-    val pauseOnZeroVolume = MutableStateFlow(true)
+    val pauseOnZeroVolume = MutableStateFlow(false)
 
     /** Requested PCM representation at the Android AudioTrack boundary. */
     val outputPcmMode = MutableStateFlow(OutputPcmMode.PCM_16)
@@ -1093,7 +1093,7 @@ object AppSettings {
             )
         }.getOrDefault(AutomixPerformanceMode.BALANCED)
         skipSilence.value = prefs.getBoolean(KEY_SKIP_SILENCE, false)
-        pauseOnZeroVolume.value = prefs.getBoolean(KEY_PAUSE_ON_ZERO_VOLUME, true)
+        pauseOnZeroVolume.value = prefs.getBoolean(KEY_PAUSE_ON_ZERO_VOLUME, false)
         outputPcmMode.value = runCatching {
             OutputPcmMode.valueOf(
                 prefs.getString(KEY_OUTPUT_PCM_MODE, OutputPcmMode.PCM_16.name)

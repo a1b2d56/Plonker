@@ -942,18 +942,6 @@ class PlaybackService : MediaLibraryService() {
         pipeline.bluetoothTracker.start()
         zeroVolumeObserver.register()
         scope.launch {
-            while (isActive) {
-                if (com.music.bitchord.data.settings.AppSettings.pauseOnZeroVolume.value) {
-                    val isPlaying = player?.isPlaying == true
-                    val isPausedByZero = zeroVolumeObserver.pausedByZeroVolume
-                    if (isPlaying || isPausedByZero) {
-                        zeroVolumeObserver.onVolumeChanged()
-                    }
-                }
-                delay(300)
-            }
-        }
-        scope.launch {
             zeroVolumeObserver.noticeEvent.collect {
                 Toast.makeText(applicationContext, R.string.zero_volume_play_blocked, Toast.LENGTH_SHORT).show()
             }

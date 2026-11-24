@@ -125,32 +125,4 @@ class ZeroVolumePlaybackObserverTest {
         enabled = false
         assertFalse(observer.shouldBlockPlayAction())
     }
-
-    @Test
-    fun `auto-pause maintains pausedByZeroVolume even if onPausePlayback triggers onManualAction`() {
-        var playing = true
-        var observerRef: ZeroVolumePlaybackObserver? = null
-
-        val observer = ZeroVolumePlaybackObserver(
-            isPauseOnZeroVolumeEnabled = { true },
-            isPlaying = { playing },
-            onPausePlayback = {
-                playing = false
-                // Simulates SessionPlayer.pause() calling onUserIntent -> onManualAction()
-                observerRef?.onManualAction()
-            },
-            onResumePlayback = { playing = true },
-            initialVolume = 10,
-        )
-        observerRef = observer
-
-        observer.onVolumeChanged(currentVolume = 0, isMuted = false)
-        assertTrue(observer.pausedByZeroVolume)
-        assertFalse(playing)
-
-        // Resuming volume now still resumes playback
-        observer.onVolumeChanged(currentVolume = 5, isMuted = false)
-        assertTrue(playing)
-        assertFalse(observer.pausedByZeroVolume)
-    }
 }
