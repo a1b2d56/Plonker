@@ -455,67 +455,73 @@ private fun SharedTransitionScope.InlineBar(
 
     // With an accessory the row spans the full width ([tab][accessory][standalone],
     // iOS 26 Apple Music style); without one, the cluster is packed and centered.
+    // The outer Box ensures the compact 2-button cluster stays dead-centered horizontally.
     // animateContentSize glides the outer buttons together smoothly on dismiss.
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(sizes.inlineComponentSpacing),
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .then(if (hasInlineAccessory) Modifier.fillMaxWidth() else Modifier.wrapContentWidth())
-            .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
-            .padding(sizes.inlineBarPadding)
-            .height(IntrinsicSize.Max)
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center,
     ) {
-        if (hasInlineTab) {
-            InlineTab(
-                inlineTab = inlineTab,
-                onInlineTabClick = onInlineTabClick,
-                shapes = shapes,
-                sizes = sizes,
-                colors = colors,
-                elevations = elevations,
-                animatedVisibilityScope = animatedVisibilityScope,
-                tabBarContentModifier = tabBarContentModifier,
-                modifier = Modifier
-            )
-        }
-
-        this@Row.AnimatedVisibility(
-            visible = isAccessoryVisible,
-            enter = fadeIn(tween(180)) + expandHorizontally(
-                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-            ),
-            exit = fadeOut(tween(140)) + shrinkHorizontally(
-                animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-            ),
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(sizes.inlineComponentSpacing),
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
+                .then(if (hasInlineAccessory) Modifier.fillMaxWidth() else Modifier.wrapContentWidth())
+                .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
+                .padding(sizes.inlineBarPadding)
+                .height(IntrinsicSize.Max)
         ) {
-            targetInlineAccessory?.let { acc ->
-                InlineAccessory(
-                    accessory = acc,
-                    isAccessoryShared = isAccessoryShared,
+            if (hasInlineTab) {
+                InlineTab(
+                    inlineTab = inlineTab,
+                    onInlineTabClick = onInlineTabClick,
+                    shapes = shapes,
+                    sizes = sizes,
+                    colors = colors,
+                    elevations = elevations,
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    tabBarContentModifier = tabBarContentModifier,
+                    modifier = Modifier
+                )
+            }
+
+            this@Row.AnimatedVisibility(
+                visible = isAccessoryVisible,
+                enter = fadeIn(tween(180)) + expandHorizontally(
+                    animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                ),
+                exit = fadeOut(tween(140)) + shrinkHorizontally(
+                    animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                targetInlineAccessory?.let { acc ->
+                    InlineAccessory(
+                        accessory = acc,
+                        isAccessoryShared = isAccessoryShared,
+                        shapes = shapes,
+                        colors = colors,
+                        elevations = elevations,
+                        animatedVisibilityScope = this@AnimatedVisibility,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            if (standaloneTab != null) {
+                InlineStandaloneTab(
+                    standaloneTab = standaloneTab,
                     shapes = shapes,
                     colors = colors,
                     elevations = elevations,
-                    animatedVisibilityScope = this@AnimatedVisibility,
-                    modifier = Modifier.fillMaxSize()
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    tabBarContentModifier = tabBarContentModifier,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f, matchHeightConstraintsFirst = true)
                 )
             }
-        }
-
-        if (standaloneTab != null) {
-            InlineStandaloneTab(
-                standaloneTab = standaloneTab,
-                shapes = shapes,
-                colors = colors,
-                elevations = elevations,
-                animatedVisibilityScope = animatedVisibilityScope,
-                tabBarContentModifier = tabBarContentModifier,
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .aspectRatio(1f, matchHeightConstraintsFirst = true)
-            )
         }
     }
 }
