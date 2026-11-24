@@ -236,12 +236,8 @@ fun FloatingTabBar(
         AnimatedContent(
             targetState = scrollConnection.isInline,
             transitionSpec = {
-                (fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                    scaleIn(initialScale = 0.95f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
-                    .togetherWith(
-                        fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) +
-                            scaleOut(targetScale = 0.95f, animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
-                    )
+                fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                    .togetherWith(fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
                     .using(
                         SizeTransform(clip = false) { _, _ ->
                             spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
@@ -457,23 +453,16 @@ private fun SharedTransitionScope.InlineBar(
     val targetInlineAccessory = accessory ?: lastValidInlineAccessory
     val isAccessoryVisible = hasInlineAccessory && targetInlineAccessory != null
 
-    val accessoryWeight by animateFloatAsState(
-        targetValue = if (isAccessoryVisible) 1f else 0.00001f,
-        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
-        label = "inlineAccessoryWeight",
-    )
-
     // With an accessory the row spans the full width ([tab][accessory][standalone],
     // iOS 26 Apple Music style); without one, the cluster is packed and centered.
-    // The accessory slot smoothly animates its weight so dismiss and appear glide
-    // the buttons with physics rather than snapping them in a single frame.
+    // animateContentSize glides the outer buttons together smoothly on dismiss.
     Row(
         horizontalArrangement = Arrangement.spacedBy(sizes.inlineComponentSpacing),
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
-            .fillMaxWidth()
+            .then(if (hasInlineAccessory) Modifier.fillMaxWidth() else Modifier.wrapContentWidth())
+            .animateContentSize(spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow))
             .padding(sizes.inlineBarPadding)
-            .wrapContentWidth(Alignment.CenterHorizontally)
             .height(IntrinsicSize.Max)
     ) {
         if (hasInlineTab) {
@@ -495,11 +484,11 @@ private fun SharedTransitionScope.InlineBar(
             enter = fadeIn(tween(180)) + expandHorizontally(
                 animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
             ),
-            exit = fadeOut(tween(160)) + shrinkHorizontally(
+            exit = fadeOut(tween(140)) + shrinkHorizontally(
                 animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
             ),
             modifier = Modifier
-                .weight(accessoryWeight.coerceAtLeast(0.00001f))
+                .weight(1f)
                 .fillMaxHeight(),
         ) {
             targetInlineAccessory?.let { acc ->
@@ -1122,21 +1111,13 @@ private fun Tab(
 
 /**
  * A custom modifier that provides smooth enter/exit animations without clipping shadows or other content.
- * Shares bounds across inline capsule and expanded top bar positions so the mini player morphs fluidly.
+ * This is an alternative to animateEnterExit that uses renderInSharedTransitionScopeOverlay to prevent clipping.
  */
 @Composable
 private fun Modifier.animateEnterExitAccessory(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope
-): Modifier = with(sharedTransitionScope) {
-    this@animateEnterExitAccessory.sharedBounds(
-        sharedContentState = rememberSharedContentState(key = "floatingTabBarAccessory"),
-        animatedVisibilityScope = animatedVisibilityScope,
-        boundsTransform = { _, _ ->
-            spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-        },
-    )
-}
+): Modifier = this
 
 /**
  * A custom modifier that provides smooth enter/exit animations with fade and blur effects.

@@ -439,6 +439,10 @@ internal fun Modifier.playerDockArt(dock: PlayerDock?, corner: Dp): Modifier {
     }
     return this
         .onPlaced { coordinates ->
+            val prev = placed[0]
+            if (prev != null && prev !== coordinates) {
+                dock.releaseMiniArt(prev)
+            }
             placed[0] = coordinates
             dock.reportMiniArt(coordinates, corner)
         }

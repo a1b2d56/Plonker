@@ -139,7 +139,7 @@ class PlayerDock {
     // and every one of those invalidated the page's whole window behind the
     // player: a full redraw, liquid glass and all, for a cover that hadn't
     // changed.
-    private val coversMiniArtState = derivedStateOf { attached && openFraction() > 0f }
+    private val coversMiniArtState = derivedStateOf { attached && hasMiniArt() && openFraction() > 0f }
 }
 
 /** The [PlayerDock] around the player, if its host has a mini player to dock into. */
