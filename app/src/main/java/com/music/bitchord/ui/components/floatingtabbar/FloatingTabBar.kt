@@ -235,6 +235,7 @@ fun FloatingTabBar(
     SharedTransitionLayout(modifier = modifier) {
         AnimatedContent(
             targetState = scrollConnection.isInline,
+            modifier = Modifier.fillMaxWidth(),
             transitionSpec = {
                 fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                     .togetherWith(fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)))
@@ -484,21 +485,20 @@ private fun SharedTransitionScope.InlineBar(
                 )
             }
 
-            this@Row.AnimatedVisibility(
-                visible = isAccessoryVisible,
-                enter = fadeIn(tween(180)) + expandHorizontally(
-                    animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-                ),
-                exit = fadeOut(tween(140)) + shrinkHorizontally(
-                    animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
-                ),
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight(),
-            ) {
-                targetInlineAccessory?.let { acc ->
+            if (targetInlineAccessory != null) {
+                this@Row.AnimatedVisibility(
+                    visible = isAccessoryVisible,
+                    enter = fadeIn(tween(180)) + expandHorizontally(
+                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                    ),
+                    exit = fadeOut(tween(140)) + shrinkHorizontally(
+                        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
+                    ),
+                    modifier = (if (isAccessoryVisible) Modifier.weight(1f) else Modifier)
+                        .fillMaxHeight(),
+                ) {
                     InlineAccessory(
-                        accessory = acc,
+                        accessory = targetInlineAccessory,
                         isAccessoryShared = isAccessoryShared,
                         shapes = shapes,
                         colors = colors,

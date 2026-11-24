@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.music.bitchord.R
 import com.music.bitchord.sharedui.resources.Res
 import com.music.bitchord.sharedui.resources.spotify_logo
+import com.music.bitchord.sharedui.resources.tidal_logo
 import com.music.bitchord.data.model.ShelfItem
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.download.Downloads
@@ -43,6 +44,7 @@ fun libraryLinks(): List<LibraryLink> {
     val smbShare by AppSettings.smbShare.collectAsStateWithLifecycle()
     val showCacheFolder by AppSettings.showCacheFolder.collectAsStateWithLifecycle()
     val spotifyConnected by AppSettings.spotifySpdcToken.collectAsStateWithLifecycle()
+    val tidalConnected by AppSettings.tidalToken.collectAsStateWithLifecycle()
     fun link(title: String, subtitle: String, browseId: String, icon: ImageVector = deviceFolderIcon(browseId) ?: Icons.Rounded.Cloud) = LibraryLink(
         item = ShelfItem(
             title = title,
@@ -89,8 +91,17 @@ fun libraryLinks(): List<LibraryLink> {
             stringResource(R.string.spotify_library_subtitle),
             SPOTIFY_BROWSE_ID,
         ).takeIf { spotifyConnected.isNotBlank() }?.copy(logo = Res.drawable.spotify_logo),
+        // Only while signed in to Tidal in Settings → Accounts; it opens that
+        // account's playlists and liked songs.
+        link(
+            stringResource(R.string.tidal),
+            stringResource(R.string.tidal_library_subtitle),
+            TIDAL_BROWSE_ID,
+        ).takeIf { tidalConnected.isNotBlank() }?.copy(logo = Res.drawable.tidal_logo),
     )
 }
+
+const val TIDAL_BROWSE_ID = "app:tidal"
 
 /**
  * The phone's "On device" shelf: the playlists and albums downloaded whole —

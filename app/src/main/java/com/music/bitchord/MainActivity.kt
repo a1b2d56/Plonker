@@ -157,6 +157,7 @@ import com.music.bitchord.ui.navigation.AppDestination
 import com.music.bitchord.ui.navigation.AppRoute
 import com.music.bitchord.ui.components.SpotifyImportAlert
 import com.music.bitchord.ui.screens.SPOTIFY_BROWSE_ID
+import com.music.bitchord.ui.screens.TIDAL_BROWSE_ID
 import com.music.bitchord.ui.screens.CACHE_FOLDER_BROWSE_ID
 import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.ui.screens.SpotifyCanvasAuthScreen
@@ -1901,6 +1902,10 @@ private fun BitChordApp(
         item.browseId?.let { id ->
             if (id == SPOTIFY_BROWSE_ID) {
                 navigator.push(AppRoute.Spotify)
+                return@let
+            }
+            if (id == TIDAL_BROWSE_ID) {
+                navigator.push(AppRoute.Tidal)
                 return@let
             }
             if ((id == "local:all" || id == "local:downloads") && !LocalMediaRepository.hasStoragePermission(context)) {
