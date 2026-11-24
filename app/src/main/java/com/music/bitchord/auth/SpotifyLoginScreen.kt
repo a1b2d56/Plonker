@@ -96,6 +96,8 @@ fun SpotifyLoginScreen(
                 )
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
                 // The device's own mobile Chrome, minus the WebView markers. A
                 // desktop user agent served the desktop layout scaled into a
                 // phone, where part of the page fell off screen.

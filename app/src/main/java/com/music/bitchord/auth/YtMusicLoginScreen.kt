@@ -99,6 +99,8 @@ fun YtMusicLoginScreen(
                 }
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
                 configureWebView(this)
 
                 webViewClient = object : WebViewClient() {

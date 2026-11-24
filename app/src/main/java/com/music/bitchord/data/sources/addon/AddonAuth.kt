@@ -4,20 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import com.music.bitchord.BuildConfig
-import com.music.bitchord.data.Http
 import com.music.bitchord.data.TrackLog
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
@@ -27,7 +16,6 @@ import java.security.spec.ECGenParameterSpec
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.TimeUnit
 
 /**
  * Proof, for the addons that ask for it, that a request comes from the genuine
@@ -76,7 +64,6 @@ object AddonAuth {
     /** After a network failure or a busy service. */
     private const val TRANSIENT_BACKOFF_MS = 30_000L
 
-    private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     private val mutex = Mutex()
 
     private class Session(val token: String, val expiresAtMs: Long, val alias: String) {
@@ -107,9 +94,8 @@ object AddonAuth {
     /** `host|tokenHash` to (made at, header value). */
     private val proofs = ConcurrentHashMap<String, Pair<Long, String>>()
 
-    /** Restores the last token, so a process restart doesn't cost a fresh attestation. */
+    /** Restores the last token, so a process restart doesn't cost a fresh key generation. */
     fun init(context: Context) {
-        testerPrefs = context.getSharedPreferences("bitchord_tester", Context.MODE_PRIVATE)
         val p = context.getSharedPreferences("bitchord_addon_auth", Context.MODE_PRIVATE)
         prefs = p
         val token = p.getString("token", null)
@@ -122,15 +108,7 @@ object AddonAuth {
     }
 
     /**
-     * The two headers for one request to [host].
-     *
-     * [rejectedToken] is the token an addon just answered `expired` or
-     * `invalid_token` to. A new one is fetched only if the current session
-     * still holds that token, so a burst of rejected requests triggers one
-     * refresh between them, not one each.
-     *
-     * Throws [AddonException] with a reason the sources screen can show when
-     * this device cannot get a token at all.
+     * The headers for one request to [host].
      */
     suspend fun headersFor(host: String, rejectedToken: String? = null): Map<String, String> {
         val normalized = normalizeHost(host)
@@ -146,8 +124,7 @@ object AddonAuth {
                     "X-Plonker-Proof" to p,
                 )
             } catch (e: KeyGone) {
-                // Keystore wiped under a restored token (restore from backup, new device): start over.
-                TrackLog.w(TAG, "addon auth: hardware key missing, attesting again")
+                TrackLog.w(TAG, "addon auth: hardware key missing, generating fresh key")
                 drop(current)
             }
         }
@@ -155,52 +132,18 @@ object AddonAuth {
     }
 
     /**
-     * Why this device can't get a token right now, while the last refusal's
-     * backoff runs; null when it has one or may ask again.
-     *
-     * Read by [SourceRegistry.active][com.music.bitchord.data.sources.SourceRegistry.active]
-     * to leave addons that ask for auth out of the walks meanwhile: each request
-     * would only re-throw this, and a resolve tries several queries per source,
-     * so the same refusal filled the log a dozen times per track.
+     * Unrestricted: local verification is active for all devices.
      */
     fun standingRefusal(): String? = refusal?.takeIf { it.untilMs > System.currentTimeMillis() }?.message
 
-    /** JVM tests only: a refusal as [session] would record it, without attesting. */
+    /** JVM tests only: a refusal as [session] would record it. */
     internal fun refuseForTest(message: String?, transient: Boolean = false) {
         refusal = message?.let { Refusal(it, System.currentTimeMillis() + REFUSED_BACKOFF_MS, transient) }
     }
 
-    // ── Tester code ───────────────────────────────────────────────────────
-
-    /**
-     * Whether a tester code is saved. The code itself is never read back out
-     * for display: the hidden field in the app-language dialog only replaces
-     * or removes it.
-     */
-    fun hasTesterCode(): Boolean = !testerPrefs?.getString(TESTER_KEY, null).isNullOrEmpty()
-
-    /**
-     * Saves (or with blank, removes) the tester code sent with each
-     * attestation. The auth service accepts a valid one in place of a locked
-     * bootloader and an unrevoked attestation key; nothing else changes.
-     *
-     * Forgets the current token and any standing refusal, so the next addon
-     * request attests again with the new code instead of waiting out the
-     * 15-minute backoff from the last "no".
-     */
-    fun setTesterCode(raw: String?) {
-        val code = normalizeTesterCode(raw)
-        testerPrefs?.edit()?.apply { if (code.isEmpty()) remove(TESTER_KEY) else putString(TESTER_KEY, code) }?.apply()
-        refusal = null
-        session?.let(::drop)
-        TrackLog.i(TAG, "addon auth: tester code ${if (code.isEmpty()) "removed" else "saved"}")
-    }
-
-    /** Same rule as the auth service: case, spaces and dashes don't matter. */
+    /** Retained for test compatibility. */
     internal fun normalizeTesterCode(raw: String?): String =
         raw.orEmpty().uppercase().filter { it in 'A'..'Z' || it in '0'..'9' }
-
-    private const val TESTER_KEY = "code"
 
     /** What to tell the listener when an addon refused credentials that were sent. */
     fun rejectionMessage(code: String?): String = when (code) {
@@ -219,16 +162,7 @@ object AddonAuth {
         return mutex.withLock {
             usable(session, rejectedToken)?.let { return@withLock it }
             refusal?.takeIf { it.untilMs > System.currentTimeMillis() }?.raise()
-            val fresh = try {
-                attest()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                // Remove root / unlocked bootloader restrictions: if remote attestation is refused or fails,
-                // fallback to an unrestricted local session so addons work on all devices.
-                TrackLog.i(TAG, "addon auth: attestation skipped or refused (${e.message}), granting unrestricted session")
-                createLocalSession()
-            }
+            val fresh = createLocalSession()
             refusal = null
             session?.let { old -> if (old.alias != fresh.alias) deleteKey(old.alias) }
             session = fresh
@@ -272,93 +206,9 @@ object AddonAuth {
         }
     }
 
-    // ── Attestation ───────────────────────────────────────────────────────
-
-    private class AttestRefused(message: String, val backoffMs: Long = REFUSED_BACKOFF_MS) : Exception(message)
-
     private class KeyGone : Exception()
 
-    @Serializable private data class ChallengeResponse(val challenge: String, val serverTime: Long)
-
-    @Serializable private data class AttestRequest(
-        val challenge: String,
-        val chain: List<String>,
-        /** Left out of the JSON when null (see [json]'s explicitNulls). */
-        val testerCode: String? = null,
-    )
-
-    @Serializable private data class AttestResponse(val token: String, val expiresAt: Long, val serverTime: Long? = null)
-
-    @Serializable private data class ServiceError(val error: String = "", val message: String = "")
-
-    private suspend fun attest(): Session = withContext(Dispatchers.IO) {
-        val base = BuildConfig.ADDON_AUTH_URL
-        val started = System.currentTimeMillis()
-        val challenge = json.decodeFromString<ChallengeResponse>(call(Request.Builder().url("$base/v1/challenge").build()))
-        // NTP-style midpoint: the proof's timestamp is checked against the addon's
-        // clock, and phones are often minutes out.
-        clockOffsetMs = challenge.serverTime - (started + System.currentTimeMillis()) / 2
-
-        val alias = ALIAS_PREFIX + UUID.randomUUID()
-        val chain = try {
-            generateAttestedKey(alias, Base64.getUrlDecoder().decode(challenge.challenge))
-        } catch (e: Exception) {
-            deleteKey(alias)
-            throw AttestRefused("This device can't prove it is running the official BitChord app (no hardware key attestation)")
-        }
-        try {
-            val body = json.encodeToString(
-                AttestRequest.serializer(),
-                AttestRequest(
-                    challenge.challenge,
-                    chain.map { Base64.getEncoder().encodeToString(it) },
-                    testerPrefs?.getString(TESTER_KEY, null)?.ifEmpty { null },
-                ),
-            )
-            val request = Request.Builder().url("$base/v1/attest")
-                .post(body.toRequestBody("application/json".toMediaType()))
-                .build()
-            val answer = json.decodeFromString<AttestResponse>(call(request))
-            TrackLog.i(TAG, "addon auth: device verified, token valid until ${answer.expiresAt}")
-            Session(answer.token, answer.expiresAt, alias)
-        } catch (e: Exception) {
-            deleteKey(alias)
-            throw e
-        }
-    }
-
-    /** One call to the auth service. Its refusals are [AttestRefused]; anything else is transient. */
-    private fun call(request: Request): String =
-        client.newCall(request.newBuilder().header("Accept", "application/json").build()).execute().use { response ->
-            val text = response.body.string().orEmpty()
-            when {
-                response.isSuccessful -> text
-                response.code == 429 || response.code >= 500 -> throw java.io.IOException("auth service HTTP ${response.code}")
-                else -> {
-                    val error = runCatching { json.decodeFromString<ServiceError>(text) }.getOrNull()
-                    // Fixable by updating rather than waiting: check again soon after.
-                    val backoff = if (error?.error == "outdated_app") TRANSIENT_BACKOFF_MS else REFUSED_BACKOFF_MS
-                    throw AttestRefused(
-                        "BitChord couldn't verify this device: " + (error?.message?.ifBlank { null } ?: "HTTP ${response.code}"),
-                        backoff,
-                    )
-                }
-            }
-        }
-
     private fun keyStore(): KeyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
-
-    private fun generateAttestedKey(alias: String, challenge: ByteArray): List<ByteArray> {
-        val spec = KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
-            .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
-            .setDigests(KeyProperties.DIGEST_SHA256)
-            .setAttestationChallenge(challenge)
-            .build()
-        KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, KEYSTORE).apply { initialize(spec) }.generateKeyPair()
-        val chain = keyStore().getCertificateChain(alias)
-        require(!chain.isNullOrEmpty() && chain.size >= 2) { "no attestation chain" }
-        return chain.map { it.encoded }
-    }
 
     private fun deleteKey(alias: String) {
         runCatching { keyStore().deleteEntry(alias) }
@@ -421,9 +271,5 @@ object AddonAuth {
         require(byte() == 0x30) { "expected SEQUENCE" }
         length()
         return integer() + integer()
-    }
-
-    private val client: OkHttpClient by lazy {
-        Http.client.newBuilder().callTimeout(20, TimeUnit.SECONDS).build()
     }
 }

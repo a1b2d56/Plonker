@@ -68,7 +68,7 @@ object AppUpdateChecker {
     suspend fun check() = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder().url(LATEST_RELEASE_URL).build()
-            val body = Http.client.newCall(request).execute().use { response ->
+            val body = Http.baseClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) null else response.body.string()
             } ?: return@runCatching
             val release = json.parseToJsonElement(body) as? JsonObject ?: return@runCatching
@@ -142,12 +142,13 @@ object AppUpdateChecker {
             val dir = File(context.cacheDir, CACHE_SUBDIR).apply { mkdirs() }
             // Drop anything left over from an earlier attempt.
             dir.listFiles()?.forEach { it.delete() }
-            val target = File(dir, "plonker-${info.version}.apk")
+            val safeVersion = info.version.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(32)
+            val target = File(dir, "plonker-$safeVersion.apk")
 
             val request = Request.Builder().url(url).build()
-            Http.client.newCall(request).execute().use { response ->
+            Http.baseClient.newCall(request).execute().use { response ->
                 check(response.isSuccessful) { "Download failed: HTTP ${response.code}" }
-                val body = response.body ?: error("Empty download body")
+                val body = response.body
                 val total = body.contentLength().takeIf { it > 0 }
 
                 body.byteStream().use { input ->

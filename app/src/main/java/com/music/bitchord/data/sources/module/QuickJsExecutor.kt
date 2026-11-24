@@ -11,11 +11,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.Dns
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
+import java.net.InetAddress
 import java.util.concurrent.TimeUnit
 import java.util.Locale
 
@@ -102,8 +105,19 @@ internal object QuickJsExecutor {
     fun isLoaded(moduleId: String): Boolean =
         synchronized(engineLock) { pools.containsKey(moduleId) }
 
+    private val safeDns = Dns { hostname ->
+        val addresses = Dns.SYSTEM.lookup(hostname)
+        for (addr in addresses) {
+            if (isPrivateOrLocalAddress(addr)) {
+                throw SecurityException("Module network access to private or local network address ($hostname -> ${addr.hostAddress}) is blocked")
+            }
+        }
+        addresses
+    }
+
     private val syncHttpClient by lazy {
         OkHttpClient.Builder()
+            .dns(safeDns)
             .connectTimeout(20, TimeUnit.SECONDS)
             .readTimeout(20, TimeUnit.SECONDS)
             .build()
@@ -228,11 +242,11 @@ internal object QuickJsExecutor {
 
     // ── Call ─────────────────────────────────────────────────────────────
 
-    suspend fun callExport(moduleId: String, functionName: String, args: List<String>): Result<String> {
+    suspend fun callExport(moduleId: String, functionName: String, argsJson: String): Result<String> {
         val pool = synchronized(engineLock) { pools[moduleId] }
             ?: return Result.failure(IllegalStateException("Module $moduleId is not loaded"))
 
-        TrackLog.d(TAG, "QuickJsExecutor.callExport($moduleId, $functionName) args=$args")
+        TrackLog.d(TAG, "QuickJsExecutor.callExport($moduleId, $functionName)")
         return withContext(Dispatchers.Default) {
             val qjs = try {
                 acquire(moduleId, pool)
@@ -241,7 +255,7 @@ internal object QuickJsExecutor {
                 return@withContext Result.failure(e)
             }
             try {
-                callOn(qjs, moduleId, functionName, args)
+                callOn(qjs, moduleId, functionName, argsJson)
             } finally {
                 // Back into circulation on every path, including a throw: an
                 // engine that is never returned is a slot the pool can never
@@ -251,11 +265,36 @@ internal object QuickJsExecutor {
         }
     }
 
+    suspend fun callExport(moduleId: String, functionName: String, args: List<String>): Result<String> {
+        val jsonArray = JSONArray()
+        for (arg in args) {
+            val trimmed = arg.trim()
+            if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+                (trimmed.startsWith("[") && trimmed.endsWith("]"))
+            ) {
+                val parsed = runCatching { JSONObject(trimmed) }.getOrNull()
+                    ?: runCatching { JSONArray(trimmed) }.getOrNull()
+                if (parsed != null) jsonArray.put(parsed) else jsonArray.put(trimmed)
+            } else if (trimmed.startsWith("\"") && trimmed.endsWith("\"") && trimmed.length >= 2) {
+                jsonArray.put(trimmed.substring(1, trimmed.length - 1))
+            } else if (trimmed.toIntOrNull() != null) {
+                jsonArray.put(trimmed.toInt())
+            } else if (trimmed.toDoubleOrNull() != null) {
+                jsonArray.put(trimmed.toDouble())
+            } else if (trimmed == "true" || trimmed == "false") {
+                jsonArray.put(trimmed.toBoolean())
+            } else {
+                jsonArray.put(trimmed)
+            }
+        }
+        return callExport(moduleId, functionName, jsonArray.toString())
+    }
+
     private suspend fun callOn(
         qjs: QuickJs,
         moduleId: String,
         functionName: String,
-        args: List<String>,
+        argsJson: String,
     ): Result<String> =
         run {
             runCatching {
@@ -264,7 +303,7 @@ internal object QuickJsExecutor {
                     throw IllegalStateException("$functionName is not a function on module $moduleId")
                 }
 
-                val argsStr = args.joinToString(",")
+                val safeArgsLiteral = JSONObject.quote(argsJson)
 
                 // evaluate() converts a Promise via toString() instead of awaiting it.
                 // Workaround: store the resolved JSON in a global var inside the async
@@ -279,7 +318,8 @@ internal object QuickJsExecutor {
                             return;
                         }
                         try {
-                            var r = await __fn($argsStr);
+                            var __args = JSON.parse($safeArgsLiteral);
+                            var r = await __fn.apply(__spine_mod, __args);
                             __spine_resolved_json = typeof r === 'string' ? r : JSON.stringify(r);
                         } catch(e) {
                             __spine_resolved_json = JSON.stringify({ error: e && e.message ? e.message : String(e) });
@@ -473,19 +513,41 @@ internal object QuickJsExecutor {
         }
     }
 
-    private fun isPrivateOrLocalAddress(host: String): Boolean {
+    internal fun isPrivateOrLocalAddress(addr: InetAddress): Boolean {
+        if (addr.isLoopbackAddress || addr.isSiteLocalAddress || addr.isLinkLocalAddress || addr.isAnyLocalAddress) return true
+        val hostAddress = addr.hostAddress.orEmpty().lowercase(Locale.ROOT)
+        if (hostAddress == "::1" || hostAddress == "0.0.0.0") return true
+        // IPv4-mapped IPv6 (::ffff:127.0.0.1, etc.)
+        if (hostAddress.startsWith("::ffff:")) {
+            val v4 = hostAddress.substring(7)
+            val parts = v4.split('.')
+            if (parts.size == 4 && parts.all { it.toIntOrNull() != null }) {
+                val b0 = parts[0].toInt()
+                val b1 = parts[1].toInt()
+                if (b0 == 127 || b0 == 10 || b0 == 0 || (b0 == 172 && b1 in 16..31) || (b0 == 192 && b1 == 168) || (b0 == 169 && b1 == 254)) {
+                    return true
+                }
+            }
+        }
+        // Unique Local IPv6 (fc00::/7)
+        if (hostAddress.startsWith("fc") || hostAddress.startsWith("fd")) return true
+        return false
+    }
+
+    internal fun isPrivateOrLocalAddress(host: String): Boolean {
         val h = host.lowercase(Locale.ROOT).trim()
         if (h == "localhost" || h.endsWith(".localhost") || h == "::1" || h == "0.0.0.0") return true
         val parts = h.split('.')
         if (parts.size == 4 && parts.all { it.toIntOrNull() != null }) {
             val b0 = parts[0].toInt()
             val b1 = parts[1].toInt()
-            if (b0 == 127) return true
-            if (b0 == 10) return true
-            if (b0 == 172 && b1 in 16..31) return true
-            if (b0 == 192 && b1 == 168) return true
-            if (b0 == 169 && b1 == 254) return true
-            if (b0 == 0) return true
+            if (b0 == 127 || b0 == 10 || b0 == 0 || (b0 == 172 && b1 in 16..31) || (b0 == 192 && b1 == 168) || (b0 == 169 && b1 == 254)) {
+                return true
+            }
+        }
+        val resolved = runCatching { InetAddress.getAllByName(host) }.getOrNull()
+        if (resolved != null && resolved.any { isPrivateOrLocalAddress(it) }) {
+            return true
         }
         return false
     }

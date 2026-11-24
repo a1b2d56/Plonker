@@ -143,6 +143,8 @@ fun DiscordLoginScreen(
 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
                 settings.userAgentString = browserUserAgent(settings.userAgentString)
 
                 var captured = false
