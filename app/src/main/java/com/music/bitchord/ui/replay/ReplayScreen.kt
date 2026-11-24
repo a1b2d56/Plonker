@@ -229,6 +229,14 @@ fun ReplayScreen(
                         },
                     )
                     if (summary.genres.isNotEmpty()) {
+                        item("genres-spectrum") {
+                            GenreSpectrumCard(
+                                genres = summary.genres,
+                                totalMs = summary.totalMs,
+                                dark = dark,
+                                modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
+                            )
+                        }
                         chart(
                             key = "genres",
                             title = topGenres,

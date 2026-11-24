@@ -693,7 +693,24 @@ private fun ColumnScope.Genres(summary: ReplaySummary, headline: List<HeadlineRu
         style = MaterialTheme.typography.titleMedium,
         color = Color.White.copy(alpha = 0.6f),
     )
-    Spacer(Modifier.height(22.dp))
+    val visible = summary.genres.take(18)
+    val topMs = lead.ms.coerceAtLeast(1L).toFloat()
+    val heights = visible.mapIndexed { _, entry ->
+        val fraction = entry.ms.toFloat() / topMs
+        remember(fraction) { androidx.compose.runtime.mutableFloatStateOf(fraction) }
+    }
+    GenreSpectrumCanvas(
+        heights = heights,
+        cellWidth = 1f / visible.size.coerceAtLeast(1),
+        count = visible.size,
+        primaryColor = Color.White,
+        secondaryColor = Color.White.copy(alpha = 0.45f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .padding(vertical = 6.dp),
+    )
+    Spacer(Modifier.height(18.dp))
     rows.drop(1).forEach { row ->
         Row(
             Modifier.fillMaxWidth().padding(vertical = 5.dp),
