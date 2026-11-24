@@ -282,6 +282,9 @@
     <string name="skip_silence">Skip silence</string>
     <string name="skip_silence_subtitle">Trim gaps longer than a second</string>
     <string name="skip_silence_float_subtitle">Unavailable on 32-bit float output</string>
+    <string name="pause_on_zero_volume">Pause playback at volume 0</string>
+    <string name="pause_on_zero_volume_subtitle">Automatically pause when media volume reaches zero, and resume when raised</string>
+    <string name="zero_volume_play_blocked">Volume is muted</string>
     <string name="content_preferences">Content Preferences</string>
     <string name="hide_recents">Hide Recents</string>
     <string name="hide_home_videos">Hide videos from Home</string>

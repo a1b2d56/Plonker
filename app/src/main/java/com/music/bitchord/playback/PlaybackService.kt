@@ -386,6 +386,17 @@ class PlaybackService : MediaLibraryService() {
     /** Every remote speaker, as the one the session player reports. */
     private val speakers by lazy { Speakers(listOf(castPlayback, watchSpeaker)) }
 
+    private val zeroVolumeObserver by lazy {
+        ZeroVolumePlaybackObserver(
+            context = this,
+            audioManager = getSystemService(android.media.AudioManager::class.java),
+            isPauseOnZeroVolumeEnabled = { com.music.bitchord.data.settings.AppSettings.pauseOnZeroVolume.value },
+            isPlaying = { player?.isPlaying == true },
+            onPausePlayback = { player?.pause() },
+            onResumePlayback = { player?.play() },
+        )
+    }
+
     /**
      * Binds playback to a Listen Together party, when there is one.
      *
@@ -928,6 +939,12 @@ class PlaybackService : MediaLibraryService() {
         }
 
         pipeline.bluetoothTracker.start()
+        zeroVolumeObserver.register()
+        scope.launch {
+            zeroVolumeObserver.noticeEvent.collect {
+                Toast.makeText(applicationContext, R.string.zero_volume_play_blocked, Toast.LENGTH_SHORT).show()
+            }
+        }
         scope.launch {
             // A codec change (LDAC 24-bit ↔ SBC) can flip float output on or off,
             // which needs a sink rebuild, not just a route refresh. Any other real
@@ -1090,10 +1107,14 @@ class PlaybackService : MediaLibraryService() {
     private fun newSessionPlayer(player: Player, crossfade: CrossfadeController) = SessionPlayer(
         player,
         crossfade,
-        onUserIntent = { partySync?.onLocalIntent() },
+        onUserIntent = {
+            partySync?.onLocalIntent()
+            zeroVolumeObserver.onManualAction()
+        },
         deferPlayToParty = { partySync?.shouldDeferPlay() == true },
         lockedTransport = { playing -> partySync?.onLockedTransport(playing) == true },
         cast = speakers,
+        shouldBlockPlay = { zeroVolumeObserver.shouldBlockPlayAction() },
     ) { lyrics.lastPublishedSubtitle }
 
     /**
@@ -2221,6 +2242,7 @@ class PlaybackService : MediaLibraryService() {
         spare?.release()
         spare = null
         AudioOutputStatus.reset()
+        zeroVolumeObserver.unregister()
         NerdStats.forgetLastSession()
         nerdStats.forgetSession()
         super.onDestroy()

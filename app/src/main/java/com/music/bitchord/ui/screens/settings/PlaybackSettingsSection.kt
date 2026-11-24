@@ -103,6 +103,7 @@ internal fun PlaybackSettingsGroup(
     val smartFade by AppSettings.smartFadeEnabled.collectAsStateWithLifecycle()
     val automixPerformance by AppSettings.automixPerformanceMode.collectAsStateWithLifecycle()
     val skipSilence by AppSettings.skipSilence.collectAsStateWithLifecycle()
+    val pauseOnZeroVolume by AppSettings.pauseOnZeroVolume.collectAsStateWithLifecycle()
     val spatialAudio by AppSettings.spatialAudio.collectAsStateWithLifecycle()
     val playingFormat by NerdStats.current.collectAsStateWithLifecycle()
     val playingDolbyAtmos = playingFormat?.isDolbyAtmos == true
@@ -342,6 +343,21 @@ internal fun PlaybackSettingsGroup(
                     onClick = { AppSettings.setSkipSilence(!skipSilence) },
                 )
             }
+        }
+        val pauseOnZeroVolumeTitle = stringResource(R.string.pause_on_zero_volume)
+        row(pauseOnZeroVolumeTitle, "volume", "pause", "mute") {
+            SettingsRow(
+                icon = SfIcons.VolumeOff,
+                title = pauseOnZeroVolumeTitle,
+                subtitle = stringResource(R.string.pause_on_zero_volume_subtitle),
+                trailing = {
+                    IosSwitch(
+                        checked = pauseOnZeroVolume,
+                        onCheckedChange = AppSettings::setPauseOnZeroVolume,
+                    )
+                },
+                onClick = { AppSettings.setPauseOnZeroVolume(!pauseOnZeroVolume) },
+            )
         }
         val spatialAudioTitle = stringResource(R.string.spatial_audio)
         row(spatialAudioTitle, "surround", "3d") {

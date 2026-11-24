@@ -60,6 +60,7 @@ internal class SessionPlayer(
     private val lockedTransport: (Boolean) -> Boolean,
     /** Cast or the watch, whichever is the speaker — its clock is what this reports. */
     private val cast: RemoteSpeaker,
+    private val shouldBlockPlay: () -> Boolean = { false },
     private val getSubtitle: () -> String?,
 ) : ForwardingPlayer(player), CastSink {
 
@@ -367,6 +368,7 @@ internal class SessionPlayer(
     private fun locked(): Boolean = ListenTogether.state.value.controlsLocked
 
     override fun play() {
+        if (shouldBlockPlay()) return
         // Locked, this plays only here — the party carries on untouched and
         // this device rejoins it wherever it has got to. See
         // [PartySync.onLockedTransport], which owns that catch-up.
@@ -404,6 +406,7 @@ internal class SessionPlayer(
     }
 
     override fun setPlayWhenReady(playWhenReady: Boolean) {
+        if (playWhenReady && shouldBlockPlay()) return
         if (lockedTransport(playWhenReady)) return
         onUserIntent()
         if (playWhenReady && deferPlayToParty()) return
