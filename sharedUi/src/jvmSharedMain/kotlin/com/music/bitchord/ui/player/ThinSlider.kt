@@ -35,7 +35,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -264,21 +263,10 @@ fun ThinSlider(
             val filled = size.width * fraction * fillFactor
             if (filled > 0f) {
                 val alpha = if (dragging) activeColor.alpha else mixPulse?.alpha(activeColor.alpha) ?: activeColor.alpha
-                val playheadX = filled.coerceAtLeast(size.height * fillFactor).coerceAtMost(size.width)
-                // Lyra Player radiant progress glow around active seekbar playhead
-                if (dragging || !sheenVisible) {
-                    val glowRadius = size.height * (if (dragging) 1.5f else 1.15f)
-                    val glowAlpha = if (dragging) 0.40f else 0.18f
-                    drawCircle(
-                        color = activeColor.copy(alpha = alpha * glowAlpha),
-                        radius = glowRadius,
-                        center = Offset(playheadX, size.height / 2f),
-                    )
-                }
                 drawRoundRect(
                     color = activeColor.copy(alpha = alpha),
                     size = Size(
-                        playheadX,
+                        filled.coerceAtLeast(size.height * fillFactor).coerceAtMost(size.width),
                         size.height,
                     ),
                     cornerRadius = radius,

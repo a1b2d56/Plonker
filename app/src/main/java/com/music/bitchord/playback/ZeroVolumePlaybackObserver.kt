@@ -69,6 +69,8 @@ class ZeroVolumePlaybackObserver(
         } ?: false
     }
 
+    private var isHandlingAutoPause = false
+
     /**
      * Checks volume changes and handles auto-pause and auto-resume transitions.
      */
@@ -80,10 +82,15 @@ class ZeroVolumePlaybackObserver(
         val wasPositive = lastKnownVolume > 0
 
         if (isPauseOnZeroVolumeEnabled()) {
-            if (wasPositive && isZero) {
+            if ((wasPositive || isPlaying()) && isZero) {
                 if (isPlaying()) {
                     pausedByZeroVolume = true
-                    onPausePlayback()
+                    isHandlingAutoPause = true
+                    try {
+                        onPausePlayback()
+                    } finally {
+                        isHandlingAutoPause = false
+                    }
                 }
             } else if (lastKnownVolume <= 0 && !isZero) {
                 if (pausedByZeroVolume) {
@@ -118,7 +125,9 @@ class ZeroVolumePlaybackObserver(
      * or when playback is paused externally.
      */
     fun onManualAction() {
-        pausedByZeroVolume = false
+        if (!isHandlingAutoPause) {
+            pausedByZeroVolume = false
+        }
     }
 
     private var isRegistered = false
@@ -132,21 +141,30 @@ class ZeroVolumePlaybackObserver(
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
-                if (intent?.action == "android.media.VOLUME_CHANGED_ACTION") {
-                    onVolumeChanged()
-                }
+                onVolumeChanged()
             }
         }
         volumeReceiver = receiver
-        val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+        val filter = IntentFilter().apply {
+            addAction("android.media.VOLUME_CHANGED_ACTION")
+            addAction("android.media.STREAM_MUTE_CHANGED_ACTION")
+            addAction("android.media.EXTRA_VOLUME_STREAM_TYPE")
+            addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
+        }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+                ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             } else {
                 ctx.registerReceiver(receiver, filter)
             }
         } catch (_: Exception) {
-            runCatching { ctx.registerReceiver(receiver, filter) }
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    ContextCompat.registerReceiver(ctx, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+                } else {
+                    ctx.registerReceiver(receiver, filter)
+                }
+            }
         }
 
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
