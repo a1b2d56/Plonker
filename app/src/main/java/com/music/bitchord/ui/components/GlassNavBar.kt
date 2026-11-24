@@ -413,6 +413,8 @@ private fun GlassNowPlaying(
                 targetValue = if (showsPicture && !VideoThumbnails.square) ACCESSORY_ART_SIZE * (16f / 9f) else ACCESSORY_ART_SIZE,
                 label = "glassMiniArtWidth",
             )
+            val remoteArt = rememberRemoteArtworkUrl(song)
+            val artModel = remember(remoteArt) { remoteArt?.artworkAt(ROW_ART_PX) ?: remoteArt }
             Box(
                 modifier = Modifier
                     .size(width = artWidth, height = ACCESSORY_ART_SIZE)
@@ -420,10 +422,10 @@ private fun GlassNowPlaying(
                     // the player flies to: only one is composed at rest.
                     .playerDockArt(dock, ACCESSORY_ART_CORNER)
                     .clip(RoundedCornerShape(ACCESSORY_ART_CORNER))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(if (artModel == null) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent),
             ) {
                 AsyncImage(
-                    model = rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
+                    model = artModel,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

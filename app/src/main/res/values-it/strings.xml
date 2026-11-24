@@ -1416,4 +1416,18 @@
     <string name="romanized_lyrics">Testi romanizzati</string>
     <string name="romanized_lyrics_subtitle">Mostra la pronuncia in lettere latine sotto i testi scritti in un altro alfabeto</string>
     <string name="lyrics">Testi</string>
+    <string name="pause_on_zero_volume">Metti in pausa a volume 0</string>
+    <string name="pause_on_zero_volume_subtitle">Metti automaticamente in pausa quando il volume raggiunge lo zero e riprendi quando aumenta</string>
+    <string name="zero_volume_play_blocked">Il volume è disattivato</string>
+    <string name="equalizer_import">Importa</string>
+    <string name="equalizer_export">Esporta</string>
+    <string name="equalizer_export_copied">Profilo equalizzatore copiato negli appunti</string>
+    <string name="equalizer_import_title">Importa profilo equalizzatore</string>
+    <string name="equalizer_import_hint">Incolla testo Equalizer APO, Peace o GraphicEQ…</string>
+    <string name="equalizer_import_clipboard">Appunti</string>
+    <string name="equalizer_import_file">File</string>
+    <string name="equalizer_import_apply">Applica</string>
+    <string name="equalizer_import_error">Impossibile analizzare i filtri dell\'equalizzatore</string>
+    <string name="equalizer_direct_input_title">Imposta guadagno %s</string>
+    <string name="equalizer_direct_input_hint">Inserisci guadagno (da -12.0 a +12.0 dB)</string>
 </resources>

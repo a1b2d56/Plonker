@@ -1454,4 +1454,18 @@
     <string name="romanized_lyrics">歌词罗马音</string>
     <string name="romanized_lyrics_subtitle">在非拉丁文字的歌词下方显示罗马字母注音</string>
     <string name="lyrics">歌词</string>
+    <string name="pause_on_zero_volume">音量为0时暂停播放</string>
+    <string name="pause_on_zero_volume_subtitle">媒体音量降至零时自动暂停，调高音量时自动恢复</string>
+    <string name="zero_volume_play_blocked">当前处于静音状态</string>
+    <string name="equalizer_import">导入</string>
+    <string name="equalizer_export">导出</string>
+    <string name="equalizer_export_copied">均衡器配置已复制到剪贴板</string>
+    <string name="equalizer_import_title">导入均衡器配置</string>
+    <string name="equalizer_import_hint">粘贴 Equalizer APO、Peace 或 GraphicEQ 文本…</string>
+    <string name="equalizer_import_clipboard">剪贴板</string>
+    <string name="equalizer_import_file">文件</string>
+    <string name="equalizer_import_apply">应用</string>
+    <string name="equalizer_import_error">无法解析均衡器滤波器文本</string>
+    <string name="equalizer_direct_input_title">设置 %s 增益</string>
+    <string name="equalizer_direct_input_hint">输入增益 (-12.0 至 +12.0 dB)</string>
 </resources>

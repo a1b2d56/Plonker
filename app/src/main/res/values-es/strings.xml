@@ -1449,4 +1449,18 @@
     <string name="romanized_lyrics">Letras romanizadas</string>
     <string name="romanized_lyrics_subtitle">Muestra la pronunciación en letras latinas bajo las letras escritas en otro alfabeto</string>
     <string name="lyrics">Letras</string>
+    <string name="pause_on_zero_volume">Pausar reproducción en volumen 0</string>
+    <string name="pause_on_zero_volume_subtitle">Pausar automáticamente cuando el volumen sea cero y reanudar al subirlo</string>
+    <string name="zero_volume_play_blocked">El volumen está silenciado</string>
+    <string name="equalizer_import">Importar</string>
+    <string name="equalizer_export">Exportar</string>
+    <string name="equalizer_export_copied">Perfil de ecualizador copiado al portapapeles</string>
+    <string name="equalizer_import_title">Importar perfil de ecualizador</string>
+    <string name="equalizer_import_hint">Pega texto de Equalizer APO, Peace o GraphicEQ…</string>
+    <string name="equalizer_import_clipboard">Portapapeles</string>
+    <string name="equalizer_import_file">Archivo</string>
+    <string name="equalizer_import_apply">Aplicar</string>
+    <string name="equalizer_import_error">No se pudieron analizar los filtros del ecualizador</string>
+    <string name="equalizer_direct_input_title">Establecer ganancia de %s</string>
+    <string name="equalizer_direct_input_hint">Introduce ganancia (-12.0 a +12.0 dB)</string>
 </resources>

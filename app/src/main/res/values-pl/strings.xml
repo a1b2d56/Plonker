@@ -1517,4 +1517,18 @@
     <string name="romanized_lyrics">Romanizacja tekstów</string>
     <string name="romanized_lyrics_subtitle">Pokazuje wymowę alfabetem łacińskim pod tekstami zapisanymi innym pismem</string>
     <string name="lyrics">Teksty</string>
+    <string name="pause_on_zero_volume">Wstrzymaj odtwarzanie przy głośności 0</string>
+    <string name="pause_on_zero_volume_subtitle">Automatycznie wstrzymaj, gdy głośność spadnie do zera, i wznów po podgłośnieniu</string>
+    <string name="zero_volume_play_blocked">Głośność jest wyciszona</string>
+    <string name="equalizer_import">Importuj</string>
+    <string name="equalizer_export">Eksportuj</string>
+    <string name="equalizer_export_copied">Profil korektora skopiowano do schowka</string>
+    <string name="equalizer_import_title">Importuj profil korektora</string>
+    <string name="equalizer_import_hint">Wklej tekst Equalizer APO, Peace lub GraphicEQ…</string>
+    <string name="equalizer_import_clipboard">Schowek</string>
+    <string name="equalizer_import_file">Plik</string>
+    <string name="equalizer_import_apply">Zastosuj</string>
+    <string name="equalizer_import_error">Nie udało się przetworzyć filtrów korektora</string>
+    <string name="equalizer_direct_input_title">Ustaw wzmocnienie %s</string>
+    <string name="equalizer_direct_input_hint">Wprowadź wzmocnienie (-12.0 do +12.0 dB)</string>
 </resources>

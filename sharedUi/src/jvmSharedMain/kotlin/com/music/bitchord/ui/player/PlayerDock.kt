@@ -38,6 +38,7 @@ class PlayerDock {
      */
     private var miniArt: LayoutCoordinates? = null
     private var miniArtCorner: Dp = 8.dp
+    private val activeMiniArts = mutableListOf<Pair<LayoutCoordinates, Dp>>()
 
     /**
      * How far the player sheet sits below fully open, in pixels. Set by the
@@ -59,16 +60,33 @@ class PlayerDock {
 
     /** Reported by the mini player's cover whenever it is placed. */
     fun reportMiniArt(coordinates: LayoutCoordinates, corner: Dp) {
+        activeMiniArts.removeAll { it.first === coordinates }
+        activeMiniArts.add(coordinates to corner)
         miniArt = coordinates
         miniArtCorner = corner
     }
 
     /** From the cover leaving composition, so a stale rect is never flown to. */
     fun releaseMiniArt(coordinates: LayoutCoordinates) {
-        if (miniArt === coordinates) miniArt = null
+        activeMiniArts.removeAll { it.first === coordinates }
+        if (miniArt === coordinates) {
+            val fallback = activeMiniArts.lastOrNull { it.first.isAttached }
+            miniArt = fallback?.first
+            if (fallback != null) miniArtCorner = fallback.second
+        }
     }
 
-    internal fun hasMiniArt(): Boolean = miniArt?.isAttached == true
+    internal fun hasMiniArt(): Boolean {
+        val current = miniArt
+        if (current != null && current.isAttached) return true
+        val fallback = activeMiniArts.lastOrNull { it.first.isAttached }
+        if (fallback != null) {
+            miniArt = fallback.first
+            miniArtCorner = fallback.second
+            return true
+        }
+        return false
+    }
 
     /**
      * Both corners mapped through every transform above the cover, not its
@@ -76,7 +94,13 @@ class PlayerDock {
      * and the artwork landed on a cover a fifth bigger than the one on screen.
      */
     internal fun miniArtOnScreen(): Rect? {
-        val coordinates = miniArt?.takeIf { it.isAttached } ?: return null
+        val coordinates = miniArt?.takeIf { it.isAttached }
+            ?: activeMiniArts.lastOrNull { it.first.isAttached }?.let {
+                miniArt = it.first
+                miniArtCorner = it.second
+                it.first
+            }
+            ?: return null
         val size = coordinates.size.toSize()
         return Rect(
             coordinates.localToScreen(Offset.Zero),

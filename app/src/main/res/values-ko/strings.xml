@@ -1327,4 +1327,18 @@
     <string name="romanized_lyrics">가사 로마자 표기</string>
     <string name="romanized_lyrics_subtitle">다른 문자로 된 가사 아래에 로마자 발음을 표시합니다</string>
     <string name="lyrics">가사</string>
+    <string name="pause_on_zero_volume">음량 0에서 재생 일시정지</string>
+    <string name="pause_on_zero_volume_subtitle">미디어 음량이 0이 되면 자동으로 일시정지하고 올리면 다시 재생합니다</string>
+    <string name="zero_volume_play_blocked">음량이 음소거되어 있습니다</string>
+    <string name="equalizer_import">가져오기</string>
+    <string name="equalizer_export">내보내기</string>
+    <string name="equalizer_export_copied">이퀄라이저 프로필을 클립보드에 복사했습니다</string>
+    <string name="equalizer_import_title">이퀄라이저 프로필 가져오기</string>
+    <string name="equalizer_import_hint">Equalizer APO, Peace 또는 GraphicEQ 텍스트 붙여넣기…</string>
+    <string name="equalizer_import_clipboard">클립보드</string>
+    <string name="equalizer_import_file">파일</string>
+    <string name="equalizer_import_apply">적용</string>
+    <string name="equalizer_import_error">이퀄라이저 필터를 구문 분석할 수 없습니다</string>
+    <string name="equalizer_direct_input_title">%s 게인 설정</string>
+    <string name="equalizer_direct_input_hint">게인 입력 (-12.0 ~ +12.0 dB)</string>
 </resources>
