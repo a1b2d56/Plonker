@@ -105,6 +105,7 @@ internal class UsbDirectTransport private constructor(
     override fun write(buffer: ByteBuffer): Int {
         val count = call { UsbDirectNative.write(handle, buffer, buffer.position(), minOf(buffer.remaining(), MAX_WRITE)) }
         buffer.position(buffer.position() + count)
+        if (count > 0) UsbDacWatchdog.notifyWriteSuccess()
         return count
     }
 
@@ -127,6 +128,7 @@ internal class UsbDirectTransport private constructor(
     }
 
     override fun release() {
+        UsbDacWatchdog.detachTransport(this)
         // Leave the DAC at the volume it had before this stream lowered it;
         // the next owner, Android's driver or another app, expects that level.
         // Pointless once it is unplugged, and a closed handle cannot be asked.
@@ -137,7 +139,7 @@ internal class UsbDirectTransport private constructor(
         // releasing the interfaces) before Android closes the descriptor.
         if (handle != 0L) UsbDirectNative.close(handle)
         handle = 0
-        runCatching { connection.close() }
+        UsbDacWatchdog.safeCloseConnection(connection)
     }
 
     private inline fun <T> call(block: () -> T): T {
@@ -187,7 +189,7 @@ internal class UsbDirectTransport private constructor(
                 if (volume != null && rememberedDb != null) {
                     runCatching { volume.set(control, minOf(rememberedDb, volume.snapshot.restoreLimitDb)) }
                 }
-                return UsbDirectTransport(
+                val transport = UsbDirectTransport(
                     connection = connection,
                     handle = handle,
                     usbDeviceId = device.deviceId,
@@ -195,6 +197,8 @@ internal class UsbDirectTransport private constructor(
                     format = plan.format,
                     volumeControl = volume,
                 )
+                UsbDacWatchdog.attachTransport(transport)
+                return transport
             } catch (error: Exception) {
                 if (handle != 0L) UsbDirectNative.close(handle)
                 runCatching { connection.close() }

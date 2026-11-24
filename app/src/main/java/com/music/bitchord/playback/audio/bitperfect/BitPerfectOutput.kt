@@ -129,7 +129,11 @@ internal object BitPerfectOutput {
                         it.type == android.media.AudioDeviceInfo.TYPE_WIRED_HEADSET
                 } == true
         }
+        val wasAttached = this.attached
         this.attached = attached
+        if (!wasAttached && attached) {
+            resetTransientFailures()
+        }
         recomputeReady()
     }
 
@@ -177,8 +181,16 @@ internal object BitPerfectOutput {
     init {
         // A detached DAC stops its stream at once rather than at the next write.
         UsbDirectDevices.onDetached = { deviceId ->
+            com.music.bitchord.playback.audio.bitperfect.usb.UsbDacWatchdog.onDeviceDetached(deviceId)
             synchronized(this) { (active as? UsbDirectTransport)?.takeIf { it.usbDeviceId == deviceId } }
                 ?.markDetached()
+        }
+    }
+
+    fun resetTransientFailures() {
+        synchronized(this) {
+            failed.clear()
+            failedFor = null
         }
     }
 

@@ -57,6 +57,7 @@ internal object UsbDirectDevices {
                         volumes.remove(device.deviceId)
                         if (requested == device.deviceId) requested = null
                     }
+                    UsbDacWatchdog.onDeviceDetached(device.deviceId)
                     onDetached?.invoke(device.deviceId)
                     onChanged?.invoke()
                 }
