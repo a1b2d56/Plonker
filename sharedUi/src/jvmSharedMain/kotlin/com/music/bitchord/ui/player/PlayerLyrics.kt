@@ -1112,9 +1112,42 @@ private fun ContentDrawScope.riseWith(
                     start, end, top, bottom, inset, peak, em, growth,
                 )
             } else {
-                // Only what is off the floor gets room above the row to be off
-                // it in; see [top].
-                sliceRisen(from, top - peak, to, bottom, -lift * peak)
+                val fullText = layout.layoutInput.text.text
+                val wordStr = fullText.substring(start, end)
+                val wordObj = line.words.getOrNull(index)
+                val isActivelySinging = wordObj != null && positionMs < wordObj.endMs
+                val canDoLetterLift = isActivelySinging && !wordStr.hasNonLatinScript()
+
+                if (canDoLetterLift) {
+                    val starts = (start until end).filter { c ->
+                        val ch = fullText[c]
+                        c == start || !(ch.isLowSurrogate() || ch == '\u200D' || ch == '\u200C' ||
+                            Character.getType(ch).let {
+                                it == Character.NON_SPACING_MARK.toInt() ||
+                                it == Character.COMBINING_SPACING_MARK.toInt() ||
+                                it == Character.ENCLOSING_MARK.toInt()
+                            })
+                    }
+                    if (starts.size > 1) {
+                        for (k in starts.indices) {
+                            val charStart = starts[k]
+                            val charEnd = starts.getOrElse(k + 1) { end }
+                            val charFrom = layout.xOn(charStart, visualLine, inset)
+                            val charTo = layout.xOn(charEnd, visualLine, inset)
+                            if (charTo <= charFrom) continue
+                            val letterLift = line.letterLift(index, positionMs, k, starts.size)
+                            sliceRisen(charFrom, top - peak, charTo, bottom, -letterLift * peak)
+                        }
+                    } else {
+                        // Only what is off the floor gets room above the row to be off
+                        // it in; see [top].
+                        sliceRisen(from, top - peak, to, bottom, -lift * peak)
+                    }
+                } else {
+                    // Only what is off the floor gets room above the row to be off
+                    // it in; see [top].
+                    sliceRisen(from, top - peak, to, bottom, -lift * peak)
+                }
             }
             at = end
             edge = to
@@ -1185,6 +1218,21 @@ private fun ContentDrawScope.growEach(
                 }
             }
         }
+    }
+}
+
+/**
+ * Checks whether text contains scripts with connected/cursive strokes (Arabic, Indic headline, etc.)
+ * where slicing between individual letters would disrupt joined letterforms.
+ */
+private fun String.hasNonLatinScript(): Boolean = any {
+    when (Character.UnicodeScript.of(it.code)) {
+        Character.UnicodeScript.LATIN,
+        Character.UnicodeScript.COMMON,
+        Character.UnicodeScript.INHERITED,
+        Character.UnicodeScript.CYRILLIC,
+        Character.UnicodeScript.GREEK -> false
+        else -> true
     }
 }
 

@@ -61,6 +61,26 @@ class LyricAnimationWindowTest {
         }
     }
 
+    @Test
+    fun letterLiftRollsProgressivelyAndSettlesInLockstep() {
+        val line = lines[0] // "long enough", word 0: 10_000..10_400 (400ms)
+        // Before word starts: all letters at 0 lift
+        assertEquals(0f, line.letterLift(0, 9_900, 0, 4), 0.001f)
+        assertEquals(0f, line.letterLift(0, 9_900, 3, 4), 0.001f)
+
+        // Mid-word at 10_150ms: first letter has risen further than the last letter
+        val firstLetterLift = line.letterLift(0, 10_150, 0, 4)
+        val lastLetterLift = line.letterLift(0, 10_150, 3, 4)
+        assertTrue("First letter should lead last letter in lift wave", firstLetterLift > lastLetterLift)
+
+        // After word ends at 10_600ms (settling phase): all letters settle in exact lockstep
+        val settleFirst = line.letterLift(0, 10_600, 0, 4)
+        val settleLast = line.letterLift(0, 10_600, 3, 4)
+        val settleWord = line.wordLift(0, 10_600)
+        assertEquals("Letters must match wordLift when settling", settleWord, settleFirst, 0.001f)
+        assertEquals("All letters must settle equally", settleFirst, settleLast, 0.001f)
+    }
+
     @Test fun nothingMovesAfterTheWindow() {
         for (line in lines) {
             val drawn = line.pictureAt(line.animatesUntilMs + 1)

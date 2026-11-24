@@ -251,6 +251,29 @@ data class LyricLine(
     }
 
     /**
+     * How high a letter within a word is lifted at [positionMs].
+     *
+     * As the word is sung, the lift rolls progressively across each letter
+     * according to its position within the word. Once the word has finished
+     * singing ([positionMs] >= [word.endMs]), all letters settle back down
+     * together in lockstep.
+     */
+    fun letterLift(index: Int, positionMs: Long, letterIndex: Int, totalLetters: Int): Float {
+        val word = words.getOrNull(index) ?: return 0f
+        if (totalLetters <= 1 || positionMs >= word.endMs) {
+            return wordLift(index, positionMs)
+        }
+        val dur = (word.endMs - word.startMs).toFloat().coerceAtLeast(1f)
+        val offset = dur * 0.65f * letterIndex.toFloat() / (totalLetters - 1).toFloat()
+        val letterStartMs = word.startMs + offset
+        val letterDur = (word.endMs - letterStartMs).coerceAtLeast(1f)
+        val riseMs = letterDur.coerceIn(RISE_MIN_MS, RISE_MS)
+        val rising = ((positionMs - letterStartMs) / riseMs).coerceIn(0f, 1f)
+        val falling = (1f - (positionMs - word.endMs) / RISE_MS).coerceIn(0f, 1f)
+        return liftHeight(word) * smooth(minOf(rising, falling))
+    }
+
+    /**
      * Whether anything actually told us when the singing stops, rather than
      * only when it starts. Word timings carry it, and so does a provider that
      * stamps the line's own end ([sungUntilMs]).
