@@ -1,6 +1,20 @@
 package com.music.bitchord.ui.screens
 
 import com.music.bitchord.ui.icons.SfIcons
+import android.content.Intent
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import com.music.bitchord.playback.ParametricEqText
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -102,6 +116,8 @@ fun EqualizerScreen(
     val bands by AppSettings.equalizerBands.collectAsStateWithLifecycle()
     val preset by AppSettings.equalizerPreset.collectAsStateWithLifecycle()
     val outputStatus by AudioOutputStatus.current.collectAsStateWithLifecycle()
+    var importDialogOpen by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
 
     val haptics = rememberHaptics()
 
@@ -209,6 +225,31 @@ fun EqualizerScreen(
                             enabled = enabled,
                         )
                         RowDivider()
+                        SettingsRow(
+                            icon = SfIcons.FileDownload,
+                            title = stringResource(R.string.equalizer_import),
+                            subtitle = stringResource(R.string.equalizer_import_hint),
+                            onClick = { importDialogOpen = true },
+                            enabled = enabled,
+                        )
+                        RowDivider()
+                        SettingsRow(
+                            icon = SfIcons.Share,
+                            title = stringResource(R.string.equalizer_export),
+                            subtitle = stringResource(R.string.equalizer_export_copied),
+                            onClick = {
+                                val exported = ParametricEqText.format(bands)
+                                clipboardManager.setText(AnnotatedString(exported))
+                                Toast.makeText(context, R.string.equalizer_export_copied, Toast.LENGTH_SHORT).show()
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, exported)
+                                }
+                                context.startActivity(Intent.createChooser(sendIntent, context.getString(R.string.equalizer_export)))
+                            },
+                            enabled = enabled,
+                        )
+                        RowDivider()
                         DestructiveRow(
                             label = stringResource(R.string.equalizer_reset),
                             enabled = enabled,
@@ -264,6 +305,19 @@ fun EqualizerScreen(
                 title = stringResource(R.string.system_equalizer),
                 subtitle = stringResource(R.string.system_equalizer_subtitle),
                 onClick = { openEqualizer(context, sessionId) },
+            )
+        }
+
+        if (importDialogOpen) {
+            ImportEqualizerDialog(
+                onDismiss = { importDialogOpen = false },
+                onImport = { text ->
+                    val parsed = ParametricEqText.parse(text)
+                    if (parsed != null) {
+                        AppSettings.setEqualizerBands(parsed.bands)
+                        true
+                    } else false
+                },
             )
         }
 
@@ -513,6 +567,8 @@ private fun BandSliders(
     enabled: Boolean,
     onChange: (List<Float>) -> Unit,
 ) {
+    var directInputBand by remember { mutableStateOf<Int?>(null) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -534,6 +590,9 @@ private fun BandSliders(
                         MaterialTheme.colorScheme.primary
                     },
                     maxLines = 1,
+                    modifier = Modifier.clickable(enabled = enabled) {
+                        directInputBand = index
+                    },
                 )
                 Spacer(Modifier.height(8.dp))
                 BandFader(
@@ -553,6 +612,18 @@ private fun BandSliders(
                 )
             }
         }
+    }
+
+    directInputBand?.let { index ->
+        val currentGain = bands.getOrElse(index) { 0f }
+        DirectGainDialog(
+            bandIndex = index,
+            currentGain = currentGain,
+            onDismiss = { directInputBand = null },
+            onApply = { newGain ->
+                onChange(bands.toMutableList().also { it[index] = newGain })
+            },
+        )
     }
 }
 
@@ -875,3 +946,154 @@ private const val ZERO_DETENT_DB = 0.6f
 
 /** Same, for the balance trim's own centre. */
 private const val BALANCE_DETENT = 0.04f
+
+@Composable
+private fun DirectGainDialog(
+    bandIndex: Int,
+    currentGain: Float,
+    onDismiss: () -> Unit,
+    onApply: (Float) -> Unit,
+) {
+    val hz = EqLayout.MANUAL_BANDS_HZ[bandIndex]
+    val hzLabel = formatFrequency(hz)
+    var text by remember { mutableStateOf("%.1f".format(Locale.ROOT, currentGain)) }
+    var isError by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.equalizer_direct_input_title, hzLabel)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(R.string.equalizer_direct_input_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = {
+                        text = it
+                        val parsed = it.toFloatOrNull()
+                        isError = parsed == null || parsed < -EqLayout.MANUAL_RANGE_DB || parsed > EqLayout.MANUAL_RANGE_DB
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    isError = isError,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val parsed = text.toFloatOrNull()
+                    if (parsed != null && parsed >= -EqLayout.MANUAL_RANGE_DB && parsed <= EqLayout.MANUAL_RANGE_DB) {
+                        onApply(snapGain(parsed, EqLayout.MANUAL_RANGE_DB))
+                        onDismiss()
+                    } else {
+                        isError = true
+                    }
+                },
+                enabled = !isError && text.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.equalizer_import_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ImportEqualizerDialog(
+    onDismiss: () -> Unit,
+    onImport: (String) -> Boolean,
+) {
+    var text by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    val content = stream.bufferedReader().use { it.readText() }
+                    text = content
+                    error = false
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.equalizer_import_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            clipboardManager.getText()?.text?.let { clipText ->
+                                text = clipText
+                                error = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(SfIcons.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.equalizer_import_clipboard), maxLines = 1)
+                    }
+                    OutlinedButton(
+                        onClick = { filePickerLauncher.launch("*/*") },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(SfIcons.Folder, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.equalizer_import_file), maxLines = 1)
+                    }
+                }
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = {
+                        text = it
+                        error = false
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    placeholder = { Text(stringResource(R.string.equalizer_import_hint)) },
+                    isError = error,
+                    supportingText = if (error) {
+                        { Text(stringResource(R.string.equalizer_import_error), color = MaterialTheme.colorScheme.error) }
+                    } else null,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (onImport(text)) {
+                        onDismiss()
+                    } else {
+                        error = true
+                    }
+                },
+                enabled = text.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.equalizer_import_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
+}

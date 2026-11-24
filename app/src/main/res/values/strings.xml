@@ -323,6 +323,17 @@
     <string name="system_equalizer">System equaliser</string>
     <string name="system_equalizer_subtitle">Your device\'s own panel</string>
     <string name="system_equalizer_footer">Runs after Plonker\'s, on the whole audio session. Using both applies both.</string>
+    <string name="equalizer_import">Import</string>
+    <string name="equalizer_export">Export</string>
+    <string name="equalizer_export_copied">Equaliser profile copied to clipboard</string>
+    <string name="equalizer_import_title">Import Equaliser Profile</string>
+    <string name="equalizer_import_hint">Paste Equalizer APO, Peace, or GraphicEQ text…</string>
+    <string name="equalizer_import_clipboard">Clipboard</string>
+    <string name="equalizer_import_file">File</string>
+    <string name="equalizer_import_apply">Apply</string>
+    <string name="equalizer_import_error">Could not parse equaliser filters from text</string>
+    <string name="equalizer_direct_input_title">Set %s Gain</string>
+    <string name="equalizer_direct_input_hint">Enter gain (-12.0 to +12.0 dB)</string>
     <string name="eq_preset_flat">Flat</string>
     <string name="eq_preset_acoustic">Acoustic</string>
     <string name="eq_preset_bass_boost">Bass boost</string>
