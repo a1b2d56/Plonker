@@ -1705,6 +1705,25 @@ private fun BitChordApp(
                 )
                 showNowPlaying = true
             }
+            is LinkRequest.LocalFiles -> {
+                val songs = request.uris.mapNotNull { uri ->
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                        )
+                    }
+                    runCatching { LocalMediaRepository.songFromUri(context, uri) }.getOrNull()
+                }
+                if (songs.isNotEmpty()) {
+                    playFrom(
+                        songs,
+                        0,
+                        QueueSource(openedFileLabel, PlaybackSourceType.SHARED_LINK, songs.first().localUri),
+                    )
+                    showNowPlaying = true
+                }
+            }
         }
         MusicLink.handled()
     }

@@ -10,6 +10,7 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.music.bitchord.data.DebugLog as Log
+import com.music.bitchord.data.web.QuietWebChromeClient
 import com.music.bitchord.data.Http
 import com.music.bitchord.data.settings.AppSettings
 import kotlinx.coroutines.CompletableDeferred
@@ -443,6 +444,7 @@ internal object SpotifyToken {
                 settings.userAgentString = CANVAS_UA
                 cookieManager.setAcceptThirdPartyCookies(this, true)
                 addJavascriptInterface(TokenBridge(deferred, acceptAnonymous), BRIDGE_NAME)
+                webChromeClient = QuietWebChromeClient()
 
                 webViewClient = object : WebViewClient() {
                     override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {

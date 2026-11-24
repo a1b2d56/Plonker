@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import com.music.bitchord.data.web.QuietWebChromeClient
 
 class PoTokenWebView private constructor(
     context: Context,
@@ -79,18 +80,18 @@ class PoTokenWebView private constructor(
         // so that we can run async functions and get back the result
         webView.addJavascriptInterface(this, JS_INTERFACE)
 
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onConsoleMessage(m: ConsoleMessage): Boolean {
-                val msg = m.message()
+        webView.webChromeClient = object : QuietWebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage): Boolean {
+                val msg = consoleMessage.message()
                 // Log all console messages for debugging
-                when (m.messageLevel()) {
+                when (consoleMessage.messageLevel()) {
                     ConsoleMessage.MessageLevel.ERROR -> TrackLog.e(TAG, "JS: $msg")
                     ConsoleMessage.MessageLevel.WARNING -> TrackLog.w(TAG, "JS: $msg")
                     else -> TrackLog.d(TAG, "JS: $msg")
                 }
 
                 if (msg.contains("Uncaught")) {
-                    val fmt = "\"$msg\", source: ${m.sourceId()} (${m.lineNumber()})"
+                    val fmt = "\"$msg\", source: ${consoleMessage.sourceId()} (${consoleMessage.lineNumber()})"
                     if (initResumed.get()) {
                         // Post-init: our static HTML already executed fine, so an uncaught error
                         // here comes from Google's remotely-served botguard/minter JS — transient,
@@ -113,7 +114,8 @@ class PoTokenWebView private constructor(
                         }
                     }
                 }
-                return super.onConsoleMessage(m)
+                // Recorded above for Copy Log; handled, so WebView does not echo it to logcat.
+                return true
             }
         }
 

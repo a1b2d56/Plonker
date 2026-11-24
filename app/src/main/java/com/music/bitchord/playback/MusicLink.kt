@@ -35,6 +35,11 @@ sealed interface LinkRequest {
      * handed over. See [com.music.bitchord.data.LocalMediaRepository.songFromUri].
      */
     data class LocalFile(val uri: Uri) : LinkRequest
+
+    /**
+     * Multiple audio files shared to the app together via ACTION_SEND_MULTIPLE.
+     */
+    data class LocalFiles(val uris: List<Uri>) : LinkRequest
 }
 
 /**
@@ -77,9 +82,32 @@ object MusicLink {
             Intent.ACTION_VIEW -> intent.data?.let { uri ->
                 if (uri.scheme == "content" || uri.scheme == "file") LinkRequest.LocalFile(uri) else parse(uri)
             }
-            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
-                ?.let(::firstUrl)
-                ?.let { parse(Uri.parse(it)) }
+            Intent.ACTION_SEND -> {
+                val streamUri = androidx.core.content.IntentCompat.getParcelableExtra(
+                    intent,
+                    Intent.EXTRA_STREAM,
+                    Uri::class.java,
+                )
+                if (streamUri != null) {
+                    LinkRequest.LocalFile(streamUri)
+                } else {
+                    intent.getStringExtra(Intent.EXTRA_TEXT)
+                        ?.let(::firstUrl)
+                        ?.let { parse(Uri.parse(it)) }
+                }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                val streamUris = androidx.core.content.IntentCompat.getParcelableArrayListExtra(
+                    intent,
+                    Intent.EXTRA_STREAM,
+                    Uri::class.java,
+                ).orEmpty()
+                when {
+                    streamUris.isEmpty() -> null
+                    streamUris.size == 1 -> LinkRequest.LocalFile(streamUris.first())
+                    else -> LinkRequest.LocalFiles(streamUris)
+                }
+            }
             // The assistant's "play <something>". An empty query is the whole
             // point of the Resume case: "play music" names nothing, and the
             // useful answer is to carry on with what was already on.
@@ -169,7 +197,7 @@ object MusicLink {
      * Share sheets rarely send the bare link: YT Music sends the song's title
      * and a newline before it, other apps wrap it in a sentence.
      */
-    private fun firstUrl(text: String): String? =
+    internal fun firstUrl(text: String): String? =
         URL_IN_TEXT.find(text)?.value
 
     private val URL_IN_TEXT = Regex("""https?://\S+""")

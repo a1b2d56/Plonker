@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.music.bitchord.data.DebugLog as Log
+import com.music.bitchord.data.web.QuietWebChromeClient
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -101,6 +102,7 @@ fun YtMusicLoginScreen(
                 settings.domStorageEnabled = true
                 settings.allowFileAccess = false
                 settings.allowContentAccess = false
+                webChromeClient = QuietWebChromeClient()
                 configureWebView(this)
 
                 webViewClient = object : WebViewClient() {
